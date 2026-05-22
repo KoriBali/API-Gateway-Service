@@ -1,11 +1,15 @@
 # app/mappers/staging_entity_mapper.py
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from datetime import datetime
-from app.schemas.load_object import LoadObjectRequest
-from app.models.staging import (
+from app.modules.load_object.schemas import LoadObjectRequest
+from app.staging.models import (
     StagingProject, StagingCondition, StagingStepPole, 
     StagingHighEval, StagingDirectObject, 
     StagingCalculationResult,StagingPoleResult, StagingDirectObjectResult
 )
+
+from app.modules.load_object.schemas import StagingDataResponseSchema
 
 class StagingEntityMapper:
     @staticmethod
@@ -96,3 +100,85 @@ class StagingEntityMapper:
 
 
         return project_entity
+    
+
+    @staticmethod
+    def build_load_object_query(session_id: str):
+        """Menyusun query relasi spesifik untuk tiang (load object)."""
+        stmt = select(StagingProject).where(StagingProject.id == session_id).options(
+            selectinload(StagingProject.condition),
+            selectinload(StagingProject.high_evals)
+                .selectinload(StagingHighEval.calculation_result)
+                    .selectinload(StagingCalculationResult.pole_results)
+                        .selectinload(StagingPoleResult.step_pole), 
+            selectinload(StagingProject.high_evals)
+                .selectinload(StagingHighEval.calculation_result)
+                    .selectinload(StagingCalculationResult.direct_object_results)
+                        .selectinload(StagingDirectObjectResult.direct_object) 
+        )
+        return stmt
+
+    @staticmethod
+    def format_load_object_response(project) -> StagingDataResponseSchema:
+        """Translasi data mentah DB menjadi Pydantic Response."""
+        
+        # Helper function kita jadikan inner function agar rapi
+        def map_pole_result(p):
+            pole = p.step_pole
+            return {
+                "type": "pole",
+                "name": pole.name if pole else "Unknown Pole",
+                "moment": p.moment,
+                "windload": p.windload,
+                "diameter": pole.diameter if pole else None,
+                "thickness": pole.thickness if pole else None,
+                "material": pole.material if pole else None,
+                "height": pole.height if pole else None,
+                "quantity": pole.quantity if pole else None,
+            }
+
+        def map_direct_object_result(d):
+            obj = d.direct_object
+            return {
+                "type": "direct_object",
+                "name": obj.name if obj else "Unknown Object",
+                "moment": d.moment,
+                "windload": d.windload,
+                "front_area": obj.front_area if obj else None,
+                "side_area": obj.side_area if obj else None,
+                "coefficient": obj.coefficient if obj else None,
+                "weight": obj.weight if obj else None,
+                "quantity": obj.quantity if obj else None,
+            }
+
+        high_eval_list = []
+        for h in project.high_evals:
+            calc = h.calculation_result
+            objects = []
+            if calc:
+                objects.extend(map_pole_result(p) for p in calc.pole_results)
+                objects.extend(map_direct_object_result(p) for p in calc.direct_object_results)
+
+            high_eval_list.append({
+                "name": h.name,
+                "status": calc.status if calc else "N/A",
+                "totalMoment": calc.total_moment if calc else 0.0,
+                "totalWindload": calc.total_windload if calc else 0.0,
+                "zRef": h.point_evaluate, 
+                "objects": objects
+            })
+
+        return StagingDataResponseSchema(
+            project={
+                "title": project.title,
+                "report_number": project.report_number,
+                "date": project.date, 
+                "project_type": project.project_type
+            },
+            condition={
+                "design_standard": project.condition.design_standard,
+                "wind_speed": project.condition.wind_speed,
+                "air_density": project.condition.air_density
+            },
+            high_evaluations=high_eval_list
+        )

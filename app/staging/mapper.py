@@ -1,17 +1,18 @@
-from app.schemas.load_object import LoadObjectRequest
+from pydantic import BaseModel
 
 class Mapper:
     
     @staticmethod
-    def to_pure_calculation_payload(payload: LoadObjectRequest) -> dict:
+    def to_pure_calculation_payload(payload: BaseModel) -> dict:
         """
         Memisahkan metadata bisnis dan hanya mengambil payload murni 
         Project dan Condition
         """
         
         full_dict = payload.model_dump()
+
+        # Keluarkan project karena itu adalah meta data
         full_dict.pop("project", None)
-        # full_dict.pop("condition", None)
         return full_dict
 
     @staticmethod

@@ -7,7 +7,6 @@ from loguru import logger
 
 from app.core.config import settings
 from app.core.security import get_internal_service_headers
-from app.schemas.opening_part import OpeningPartResponse, OpeningPartResponseStatus
 from app.utils.message_response import get_message_by_unique_code 
 
 # Generic Class untuk menampung respoonse dari forwarder

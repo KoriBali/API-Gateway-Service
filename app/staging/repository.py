@@ -1,6 +1,6 @@
 # app/repositories/staging_repository.py
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.staging import StagingProject
+from app.staging.models import StagingProject
 
 class StagingRepository:
     @staticmethod

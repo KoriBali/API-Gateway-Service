@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.routes import opening_part, pole, load_object
+from app.modules.load_object.router import routerLoadObject
+from app.modules.opening_part.router import routerOpeningPart
 
 # Database Needs
 from app.core.staging_database import engine, Base
-from app.models.staging import StagingProject
+from app.staging.models import StagingProject
 
 # setup logging saat app start
 setup_logging()
@@ -44,9 +45,8 @@ app.add_middleware(
 )
 
 # register router
-app.include_router(opening_part.router)
-app.include_router(pole.router)
-app.include_router(load_object.router)
+app.include_router(routerLoadObject)
+app.include_router(routerOpeningPart)
 
 
 """ Entry Point Start """
