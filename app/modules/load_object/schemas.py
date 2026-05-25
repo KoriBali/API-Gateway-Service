@@ -19,6 +19,17 @@ class DirectObjectSchema(CamelBaseModel):
     weight: float
     z_height: float
 
+class OverheadWireSchema(CamelBaseModel):
+    name: str
+    weight: float
+    z_height: float
+    span: float
+    diameter: float
+    sagging_ratio: float
+    nnc: float
+    fix_angle: float
+    vertical_angle: float
+
 
 class ProjectSchema(CamelBaseModel):
     report_number: str
@@ -36,7 +47,8 @@ class LoadObjectRequest(CamelBaseModel):
     condition: ConditionSchema
     poles: List[PoleSchema]
     high_evaluation: Dict[str, float]
-    direct_objects: Optional[List[DirectObjectSchema]] = []
+    direct_objects: Optional[List[DirectObjectSchema]] = [] # Optional
+    overhead_wires: Optional[List[OverheadWireSchema]] = [] # Optional
     session_id: Optional[str] = None
 
 

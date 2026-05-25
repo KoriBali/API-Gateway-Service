@@ -19,6 +19,9 @@ class Orchestrator:
         Mengorkestrasi alur pemisahan data, pemanggilan calculation dengan mempertahankan 
         konvensi message & success asli, dan penyimpanan ke staging database.
         """
+        
+
+
         # 1. Pemisahan Payload via Mapper
         pure_calculation_payload = to_pure_payload_func(payload)
         
@@ -62,3 +65,48 @@ class Orchestrator:
         
         response_data = format_response_func(data)
         return response_data.model_dump(mode="json")
+    
+
+    @staticmethod
+    async def save_main_database(
+        session_id: str,
+        db: AsyncSession,
+        get_staging_func: Callable[[str, AsyncSession], Any],
+        # map_to_main_func: Callable[[Any], Any],
+        # save_to_main_repo_func: Callable[[Any, AsyncSession], None]
+    ):
+        """
+        Orchestrator agnostik untuk memindahkan data dari Staging ke Main DB.
+        Bisa dipakai oleh load_object, base_plate, foundation, dll.
+        """
+        # 1. Ambil data dari Staging
+        staging_data = await get_staging_func(session_id, db)
+        if not staging_data:
+            return None # Nanti di-handle oleh HTTP 404 di Router
+            
+        # 2. Ubah status
+        staging_data.status = "save"
+        
+        # 3. Mapping data staging menjadi entitas Main DB
+        # main_entities = map_to_main_func(staging_data)
+        
+        # 4. Save entitas ke Main DB 
+        # await save_to_main_repo_func(main_entities, db)
+        
+        # 5. Eksekusi semua perubahan
+        await db.commit()
+        
+        return True
+    
+
+
+    # Hapus data Staging
+    async def delete_staging_data(
+            session_id: str,
+            db: AsyncSession,
+            delete_repo_func: Callable[[str, AsyncSession], bool]
+    )-> bool:
+        
+        success = await delete_repo_func(session_id, db)
+
+        return success

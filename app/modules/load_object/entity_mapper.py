@@ -1,4 +1,5 @@
 # app/mappers/staging_entity_mapper.py
+import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime
@@ -17,8 +18,12 @@ class StagingEntityMapper:
         # Parsing date dari string ke Date object (YYYY-MM-DD)
         proj_date = datetime.strptime(payload.project.project_date, "%Y-%m-%d").date() if payload.project.project_date else None
 
+        # Check apakah ada session_id in payload
+        current_id = payload.session_id if payload.session_id else str(uuid.uuid4())
+
         # 1. Buat Parent (project)
         project_entity = StagingProject(
+            id = current_id,
             title=payload.project.project_title,
             date=proj_date,
             report_number=payload.project.report_number,
