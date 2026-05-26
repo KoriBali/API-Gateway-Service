@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging import setup_logging
+
+from app.modules.internal.router import routerInternal
 from app.modules.load_object.router import routerLoadObject
 from app.modules.opening_part.router import routerOpeningPart
 
@@ -45,6 +47,8 @@ app.add_middleware(
 )
 
 # register router
+app.include_router(routerInternal)
+
 app.include_router(routerLoadObject)
 app.include_router(routerOpeningPart)
 

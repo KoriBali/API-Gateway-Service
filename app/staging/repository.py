@@ -1,6 +1,7 @@
 # app/repositories/staging_repository.py
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta, timezone
 from app.staging.models import StagingProject
 
 class StagingRepository:
@@ -69,3 +70,20 @@ class StagingRepository:
         await db.commit()
 
         return True
+    
+
+    # Delete by time
+    @staticmethod
+    async def delete_stale_projects(db: AsyncSession, days_threshold: int = 3) -> int:
+        """
+        Menghapus data staging project yang usianya lebih lama dari 'days_threshold'.
+        """
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_threshold)
+        print(datetime.now())
+        
+        stmt = delete(StagingProject).where(StagingProject.updated_at < cutoff_time)
+        
+        result = await db.execute(stmt)
+        await db.commit()
+        
+        return result.rowcount

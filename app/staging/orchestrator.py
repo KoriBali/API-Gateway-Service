@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Callable, Any, Awaitable
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from app.services.calculation import forward
@@ -110,3 +110,18 @@ class Orchestrator:
         success = await delete_repo_func(session_id, db)
 
         return success
+    
+
+
+    # Hapus Data semua staging
+    @staticmethod
+    async def clean_expired_staging(
+        db: AsyncSession, 
+        days: int ,
+        clean_repo_func: Callable[[AsyncSession, int], Awaitable[int]]
+        ) -> int:
+
+        # Panggil fungsi dari layer Repository
+        deleted_count = await clean_repo_func(db, days)
+        
+        return deleted_count

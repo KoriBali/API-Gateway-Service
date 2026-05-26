@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     DEBUG: str
 
+    INTERNAL_CLEANUP_TOKEN:str
+
     class Config:
         env_file = ".env"
 
