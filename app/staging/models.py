@@ -41,12 +41,20 @@ class StagingProject(Base):
     project_type = Column(Enum(ProjectType), nullable=True, default=ProjectType.lighting_pole)
     status = Column(Enum(StagingStatus), default=StagingStatus.pending)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Old Created & Updated at 
+    # created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # updated_at = Column(
+    #     DateTime, 
+    #     default=lambda: datetime.now(timezone.utc), 
+    #     onupdate=lambda: datetime.now(timezone.utc) 
+    # )
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
-        DateTime, 
-        default=lambda: datetime.now(timezone.utc), 
-        onupdate=lambda: datetime.now(timezone.utc) 
-    )
+    DateTime(timezone=True), 
+    default=lambda: datetime.now(timezone.utc), 
+    onupdate=lambda: datetime.now(timezone.utc) 
+)
 
     # Relationships (Cascade delete sangat penting di sini)
     condition = relationship("StagingCondition", back_populates="project", uselist=False, cascade="all, delete-orphan")

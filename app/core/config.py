@@ -12,6 +12,11 @@ class Settings(BaseSettings):
 
     INTERNAL_CLEANUP_TOKEN:str
 
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
+
+
     class Config:
         env_file = ".env"
 
