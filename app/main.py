@@ -21,9 +21,9 @@ setup_logging()
 # Staging Database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Dijalankan saat startup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Dijalankan saat startup (BEFORE ALEMBIC)
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.create_all)
     
     yield 
     
