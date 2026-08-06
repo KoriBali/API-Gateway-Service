@@ -13,7 +13,7 @@ from app.modules.opening_part.router import routerOpeningPart
 
 # Database Needs
 from app.core.staging_database import engine, Base
-from app.staging.models import StagingProject
+from app.database.staging.models import StagingProject
 
 # setup logging saat app start
 setup_logging()

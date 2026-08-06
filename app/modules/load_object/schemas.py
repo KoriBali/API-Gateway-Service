@@ -1,6 +1,6 @@
 from app.utils.base_schema import CamelBaseModel
 from typing import List, Dict, Optional
-from app.staging.models import MaterialType
+from app.database.staging.models import MaterialType
 from datetime import date
 
 
