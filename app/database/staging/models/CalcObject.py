@@ -18,10 +18,15 @@ class Pole(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
-    pole_type = Column(PoleType, default=PoleType.lighting)
+    pole_type = Column(Enum(PoleType), default=PoleType.lighting)
     standard = Column(String)
     quantity = Column(Float, nullable=False)
 
+    # Child
+    calculation_case = relationship("CalculationCase", back_populates="poles")
+
+    # Parent
+    step_poles = relationship("StepPole", back_populates="pole", cascade="all, delete-orphan", passive_deletes=True)
 
 
 # === Step Pole ===
@@ -36,6 +41,12 @@ class StepPole(Base):
     height = Column(Float, nullable=False)
     material = Column(String, nullable=False)
 
+    # Child
+    pole = relationship("Pole", back_populates="step_poles")
+
+    # Parent
+    pole_results = relationship("PoleResult", back_populates="step_pole")
+
 
 
 # === Pole Result ===
@@ -47,6 +58,11 @@ class PoleResult(Base):
     calculation_result_id = Column(String, ForeignKey('calculation_results.id', ondelete="CASCADE", onupdate="CASCADE"))
     windload = Column(Float, nullable=False)
     moment = Column(Float, nullable=False)
+
+    # Child
+    step_pole = relationship("StepPole", back_populates="pole_results")
+    calculation_result = relationship("CalculationResult", back_populates="pole_results")
+
 
 
 
@@ -64,9 +80,16 @@ class DirectObject(Base):
     height = Column(Float, nullable=False)
     quantity = Column(Float, nullable=False)
 
+    # Child
+    calculation_case = relationship("CalculationCase", back_populates="direct_objects")
+
+    # Parent
+    direct_object_results = relationship("DirectObjectResult", back_populates="direct_object", cascade="all, delete-orphan", passive_deletes=True)
 
 
-class PoleResult(Base):
+
+
+class DirectObjectResult(Base):
     __tablename__ = "direct_object_results"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
@@ -74,3 +97,7 @@ class PoleResult(Base):
     calculation_result_id = Column(String, ForeignKey('calculation_results.id', ondelete="CASCADE", onupdate="CASCADE"))
     windload = Column(Float, nullable=False)
     moment = Column(Float, nullable=False)
+
+    # Child
+    direct_object = relationship("DirectObject", back_populates="direct_object_results")
+    calculation_result = relationship("CalculationResult", back_populates="direct_object_results")

@@ -9,16 +9,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 Semua Model di Import agar AutoGenerate bisa deteksi semua tabel
 """
 from app.core.staging_database import Base
-from app.database.staging.models import(
-    StagingProject,
-    StagingCondition,
-    StagingHighEval,
-    StagingStepPole,
-    StagingDirectObject,
-    StagingCalculationResult,
-    StagingPoleResult,
-    StagingDirectObjectResult
-)
+from app.database.staging import models
 
 # Import setting untuk DATABASE_URL
 from app.core.config import settings
