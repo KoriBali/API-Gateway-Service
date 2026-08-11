@@ -1,7 +1,7 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, Integer, Enum, ForeignKey, Date, DateTime, JSON
+from sqlalchemy import Column, String, Boolean ,Float, Integer, Enum, ForeignKey, Date, DateTime, JSON
 from sqlalchemy.orm import relationship
 from app.core.staging_database import Base
 
@@ -33,12 +33,12 @@ class User(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     department_id = Column(String, ForeignKey('departments.id', ondelete='CASCADE', onupdate='CASCADE'))
     role = Column(Enum(Role), default=Role.drafter)
-    username = Column(String, nullable=False)
-    email = Column(String, nullable=False)
-    password = Column(String, nullable=False)
+    username = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
-    is_active = Column(String, nullable=False)
-    is_verfied = Column(String, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_verified = Column(Boolean, nullable=False)
     last_login_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, 
@@ -69,6 +69,13 @@ class DesignType(str, enum.Enum):
 class RequestCategory(str, enum.Enum):
     new = "new"
     revision = "revision"
+    modification = "modification"
+    replacement = "replacement"
+
+# === Pole Kind === 
+class PoleKind(str, enum.Enum):
+    standard = "standard"
+    custom = "custom" 
 
 # === Request ===
 class Request(Base):
@@ -77,12 +84,17 @@ class Request(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     responsible_department_id = Column(String, ForeignKey('departments.id', ondelete="CASCADE", onupdate="CASCADE"))
     created_by_user_id = Column(String, ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE"))
-    reqeust_no = Column(String, nullable=False)
-    reciept_no = Column(String, nullable=False)
+    pole_category_id = Column(String, ForeignKey('pole_categories.id', ondelete="CASCADE", onupdate="CASCADE"))
+    request_no = Column(String, nullable=False)
+    receipt_no = Column(String, nullable=False)
     pj_no = Column(String, nullable=False)
     request_type = Column(Enum(RequestType), nullable=False)
     design_type = Column(Enum(DesignType), nullable=False)
     request_category = Column(Enum(RequestCategory), nullable=False)
+    pole_kind = Column(Enum(PoleKind), nullable=True)
+    company_name = Column(String, nullable=True)
+    project_name = Column(String, nullable=True)
+    due_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, 
                         default=lambda: datetime.now(timezone.utc),
