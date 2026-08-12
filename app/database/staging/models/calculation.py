@@ -26,7 +26,7 @@ class GroundPosition(str, enum.Enum):
 class CalculationCase(Base):
     __tablename__ = "calculation_cases"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     request_id = Column(String, ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE"))
     owner_user_id = Column(String, ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE"))
     supersedes_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
@@ -41,11 +41,12 @@ class CalculationCase(Base):
     overdesign_factor = Column(Float, nullable=True)
     title = Column(String, nullable=False)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
             DateTime, 
             default=lambda: datetime.now(timezone.utc), 
-            onupdate=lambda: datetime.now(timezone.utc) 
+            onupdate=lambda: datetime.now(timezone.utc),
+            nullable=False 
         )
 
     # Self
@@ -75,7 +76,7 @@ class CalculationCase(Base):
 class Condition(Base):
     __tablename__ = "conditions"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     # design_standard = Column(Enum(DesignStandard), nullable=False)
     design_standard_id = Column(String, ForeignKey('design_standards.id', ondelete="CASCADE", onupdate="CASCADE"))
@@ -91,7 +92,7 @@ class Condition(Base):
 # class HighEvaluation(Base):
 #     __tablename__ = "high_evals"
 
-#     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+#     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 #     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
 #     name = Column(String, nullable=False)
 #     evaluation_point = Column(Float, nullable=False)
@@ -113,7 +114,7 @@ class StatusCalculationRun(str, enum.Enum):
 class CalculationRun(Base):
     __tablename__ = "calculation_runs"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
 
     # run_type = Optional (untuk tipe kalkulasi apa?[strength, flexible, ...])
@@ -135,7 +136,7 @@ class CalculationRun(Base):
 class CalculationResult(Base):
     __tablename__ = "calculation_results"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_run_id = Column(String, ForeignKey('calculation_runs.id', ondelete="CASCADE", onupdate="CASCADE"))
     # high_eval_id = Column(String, ForeignKey('high_evals.id', ondelete="CASCADE", onupdate="CASCADE"))
     total_moment = Column(Float, nullable=False)

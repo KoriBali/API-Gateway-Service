@@ -1,39 +1,17 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, Integer, Enum, ForeignKey, Date, DateTime, JSON
+from sqlalchemy import Column, String, Float, Integer, Enum, ForeignKey, Date, DateTime, JSON, Numeric
 from sqlalchemy.orm import relationship
 from app.core.staging_database import Base
 
-
-
-# # === Pole Type ===
-# class PoleType(str, enum.Enum):
-#     lighting = "lighting"
-#     acemast = "acemast"
-
-# # === Pole ===
-# class Pole(Base):
-#     __tablename__ = "poles"
-
-#     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
-#     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
-#     pole_type = Column(Enum(PoleType), default=PoleType.lighting)
-#     standard = Column(String)
-#     quantity = Column(Float, nullable=False)
-
-#     # Child
-#     calculation_case = relationship("CalculationCase", back_populates="poles")
-
-#     # Parent
-#     step_poles = relationship("StepPole", back_populates="pole", cascade="all, delete-orphan", passive_deletes=True)
 
 
 # === Step Pole ===
 class StepPole(Base):
     __tablename__ = "step_poles"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     # pole_id = Column(String, ForeignKey('poles.id', ondelete="CASCADE", onupdate="CASCADE"))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     material_id = Column(String, ForeignKey('materials.id', ondelete="CASCADE", onupdate="CASCADE"))
@@ -43,7 +21,7 @@ class StepPole(Base):
     diameter = Column(Float, nullable=False)
     thickness = Column(Float, nullable=False)
     height = Column(Float, nullable=False)
-    quantity = Column(Float, nullable=False)
+    quantity = Column(Integer, nullable=False)
     # material = Column(String, nullable=False)
 
     # Child
@@ -58,7 +36,7 @@ class StepPole(Base):
 class PoleResult(Base):
     __tablename__ = "pole_results"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     step_pole_id = Column(String, ForeignKey('step_poles.id', ondelete="CASCADE", onupdate="CASCADE"))
     calculation_result_id = Column(String, ForeignKey('calculation_results.id', ondelete="CASCADE", onupdate="CASCADE"))
     windload = Column(Float, nullable=False)
@@ -75,7 +53,7 @@ class PoleResult(Base):
 class DirectObject(Base):
     __tablename__ = "direct_objects"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     obejct_type_id = Column(String, ForeignKey('obejct_types.id', ondelete="CASCADE", onupdate="CASCADE"))
     name = Column(String, nullable=False)
@@ -84,7 +62,7 @@ class DirectObject(Base):
     nnc = Column(Float, nullable=False)
     weight = Column(Float, nullable=False)
     # height = Column(Float, nullable=False)
-    quantity = Column(Float, nullable=False)
+    quantity = Column(Integer, nullable=False)
 
     # Child
     calculation_case = relationship("CalculationCase", back_populates="direct_objects")
@@ -98,7 +76,7 @@ class DirectObject(Base):
 class DirectObjectResult(Base):
     __tablename__ = "direct_object_results"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     direct_object_id = Column(String, ForeignKey('direct_objects.id', ondelete="CASCADE", onupdate="CASCADE"))
     calculation_result_id = Column(String, ForeignKey('calculation_results.id', ondelete="CASCADE", onupdate="CASCADE"))
     windload = Column(Float, nullable=False)
@@ -114,7 +92,7 @@ class DirectObjectResult(Base):
 class OverheadWire(Base):
     __tablename__ = "overhead_wires"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     # obejct_type_id = Column(String, ForeignKey('obejct_types.id', ondelete="CASCADE", onupdate="CASCADE"))
     name = Column(String, nullable=False)
@@ -138,7 +116,7 @@ class OpeningType(str, enum.Enum):
 class OpeningPart(Base):
     __tablename__ = "opening_parts"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     # obejct_type_id = Column(String, ForeignKey('obejct_types.id', ondelete="CASCADE", onupdate="CASCADE"))
     type = Column(Enum(OpeningType), nullable=False)
@@ -159,7 +137,7 @@ class BasePlateType(str, enum.Enum):
 class BasePlate(Base):
     __tablename__ = "base_plates"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     # obejct_type_id = Column(String, ForeignKey('obejct_types.id', ondelete="CASCADE", onupdate="CASCADE"))
     type = Column(Enum(BasePlateType), nullable=False)
@@ -185,7 +163,7 @@ class FoundationType(str, enum.Enum):
 class Foundation(Base):
     __tablename__ = "foundation"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     # obejct_type_id = Column(String, ForeignKey('obejct_types.id', ondelete="CASCADE", onupdate="CASCADE"))
     type = Column(Enum(FoundationType), nullable=False)
@@ -204,7 +182,7 @@ class Foundation(Base):
 class Arm(Base):
     __tablename__ = "arms"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     calculation_case_id = Column(String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
     material_id = Column(String, ForeignKey('materials.id', ondelete="CASCADE", onupdate="CASCADE"))
     name = Column(String, nullable=False)
@@ -216,7 +194,7 @@ class Arm(Base):
     distance = Column(Float, nullable=True)
     nnc = Column(Float, nullable=True)
     fix_angle = Column(Float, nullable=True)
-    quantity = Column(Float, nullable=True)
+    quantity = Column(Integer, nullable=True)
 
 
 
@@ -224,7 +202,7 @@ class Arm(Base):
 class ArmObject(Base):
     __tablename__ = "arm_objects"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     arm_id = Column(String, ForeignKey('arms.id', ondelete="CASCADE", onupdate="CASCADE"))
     object_type_id = Column(String, ForeignKey('object_types.id', ondelete="CASCADE", onupdate="CASCADE"))
     name = Column(String, nullable=False)
@@ -232,4 +210,4 @@ class ArmObject(Base):
     weight = Column(Float, nullable=False)
     distance = Column(Float, nullable=False)
     nnc = Column(Float, nullable=False)
-    quantity = Column(Float, nullable=False)
+    quantity = Column(Integer, nullable=False)

@@ -15,7 +15,7 @@ class StatusDrawingCase(str, enum.Enum):
 class DrawingCase(Base):
     __tablename__ = "drawing_cases"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     request_id = Column(String, ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE"))
     owner_user_id = Column(String, ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE"))
     supersedes_case_id = Column(String, ForeignKey('drawing_cases.id', ondelete="CASCADE", onupdate="CASCADE"))

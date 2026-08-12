@@ -11,7 +11,7 @@ from app.core.staging_database import Base
 class Department(Base):
     __tablename__ = 'departments'
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
 
     # Parent
@@ -30,7 +30,7 @@ class Role(str, enum.Enum):
 class User(Base):
     __tablename__ = 'users'
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     department_id = Column(String, ForeignKey('departments.id', ondelete='CASCADE', onupdate='CASCADE'))
     role = Column(Enum(Role), default=Role.drafter)
     username = Column(String, unique=True, nullable=False)
@@ -39,11 +39,12 @@ class User(Base):
     full_name = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     is_verified = Column(Boolean, nullable=False)
-    last_login_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_login_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, 
                         default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc)
+                        onupdate=lambda: datetime.now(timezone.utc),
+                        nullable=False
                         )
 
     # Child
@@ -81,7 +82,7 @@ class PoleKind(str, enum.Enum):
 class Request(Base):
     __tablename__ = 'requests'
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     responsible_department_id = Column(String, ForeignKey('departments.id', ondelete="CASCADE", onupdate="CASCADE"))
     created_by_user_id = Column(String, ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE"))
     pole_category_id = Column(String, ForeignKey('pole_categories.id', ondelete="CASCADE", onupdate="CASCADE"))
@@ -94,11 +95,12 @@ class Request(Base):
     pole_kind = Column(Enum(PoleKind), nullable=True)
     company_name = Column(String, nullable=True)
     project_name = Column(String, nullable=True)
-    due_date = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    due_date = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, 
                         default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc)
+                        onupdate=lambda: datetime.now(timezone.utc),
+                        nullable=False
                         )
 
     # Child
