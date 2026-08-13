@@ -1,8 +1,8 @@
 """init staging schema
 
-Revision ID: 686a42d43deb
+Revision ID: 3c732e349055
 Revises: 
-Create Date: 2026-08-13 10:25:50.582052
+Create Date: 2026-08-13 17:09:45.019807
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '686a42d43deb'
+revision: str = '3c732e349055'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -323,6 +323,25 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('reports',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('calculation_case_id', sa.String(), nullable=False),
+    sa.Column('region_code_id', sa.String(), nullable=False),
+    sa.Column('department_code_id', sa.String(), nullable=True),
+    sa.Column('author_code_id', sa.String(), nullable=True),
+    sa.Column('report_number', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('design_request_management_no', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('report_title_1', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('report_title_2', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('report_title_3', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['author_code_id'], ['author_codes.id'], onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['department_code_id'], ['department_codes.id'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['region_code_id'], ['region_codes.id'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('step_poles',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('calculation_case_id', sa.String(), nullable=False),
@@ -391,6 +410,7 @@ def downgrade() -> None:
     op.drop_table('calculation_results')
     op.drop_table('arm_objects')
     op.drop_table('step_poles')
+    op.drop_table('reports')
     op.drop_table('overhead_wires')
     op.drop_table('opening_parts')
     op.drop_table('foundations')

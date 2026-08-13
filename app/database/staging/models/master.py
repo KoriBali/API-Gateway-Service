@@ -17,7 +17,8 @@ from app.core.staging_database import Base
 
 if TYPE_CHECKING:
     from app.database.staging.models.calculation import(
-        CalculationCase
+        CalculationCase,
+        Report
     )
 
     from app.database.staging.models.calculation_object import(
@@ -386,6 +387,12 @@ class RegionCode(Base):
         default=True
     )
 
+    # Parent
+    reports: Mapped[list["Report"]] = relationship(
+        back_populates="region_code",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
 
 # === Department Code ===
@@ -413,6 +420,13 @@ class DepartmentCode(Base):
         default=True
     )
 
+    # Parent
+    reports: Mapped[list["Report"]] = relationship(
+        back_populates="department_code",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
 
 
 # === Author Code ===
@@ -437,6 +451,13 @@ class AuthorCode(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True
+    )
+
+    # Parent
+    reports: Mapped[list["Report"]] = relationship(
+        back_populates="author_code",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
 
 

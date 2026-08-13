@@ -41,7 +41,10 @@ if TYPE_CHECKING:
     from app.database.staging.models.master import(
         PoleStandard,
         PoleStandardHeight,
-        PoleCombination
+        PoleCombination,
+        RegionCode,
+        DepartmentCode,
+        AuthorCode
     )
 
 
@@ -226,7 +229,11 @@ class CalculationCase(Base):
         passive_deletes=True
     )
 
-
+    reports: Mapped[list["Report"]] = relationship(
+        back_populates="calculation_case",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     # Child
     request: Mapped["Request"] = relationship(
@@ -374,4 +381,94 @@ class CalculationResult(Base):
         back_populates="calculation_result",
         cascade="all, delete-orphan",
         passive_deletes=True
+    )
+
+
+
+
+# ===== Reports =====
+class Report(Base):
+    __tablename__ = "reports"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    calculation_case_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
+    )
+
+    region_code_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('region_codes.id', ondelete="CASCADE", onupdate="CASCADE")
+    )
+
+    department_code_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey('department_codes.id', ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=True
+    )
+
+    author_code_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey('author_codes.id', ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True
+    )
+
+    report_number: Mapped[str] = mapped_column(
+        Numeric(10, 5),
+        nullable=False
+    )
+
+    design_request_management_no: Mapped[str] = mapped_column(
+        Numeric(10, 5),
+        nullable=False
+    )
+
+    report_title_1: Mapped[str] = mapped_column(
+        Numeric(10, 5),
+        nullable=False
+    )
+
+    report_title_2: Mapped[str | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
+
+    report_title_3: Mapped[str | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )    
+
+    # Child
+    calculation_case: Mapped["CalculationCase"] = relationship(
+        back_populates="reports"
+    )
+
+    region_code: Mapped["RegionCode"] = relationship(
+        back_populates="reports"
+    )
+
+    department_code: Mapped["DepartmentCode"] = relationship(
+        back_populates="reports"
+    )
+
+    author_code: Mapped["AuthorCode"] = relationship(
+        back_populates="reports"
     )
