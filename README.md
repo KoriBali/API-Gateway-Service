@@ -20,6 +20,7 @@ API Gateway untuk proyek **Koribali**. Berfungsi sebagai pintu masuk utama (sing
 * **Language:** Python 3.12
 * **Framework:** FastAPI
 * **Database:** SQLAlchemy + SQLite (aiosqlite) untuk staging
+* **Migrasi:** Alembic
 * **Dependency Management:** Pipenv
 * **Async HTTP Client:** HTTPX
 * **Logging:** Loguru
@@ -33,17 +34,25 @@ Proyek ini menggunakan **Modular/Feature-based Architecture**:
 ```text
 koribali_api_gateway/
 ├── app/
-│   ├── core/                   # Konfigurasi, database, logging, security
+│   ├── core/                   # Konfigurasi, database engine, logging, security
+│   ├── database/               # Layer data (staging)
+│   │   ├── models/             # SQLAlchemy models (identity, master, calculation, drawing, dll)
+│   │   ├── mapper.py           # Mapping data generik
+│   │   ├── orchestrator.py     # Orkestrasi penyimpanan staging
+│   │   └── repository.py       # Query & persistence
 │   ├── modules/                # Fitur-fitur utama (per domain)
 │   │   ├── internal/           # Endpoint internal (cleanup, dll)
-│   │   ├── load_object/        # Modul Load Object
+│   │   ├── load_object/        # Modul Load Object (router, schema, entity_mapper)
 │   │   └── opening_part/       # Modul Opening Part
-│   ├── services/               # Business logic & forwarding
-│   ├── staging/                # Staging database models, repository, orchestrator
-│   ├── utils/                  # Helper functions (response, mapper, dll)
+│   ├── services/               # Business logic & forwarding ke Calculation Service
+│   ├── utils/                  # Helper functions (response, base_schema, dll)
 │   └── main.py                 # Entry point aplikasi
+├── alembic/                    # Migrasi database (Alembic)
+├── tests/                      # Unit & integration test (Pytest + Respx)
 ├── .env.example
-├── Pipfile
+├── alembic.ini
+├── Dockerfile                  # Container image
+├── Pipfile / Pipfile.lock
 ├── Procfile                    # Untuk deployment Railway/Heroku
 ├── railway.json
 └── README.md
@@ -107,5 +116,5 @@ ruff check .
 
 ## Deployment
 
-Proyek sudah siap deploy ke **Railway** (lihat `railway.json` dan `Procfile`).
+Proyek sudah siap deploy ke **Railway** (lihat `railway.json` dan `Procfile`), atau via container menggunakan `Dockerfile`.
 
