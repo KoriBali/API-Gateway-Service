@@ -8,7 +8,8 @@ from app.modules.master.schemas import (
     MaterialSchema,
     ObjectTypeSchema,
     CodeLabelSchema,
-    DesignStandardSchema
+    DesignStandardSchema,
+    PoleStandardSchema,
 )
 
 
@@ -55,7 +56,7 @@ async def get_region_codes(db: AsyncSession = Depends(get_db)):
 
 # ===== Department Codes =====
 @routerMaster.get("/department-codes")
-async def get_materials(db: AsyncSession = Depends(get_db)):
+async def get_department_codes(db: AsyncSession = Depends(get_db)):
     rows = await MasterRepository.list_department_codes(db)
     data = [CodeLabelSchema.model_validate(row) for row in rows]
     return success_response(data=data, message="Department Codes retrieved")
@@ -64,7 +65,7 @@ async def get_materials(db: AsyncSession = Depends(get_db)):
 
 # ===== Author Codes =====
 @routerMaster.get("/author-codes")
-async def get_materials(db: AsyncSession = Depends(get_db)):
+async def get_author_codes(db: AsyncSession = Depends(get_db)):
     rows = await MasterRepository.list_author_codes(db)
     data = [CodeLabelSchema.model_validate(row) for row in rows]
     return success_response(data=data, message="Author Codes retrieved")
@@ -73,7 +74,7 @@ async def get_materials(db: AsyncSession = Depends(get_db)):
 
 # ===== Lighting Company Codes =====
 @routerMaster.get("/lighting-company-codes")
-async def get_materials(db: AsyncSession = Depends(get_db)):
+async def get_lighting_company_codes(db: AsyncSession = Depends(get_db)):
     rows = await MasterRepository.list_lighting_company_codes(db)
     data = [CodeLabelSchema.model_validate(row) for row in rows]
     return success_response(data=data, message="Lighting Company Codes retrieved")
@@ -87,10 +88,50 @@ async def get_materials(db: AsyncSession = Depends(get_db)):
 
 # ===== Design Standards =====
 @routerMaster.get("/design-standards")
-async def get_materials(
+async def get_design_standards(
     category: str | None = None,
     db: AsyncSession = Depends(get_db)
 ):
     rows = await MasterRepository.list_design_standards(db, category)
     data = [DesignStandardSchema.model_validate(row) for row in rows]
     return success_response(data=data, message="Design Standards retrieved")
+
+
+
+# ===== Pole Standard =====
+@routerMaster.get("/pole-standards")
+async def get_pole_standards(
+    category: str | None = None,
+    type: str | None = None,
+    db: AsyncSession = Depends(get_db)
+):
+    rows = await MasterRepository.list_pole_standards(db, category, type)
+    data = [PoleStandardSchema.model_validate(row) for row in rows]
+    result = success_response(data=data, message="Pole Standards retrieved")
+    # Cahce Karena Data jarang berganti
+    result.headers["Cache-Control"] = "public, max-age=3600"
+    return result
+
+
+# ===== BootStrap(aggregate) =====
+@routerMaster.get("/bootstrap")
+async def get_bootstrap(db: AsyncSession = Depends(get_db)):
+    materials = await MasterRepository.list_materials(db)
+    object_types = await MasterRepository.list_object_types(db)
+    region_codes = await MasterRepository.list_region_codes(db)
+    department_codes = await MasterRepository.list_department_codes(db)
+    author_codes = await MasterRepository.list_author_codes(db)
+    lighting_codes = await MasterRepository.list_lighting_company_codes(db)
+
+    data = {
+        "materials": [MaterialSchema.model_validate(x) for x in materials],
+        "object_types": [ObjectTypeSchema.model_validate(x) for x in object_types],
+        "region_codes": [CodeLabelSchema.model_validate(x) for x in region_codes],
+        "department_codes": [CodeLabelSchema.model_validate(x) for x in department_codes],
+        "author_codes": [CodeLabelSchema.model_validate(x) for x in author_codes],
+        "lighting_company_codes": [CodeLabelSchema.model_validate(x) for x in lighting_codes],
+    }
+    result = success_response(data=data, message="Bootstrap master data retrieved")
+    # Cahce Karena Data jarang berganti
+    result.headers["Cache-Control"] = "public, max-age=3600"
+    return result
