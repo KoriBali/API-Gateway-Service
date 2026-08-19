@@ -12,7 +12,7 @@ from app.core.staging_database import Base
 from app.database import models
 
 # Import setting untuk DATABASE_URL
-from app.core.config import settings
+from app.core.config import settings, build_async_db_url_and_connect_args
 
 from alembic import context
 
@@ -33,8 +33,11 @@ if config.config_file_name is not None:
 # Set Target metada ke Autogenerate
 target_metadata = Base.metadata
 
+# Supabase Conf
+_db_url, _connect_args = build_async_db_url_and_connect_args(settings.DATABASE_URL)
+
 # Override SQLAlchemy dari settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", _db_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -83,7 +86,8 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-    )
+        connect_args=_connect_args,   
+)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

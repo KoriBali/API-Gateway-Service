@@ -6,22 +6,21 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy import event
 from sqlalchemy.orm import DeclarativeBase
 
-from app.core.config import settings
+from app.core.config import settings, build_async_db_url_and_connect_args
 
 # DATABASE_URL = "sqlite+aiosqlite:///./gateway.db"
 
+# Supabase Conf
+_db_url, _connect_args = build_async_db_url_and_connect_args(settings.DATABASE_URL)
+
+
 # Async Engine
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False
+    _db_url,
+    echo=False,
+    connect_args=_connect_args,
+    pool_pre_ping=True,   
 )
-
-# Tidak dibutuhkan karena sudah tidak menggunakan PostgreSQL
-# @event.listens_for(engine.sync_engine, "connect")
-# def set_sqlite_pragma(dbapi_connection, connection_record):
-#     cursor = dbapi_connection.cursor()
-#     cursor.execute("PRAGMA foreign_keys=ON")
-#     cursor.close()
 
 
 # Session Factory

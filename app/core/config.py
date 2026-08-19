@@ -1,4 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import ssl
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 
 class Settings(BaseSettings):
@@ -17,6 +19,39 @@ class Settings(BaseSettings):
     INTERNAL_CLEANUP_TOKEN: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+
+def build_async_db_url_and_connect_args(raw_url: str) -> tuple[str, dict]:
+    """
+    Normalisasi DATABASE_URL agar kompatibel dengan asyncpg + provider SSL
+    seperti Neon/Supabase.
+    - Pastikan skema 'postgresql+asyncpg://'
+    - Buang query param yang tidak dipahami asyncpg (sslmode, channel_binding)
+    - Sisipkan SSLContext lewat connect_args bila SSL diminta
+    """
+    parts = urlsplit(raw_url)
+
+    scheme = parts.scheme
+    if scheme in ("postgres", "postgresql"):
+        scheme = "postgresql+asyncpg"
+    elif scheme.startswith("postgresql+") and "asyncpg" not in scheme:
+        scheme = "postgresql+asyncpg"
+
+    query = dict(parse_qsl(parts.query))
+    sslmode = query.pop("sslmode", None)
+    query.pop("channel_binding", None)  # asyncpg tidak mengerti ini
+
+    connect_args: dict = {}
+    # Neon/Supabase hampir selalu mewajibkan SSL.
+    if sslmode not in ("disable", "allow"):
+        connect_args["ssl"] = ssl.create_default_context()
+
+    clean_url = urlunsplit(
+        (scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
+    return clean_url, connect_args
+
 
 
 settings = Settings()
