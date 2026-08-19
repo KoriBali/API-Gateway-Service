@@ -18,18 +18,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.staging_database import Base
 
 if TYPE_CHECKING:
-    from app.database.staging.models.identity import(
+    from app.database.models.identity import(
         User,
         Request,
     )
 
-    from app.database.staging.models.calculation_object import(
+    from app.database.models.calculation_object import(
         DirectObject,
         DirectObjectResult,
         PoleResult,
     )
 
-    from app.database.staging.models.calculation_object import(
+    from app.database.models.calculation_object import(
         StepPole,
         OverheadWire,
         OpeningPart,
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
         Arm
     )
 
-    from app.database.staging.models.master import(
+    from app.database.models.master import(
         PoleStandard,
         PoleStandardHeight,
         PoleCombination,

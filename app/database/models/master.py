@@ -16,17 +16,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.staging_database import Base
 
 if TYPE_CHECKING:
-    from app.database.staging.models.calculation import(
+    from app.database.models.calculation import(
         CalculationCase,
         Report
     )
 
-    from app.database.staging.models.calculation_object import(
+    from app.database.models.calculation_object import(
         ArmObject,
         DirectObject
     )
 
-    from app.database.staging.models.drawing import(
+    from app.database.models.drawing import(
         DrawingCase
     )
 

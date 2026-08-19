@@ -16,8 +16,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.staging_database import Base
 
 if TYPE_CHECKING:
-    from app.database.staging.models.calculation import CalculationCase
-    from app.database.staging.models.drawing import DrawingCase
+    from app.database.models.calculation import CalculationCase
+    from app.database.models.drawing import DrawingCase
 
 
 

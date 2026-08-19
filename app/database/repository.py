@@ -2,7 +2,7 @@
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
-from app.database.staging.models import StagingProject
+from app.database.models import StagingProject
 
 class StagingRepository:
     @staticmethod
