@@ -43,9 +43,11 @@ def build_async_db_url_and_connect_args(raw_url: str) -> tuple[str, dict]:
     query.pop("channel_binding", None)  # asyncpg tidak mengerti ini
 
     connect_args: dict = {}
-    # Neon/Supabase hampir selalu mewajibkan SSL.
     if sslmode not in ("disable", "allow"):
-        connect_args["ssl"] = ssl.create_default_context()
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ssl_ctx
 
     clean_url = urlunsplit(
         (scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
