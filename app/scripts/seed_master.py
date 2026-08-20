@@ -19,18 +19,20 @@ from app.database.models import (
     DesignStandard,
     PoleCategory,
     PoleStandard,
+    PoleStandardHeight,
+    PoleHeightGroundPosition,
     PoleStandardType,
     PoleDiameter,
     PoleCombination,
     PoleThickness,
-    PoleThicknessPosition
+    PoleThicknessPosition,
 )
 
 MATERIALS = ["STK400", "STK490", "STK500", "STK590", "STKR400"]
 OBJECT_TYPES = ["Omni", "Directional"]
 REGION_CODES = [("A", "Area A"), ("B", "Area B"), ("C", "Area C"), ("D", "Area D"), ("E", "Area E")]
-DEPARTMENT_CODES = [("V", "Author V"), ('W', "Author W"), ("Y", "Author Y"), ("Z", "Author Z")]
-AUTHOR_CODES = [("R", "Department R"), ("I", "Department I"), ("F", "Department F"), ("S", "Koribali"), ("T", "Department T")]
+AUTHOR_CODES = [("V", "Author V"), ('W', "Author W"), ("Y", "Author Y"), ("Z", "Author Z")]
+DEPARTMENT_CODES = [("R", "Department R"), ("I", "Department I"), ("F", "Department F"), ("S", "Koribali"), ("T", "Department T")]
 LIGHTING_COMPANY_CODES = [("LEV-1761A22", "Koito"), ("E77257SAJ9", "Iwasaki"), ("NYR30031LF9", "Panasonic")]
 
 DESIGN_STANDARDS = {
@@ -60,7 +62,7 @@ DESIGN_STANDARDS = {
 }
 
 
-# Pole Standard = Straight
+# ===== Pole Standard = Straight =====
 STRAIGHT_COMBINATIONS = {
     "114.3": ["40-10", "40-12", "40-14", "40-20", "40-24", "40-30"],
     "139.8": ["50-10", "50-12", "50-14", "50-20", "50-24", "50-30", "50-34", "50-40"],
@@ -70,6 +72,27 @@ STRAIGHT_COMBINATIONS = {
 STRAIGHT_THICKNESS = {"40": [3.5, 4.5, 6.0], "50": [3.5, 4.5, 6.6], "60": [3.7, 4.5, 5.0, 7.1]}
 
 
+# ===== Pole Standard = Taper =====
+# Height dibedakan per ground position (mengikuti konstanta frontend).
+TAPER_HEIGHTS_S = {
+    "on_GL": [8.0, 10.0, 12.0],
+    "under_GL": [8.3, 10.3, 12.3],
+}
+TAPER_HEIGHTS_A = {
+    "on_GL": [4.5, 5.0, 8.0, 10.0, 12.0],
+    "under_GL": [4.8, 5.3, 8.3, 10.3, 12.3],
+}
+
+# code -> (label untuk ditampilkan, set height).
+# CATATAN: TA sengaja memakai seri S (sesuai HEIGHT_OPTIONS_BY_STANDARD di frontend).
+TAPER_POLES = {
+    "IS": {"label": "Type-I (IS)", "heights": TAPER_HEIGHTS_S},
+    "IA": {"label": "Type-I (IA)", "heights": TAPER_HEIGHTS_A},
+    "LS": {"label": "Type-L (LS)", "heights": TAPER_HEIGHTS_S},
+    "LA": {"label": "Type-L (LA)", "heights": TAPER_HEIGHTS_A},
+    "TS": {"label": "Type-T (TS)", "heights": TAPER_HEIGHTS_S},
+    "TA": {"label": "Type-T (TA)", "heights": TAPER_HEIGHTS_S},
+}
 
 
 async def _seed_simple_name(db, model, names):
@@ -148,11 +171,15 @@ async def _seed_straight_pole(db):
     if standard is None:
         standard = PoleStandard(
             pole_category_id=category.id,
+            code="steppedPole",
             name="Stepped Pole",
             type=PoleStandardType.straight,
         )
         db.add(standard)
         await db.flush()
+    elif standard.code is None:
+        # Backfill code untuk baris yang di-seed sebelum kolom `code` ada
+        standard.code = "steppedPole"
 
     # Seed diameter
     for diameter_str, combos in STRAIGHT_COMBINATIONS.items():
@@ -220,6 +247,67 @@ async def _seed_straight_pole(db):
                     )
 
 
+
+# Pole Standard = Taper
+async def _seed_taper_pole(db):
+
+    # Pastikan category "lighting-pole" ada (dipakai bersama straight)
+    res = await db.execute(
+        select(PoleCategory).where(PoleCategory.name == "lighting-pole")
+    )
+    category = res.scalar_one_or_none()
+
+    if category is None:
+        category = PoleCategory(name="lighting-pole")
+        db.add(category)
+        await db.flush()
+
+    for code, config in TAPER_POLES.items():
+        # PENTING: filter menyertakan `code`, karena taper punya BANYAK
+        # PoleStandard bertipe taper (beda dengan straight yang cuma satu).
+        res = await db.execute(
+            select(PoleStandard).where(
+                PoleStandard.pole_category_id == category.id,
+                PoleStandard.type == PoleStandardType.taper,
+                PoleStandard.code == code,
+            )
+        )
+        standard = res.scalar_one_or_none()
+
+        if standard is None:
+            standard = PoleStandard(
+                pole_category_id=category.id,
+                code=code,
+                name=config["label"],
+                type=PoleStandardType.taper,
+            )
+            db.add(standard)
+            await db.flush()
+
+        # Seed height per ground position (idempotent per baris)
+        for gp_value, heights in config["heights"].items():
+            ground_position = PoleHeightGroundPosition(gp_value)
+
+            for height_value in heights:
+                res = await db.execute(
+                    select(PoleStandardHeight).where(
+                        PoleStandardHeight.pole_standard_id == standard.id,
+                        PoleStandardHeight.ground_position == ground_position,
+                        PoleStandardHeight.height == height_value,
+                    )
+                )
+
+                if res.scalar_one_or_none() is None:
+                    db.add(
+                        PoleStandardHeight(
+                            pole_standard_id=standard.id,
+                            ground_position=ground_position,
+                            height=height_value,
+                        )
+                    )
+
+
+
 async def main():
     async with AsyncSessionLocal() as db:
         await _seed_simple_name(db, Material, MATERIALS)
@@ -230,6 +318,7 @@ async def main():
         await _seed_code_label(db, LightingCompanyCode, LIGHTING_COMPANY_CODES)
         await _seed_design_standards(db)
         await _seed_straight_pole(db)
+        await _seed_taper_pole(db)
         await db.commit()
     print("Seed master selesai.")
 

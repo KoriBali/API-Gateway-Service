@@ -63,6 +63,7 @@ class PoleFamily(str, enum.Enum):
 class GroundPosition(str, enum.Enum):
     embedment = "embedment"
     on_GL = "on_GL"
+    upper_GL = "upper_GL"
     under_GL = "under_GL"
 
 

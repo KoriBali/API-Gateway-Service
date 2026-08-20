@@ -152,6 +152,11 @@ class PoleStandard(Base):
         nullable=False
     )
 
+    code: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
     name: Mapped[str] = mapped_column(
         String,
         nullable=False
@@ -197,6 +202,11 @@ class PoleStandard(Base):
 
 
 
+
+class PoleHeightGroundPosition(str, enum.Enum):
+    on_GL = "on_GL"
+    under_GL = "under_GL"
+
 # === Pole Standard Height ===
 class PoleStandardHeight(Base):
     __tablename__ = 'pole_standard_heights'
@@ -212,6 +222,12 @@ class PoleStandardHeight(Base):
         ForeignKey('pole_standards.id', ondelete='CASCADE', onupdate='CASCADE'),
         nullable=False
     )
+
+    ground_position: Mapped[PoleHeightGroundPosition] = mapped_column(
+        Enum(PoleHeightGroundPosition),
+        nullable=False
+    )
+
 
     height: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),

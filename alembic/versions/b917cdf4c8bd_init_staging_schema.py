@@ -1,8 +1,8 @@
 """init staging schema
 
-Revision ID: 3c732e349055
+Revision ID: b917cdf4c8bd
 Revises: 
-Create Date: 2026-08-13 17:09:45.019807
+Create Date: 2026-08-20 16:21:15.562483
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '3c732e349055'
+revision: str = 'b917cdf4c8bd'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -85,6 +85,7 @@ def upgrade() -> None:
     op.create_table('pole_standards',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_category_id', sa.String(), nullable=False),
+    sa.Column('code', sa.String(), nullable=True),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('type', sa.Enum('taper', 'straight', name='polestandardtype'), nullable=False),
     sa.Column('geometry', sa.JSON(), nullable=True),
@@ -121,6 +122,7 @@ def upgrade() -> None:
     op.create_table('pole_standard_heights',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_standard_id', sa.String(), nullable=False),
+    sa.Column('ground_position', sa.Enum('on_GL', 'under_GL', name='poleheightgroundposition'), nullable=False),
     sa.Column('height', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], onupdate='CASCADE', ondelete='CASCADE'),
@@ -189,7 +191,7 @@ def upgrade() -> None:
     sa.Column('pole_combination_id', sa.String(), nullable=True),
     sa.Column('status', sa.Enum('draft', 'submitted', 'superseded', name='statuscalculationcase'), nullable=False),
     sa.Column('pole_family', sa.Enum('taper', 'straight', name='polefamily'), nullable=True),
-    sa.Column('ground_position', sa.Enum('embedment', 'on_GL', 'under_GL', name='groundposition'), nullable=True),
+    sa.Column('ground_position', sa.Enum('embedment', 'on_GL', 'upper_GL', 'under_GL', name='groundposition'), nullable=True),
     sa.Column('lowest_height', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('embedment_length', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('overdesign_factor', sa.Integer(), nullable=True),
