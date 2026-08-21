@@ -18,6 +18,19 @@ class Settings(BaseSettings):
     DEBUG: str
     INTERNAL_CLEANUP_TOKEN: str
 
+    # ===== JWT / Auth =====
+    JWT_SECRET: str
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # ===== Seed Superadmin =====
+    SEED_SUPERADMIN_USERNAME: str = "superadmin"
+    SEED_SUPERADMIN_EMAIL: str = "superadmin@example.com"
+    SEED_SUPERADMIN_PASSWORD: str
+    SEED_SUPERADMIN_FULL_NAME: str = "Super Admin"
+
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

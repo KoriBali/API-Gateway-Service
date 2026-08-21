@@ -15,6 +15,8 @@ aiosqlite = "*"
 greenlet = "*"
 alembic = "*"
 asyncpg = "*"
+pyjwt = "*"
+bcrypt = "*"
 
 [dev-packages]
 pytest = "*"
