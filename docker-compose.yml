@@ -1,0 +1,40 @@
+services:
+  gateway-service:
+    build: .
+    image: gateway-service:latest
+    container_name: gateway-service
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    networks:
+      - backend-network
+    depends_on:
+      db:
+        condition: service_healthy
+  
+  # PostgreSQL with Docker Volume Configuration
+  db:
+    image: postgres:16
+    container_name: gateway-db
+    env_file: .env                  
+    volumes:
+      - db_data:/var/lib/postgresql/data  
+    ports:
+      - "5433:5432"                    
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+volumes:
+  db_data: 
+
+networks:
+  backend-network:
+    external: true
