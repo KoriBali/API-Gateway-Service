@@ -12,7 +12,7 @@ from app.core.logging import setup_logging
 from app.modules.opening_part.router import routerOpeningPart
 
 # Database Needs
-from app.core.staging_database import engine, Base
+from app.core.database import engine, Base
 # from app.database.models import StagingProject
 
 # Master Data

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 """ Import Base dan Semua Model
 Semua Model di Import agar AutoGenerate bisa deteksi semua tabel
 """
-from app.core.staging_database import Base
+from app.core.database import Base
 from app.database import models
 
 # Import setting untuk DATABASE_URL

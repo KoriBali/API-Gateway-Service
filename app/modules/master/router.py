@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.response import success_response
 
-from app.core.staging_database import get_db
+from app.core.database import get_db
 from app.modules.master.repository import MasterRepository
 from app.modules.master.schemas import (
     MaterialSchema,

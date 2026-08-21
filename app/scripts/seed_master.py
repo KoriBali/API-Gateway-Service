@@ -8,7 +8,7 @@ import asyncio
 
 from sqlalchemy import select
 
-from app.core.staging_database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal
 from app.database.models import (
     Material,
     ObjectType,

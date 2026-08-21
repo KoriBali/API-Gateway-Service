@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.staging_database import get_db
+from app.core.database import get_db
 from app.database.orchestrator import Orchestrator
 from app.utils.response import success_response
 from app.database.repository import StagingRepository
