@@ -18,6 +18,9 @@ from app.core.database import engine, Base
 # Master Data
 from app.modules.master.router import routerMaster
 
+# Identity Data
+from app.modules.identity.router import routerIdentity
+
 # setup logging saat app start
 setup_logging()
 
@@ -51,6 +54,9 @@ app.add_middleware(
 
 # Master Data
 app.include_router(routerMaster)
+
+# Identity Data
+app.include_router(routerIdentity)
 
 # register router
 # app.include_router(routerInternal)

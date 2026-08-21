@@ -1,5 +1,5 @@
 """
-File ini untuk inisiasi Data awal (seeding) table master
+File ini untuk inisiasi Data awal (seeding) Data Master
 
 How to Run(pipenv shell):
     python -m app.scripts.seed_master
