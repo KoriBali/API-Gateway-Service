@@ -1,8 +1,8 @@
-"""init staging schema
+"""init schema
 
-Revision ID: b917cdf4c8bd
+Revision ID: 37dbea1cea8a
 Revises: 
-Create Date: 2026-08-20 16:21:15.562483
+Create Date: 2026-08-21 17:33:19.031242
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'b917cdf4c8bd'
+revision: str = '37dbea1cea8a'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -127,6 +127,17 @@ def upgrade() -> None:
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('refresh_tokens',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('user_id', sa.String(), nullable=False),
+    sa.Column('token_hash', sa.String(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('revoked', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('token_hash')
     )
     op.create_table('requests',
     sa.Column('id', sa.String(), nullable=False),
@@ -426,6 +437,7 @@ def downgrade() -> None:
     op.drop_table('pole_combinations')
     op.drop_table('drawing_cases')
     op.drop_table('requests')
+    op.drop_table('refresh_tokens')
     op.drop_table('pole_standard_heights')
     op.drop_table('pole_diameters')
     op.drop_table('users')
