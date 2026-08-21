@@ -1,0 +1,15 @@
+# Dependencies untuk API Gateway (di-generate dari Pipfile.lock)
+# FastAPI Cloud TIDAK membaca Pipfile — file ini yang dipakai untuk install.
+# Taruh di root repo, sejajar dengan Pipfile.
+
+fastapi[standard]==0.136.1
+uvicorn[standard]==0.46.0
+pydantic-settings==2.14.0
+httpx==0.28.1
+loguru==0.7.3
+slowapi==0.1.9
+sqlalchemy==2.0.51
+alembic==1.18.5
+asyncpg==0.31.0
+greenlet==3.5.4
+aiosqlite==0.22.1

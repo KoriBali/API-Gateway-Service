@@ -7,13 +7,16 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.logging import setup_logging
 
-from app.modules.internal.router import routerInternal
-from app.modules.load_object.router import routerLoadObject
+# from app.modules.internal.router import routerInternal
+# from app.modules.load_object.router import routerLoadObject
 from app.modules.opening_part.router import routerOpeningPart
 
 # Database Needs
-from app.core.staging_database import engine, Base
-from app.staging.models import StagingProject
+from app.core.database import engine, Base
+# from app.database.models import StagingProject
+
+# Master Data
+from app.modules.master.router import routerMaster
 
 # setup logging saat app start
 setup_logging()
@@ -21,9 +24,9 @@ setup_logging()
 # Staging Database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Dijalankan saat startup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Dijalankan saat startup (BEFORE ALEMBIC)
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.create_all)
     
     yield 
     
@@ -46,10 +49,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# register router
-app.include_router(routerInternal)
+# Master Data
+app.include_router(routerMaster)
 
-app.include_router(routerLoadObject)
+# register router
+# app.include_router(routerInternal)
+
+# app.include_router(routerLoadObject)
 app.include_router(routerOpeningPart)
 
 

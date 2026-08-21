@@ -1,4 +1,7 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+import ssl
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+
 
 class Settings(BaseSettings):
     app_name: str = "API Gateway"
@@ -8,16 +11,49 @@ class Settings(BaseSettings):
     calc_service_key: str
 
     DATABASE_URL: str
+    POSTGRES_DB: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+
     DEBUG: str
+    INTERNAL_CLEANUP_TOKEN: str
 
-    INTERNAL_CLEANUP_TOKEN:str
-
-    postgres_db: str
-    postgres_user: str
-    postgres_password: str
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-    class Config:
-        env_file = ".env"
+
+def build_async_db_url_and_connect_args(raw_url: str) -> tuple[str, dict]:
+    """
+    Normalisasi DATABASE_URL agar kompatibel dengan asyncpg + provider SSL
+    seperti Neon/Supabase.
+    - Pastikan skema 'postgresql+asyncpg://'
+    - Buang query param yang tidak dipahami asyncpg (sslmode, channel_binding)
+    - Sisipkan SSLContext lewat connect_args bila SSL diminta
+    """
+    parts = urlsplit(raw_url)
+
+    scheme = parts.scheme
+    if scheme in ("postgres", "postgresql"):
+        scheme = "postgresql+asyncpg"
+    elif scheme.startswith("postgresql+") and "asyncpg" not in scheme:
+        scheme = "postgresql+asyncpg"
+
+    query = dict(parse_qsl(parts.query))
+    sslmode = query.pop("sslmode", None)
+    query.pop("channel_binding", None)  # asyncpg tidak mengerti ini
+
+    connect_args: dict = {}
+    if sslmode not in ("disable", "allow"):
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ssl_ctx
+
+    clean_url = urlunsplit(
+        (scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
+    return clean_url, connect_args
+
+
 
 settings = Settings()

@@ -8,10 +8,10 @@ from app.modules.load_object.schemas import LoadObjectRequest
 from app.modules.load_object.entity_mapper import StagingEntityMapper
 
 # Import komponen agnostik (General)
-from app.staging.orchestrator import Orchestrator
-from app.staging.mapper import Mapper 
-from app.staging.repository import StagingRepository
-from app.core.staging_database import get_db
+from app.database.orchestrator import Orchestrator
+from app.database.mapper import Mapper 
+from app.database.repository import StagingRepository
+from app.core.database import get_db
 
 from app.modules.load_object.schemas import StagingDataResponseSchema, LoadObjectResponse
 

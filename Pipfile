@@ -13,6 +13,7 @@ fastapi = {extras = ["standard"], version = "*"}
 sqlalchemy = "*"
 aiosqlite = "*"
 greenlet = "*"
+alembic = "*"
 asyncpg = "*"
 
 [dev-packages]
