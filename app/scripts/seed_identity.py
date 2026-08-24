@@ -31,7 +31,7 @@ async def _seed_superadmin(db) -> str:
         full_name=settings.SEED_SUPERADMIN_FULL_NAME,
         password_hash=hash_password(settings.SEED_SUPERADMIN_PASSWORD),
         role=Role.superadmin,
-        department_id=None,      # tanpa department → aman dari CASCADE
+        department_id=None,     
         is_active=True,
         is_verified=True,
     ))
