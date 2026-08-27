@@ -29,55 +29,55 @@ async def ping():
 
 # ===== Materials =====
 @routerMaster.get("/materials")
-async def get_materials(db: AsyncSession = Depends(get_db)):
-    rows = await MasterRepository.list_materials(db)
-    data = [MaterialSchema.model_validate(row) for row in rows]
-    return success_response(data=data, message="Materials retrieved")
+# async def get_materials(db: AsyncSession = Depends(get_db)):
+#     rows = await MasterRepository.list_materials(db)
+#     data = [MaterialSchema.model_validate(row) for row in rows]
+#     return success_response(data=data, message="Materials retrieved")
 
 
 
 # ===== Object Types =====
 @routerMaster.get("/object-types")
-async def get_object_types(db: AsyncSession = Depends(get_db)):
-    rows = await MasterRepository.list_object_types(db)
-    data = [ObjectTypeSchema.model_validate(row) for row in rows]
-    return success_response(data=data, message="Object Types retrieved")
+# async def get_object_types(db: AsyncSession = Depends(get_db)):
+#     rows = await MasterRepository.list_object_types(db)
+#     data = [ObjectTypeSchema.model_validate(row) for row in rows]
+#     return success_response(data=data, message="Object Types retrieved")
 
 
 
 # ===== Region Codes =====
-@routerMaster.get("/region-codes")
-async def get_region_codes(db: AsyncSession = Depends(get_db)):
-    rows = await MasterRepository.list_region_codes(db)
-    data = [CodeLabelSchema.model_validate(row) for row in rows]
-    return success_response(data=data, message="Region Codes retrieved")
+# @routerMaster.get("/region-codes")
+# async def get_region_codes(db: AsyncSession = Depends(get_db)):
+#     rows = await MasterRepository.list_region_codes(db)
+#     data = [CodeLabelSchema.model_validate(row) for row in rows]
+#     return success_response(data=data, message="Region Codes retrieved")
 
 
 
 # ===== Department Codes =====
-@routerMaster.get("/department-codes")
-async def get_department_codes(db: AsyncSession = Depends(get_db)):
-    rows = await MasterRepository.list_department_codes(db)
-    data = [CodeLabelSchema.model_validate(row) for row in rows]
-    return success_response(data=data, message="Department Codes retrieved")
+# @routerMaster.get("/department-codes")
+# async def get_department_codes(db: AsyncSession = Depends(get_db)):
+#     rows = await MasterRepository.list_department_codes(db)
+#     data = [CodeLabelSchema.model_validate(row) for row in rows]
+#     return success_response(data=data, message="Department Codes retrieved")
 
 
 
 # ===== Author Codes =====
-@routerMaster.get("/author-codes")
-async def get_author_codes(db: AsyncSession = Depends(get_db)):
-    rows = await MasterRepository.list_author_codes(db)
-    data = [CodeLabelSchema.model_validate(row) for row in rows]
-    return success_response(data=data, message="Author Codes retrieved")
+# @routerMaster.get("/author-codes")
+# async def get_author_codes(db: AsyncSession = Depends(get_db)):
+#     rows = await MasterRepository.list_author_codes(db)
+#     data = [CodeLabelSchema.model_validate(row) for row in rows]
+#     return success_response(data=data, message="Author Codes retrieved")
 
 
 
 # ===== Lighting Company Codes =====
-@routerMaster.get("/lighting-company-codes")
-async def get_lighting_company_codes(db: AsyncSession = Depends(get_db)):
-    rows = await MasterRepository.list_lighting_company_codes(db)
-    data = [CodeLabelSchema.model_validate(row) for row in rows]
-    return success_response(data=data, message="Lighting Company Codes retrieved")
+# @routerMaster.get("/lighting-company-codes")
+# async def get_lighting_company_codes(db: AsyncSession = Depends(get_db)):
+#     rows = await MasterRepository.list_lighting_company_codes(db)
+#     data = [CodeLabelSchema.model_validate(row) for row in rows]
+#     return success_response(data=data, message="Lighting Company Codes retrieved")
 
 
 
