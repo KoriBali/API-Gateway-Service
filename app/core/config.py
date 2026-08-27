@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     SEED_SUPERADMIN_PASSWORD: str
     SEED_SUPERADMIN_FULL_NAME: str = "Super Admin"
 
+    # ===== Seed Employee =====
+    SEED_DEFAULT_USER_PASSWORD: str = "password"
+
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

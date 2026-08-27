@@ -62,9 +62,16 @@ class Department(Base):
         default=lambda: str(uuid.uuid4()),
     )
 
+    code: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        unique=True
+    )
+
     name: Mapped[str] = mapped_column(
         String,
         nullable=False,
+        unique=True
     )
 
     # Parent

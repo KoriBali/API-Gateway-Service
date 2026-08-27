@@ -193,7 +193,7 @@ async def update_user(
     was_active = user.is_active
     updated = await UserRepository.update_user(db, user, payload)
 
-    # Baru dinonaktifkan → cabut semua sesi
+    # Baru dinonaktifkan -> cabut semua sesi
     if was_active and updated.is_active is False:
         await AuthRepository.revoke_all_for_user(db, updated.id)
 
