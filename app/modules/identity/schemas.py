@@ -8,6 +8,18 @@ from app.database.models.identity import Role
 
 
 # ===== Input =====
+class DepartmentCreate(CamelBaseModel):
+    code: str = Field(min_length=1, max_length=20)
+    name: str = Field(min_length=1, max_length=120)
+
+
+
+class DepartmentUpdate(CamelBaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=20)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+
 class UserCreate(CamelBaseModel):
     username: str = Field(min_length= 3, max_length= 50)
     email: EmailStr
@@ -54,6 +66,13 @@ class PasswordResetRequest(CamelBaseModel):
 
 
 # ===== Output =====
+class DepartmentRead(CamelBaseModel):
+    id: str
+    code: str
+    name: str
+
+
+    
 class UserRead(CamelBaseModel):
     id: str
     username: str

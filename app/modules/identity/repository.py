@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import select, or_, update as sa_update
+from sqlalchemy import select, or_, func, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -9,8 +9,8 @@ from app.core.security import (
     verify_password,
     hash_token,
 )
-from app.database.models.identity import User, RefreshToken
-from app.modules.identity.schemas import UserCreate, UserUpdate
+from app.database.models.identity import User, RefreshToken, Department, Request
+from app.modules.identity.schemas import UserCreate, UserUpdate, DepartmentCreate, DepartmentUpdate
 
 
 
@@ -159,3 +159,65 @@ class AuthRepository:
         await db.commit()
         await db.refresh(new_rt)
         return new_rt
+
+
+
+# ===== Department =====
+class DepartmentRepository:
+
+    @staticmethod
+    async def get_by_id(db: AsyncSession, department_id: str) -> Department | None:
+        result = await db.execute(select(Department).where(Department.id == department_id))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_code(db: AsyncSession, code: str) -> Department | None:
+        result = await db.execute(select(Department).where(Department.code == code))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_name(db: AsyncSession, name: str) -> Department | None:
+        result = await db.execute(select(Department).where(Department.name == name))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def list_all(db: AsyncSession) -> list[Department]:
+        result = await db.execute(select(Department).order_by(Department.code))
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def create(db: AsyncSession, payload: DepartmentCreate) -> Department:
+        dept = Department(code=payload.code, name=payload.name)
+        db.add(dept)
+        await db.commit()
+        await db.refresh(dept)
+        return dept
+
+    @staticmethod
+    async def update(db: AsyncSession, dept: Department, payload: DepartmentUpdate) -> Department:
+        data = payload.model_dump(exclude_unset=True)
+        for field in ("code", "name"):
+            if field in data:
+                setattr(dept, field, data[field])
+        await db.commit()
+        await db.refresh(dept)
+        return dept
+
+    @staticmethod
+    async def count_usage(db: AsyncSession, department_id: str) -> tuple[int, int]:
+        user_count = await db.scalar(
+            select(func.count()).select_from(User).where(User.department_id == department_id)
+        )
+        request_count = await db.scalar(
+            select(func.count()).select_from(Request).where(
+                Request.responsible_department_id == department_id
+            )
+        )
+        return int(user_count or 0), int(request_count or 0)
+
+    @staticmethod
+    async def delete(db: AsyncSession, dept: Department) -> None:
+        """PANGGIL HANYA setelah count_usage() memastikan department kosong.
+        Menghapus department yang masih dipakai akan CASCADE menghapus user & request."""
+        await db.delete(dept)
+        await db.commit()

@@ -20,6 +20,7 @@ from app.modules.master.router import routerMaster
 
 # Identity Data
 from app.modules.identity.router import routerIdentity
+from app.modules.identity.department_router import routerDepartment
 
 # setup logging saat app start
 setup_logging()
@@ -57,12 +58,14 @@ app.include_router(routerMaster)
 
 # Identity Data
 app.include_router(routerIdentity)
+app.include_router(routerDepartment)
 
 # register router
 # app.include_router(routerInternal)
 
 # app.include_router(routerLoadObject)
 app.include_router(routerOpeningPart)
+
 
 
 """ Entry Point Start """
