@@ -1,4 +1,5 @@
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from typing import Any
 from app.utils.base_schema import snake_to_camel
@@ -52,3 +53,8 @@ def success_response(
             "message": message
         }
     )
+
+
+
+def to_json(model) -> dict | list:
+    return jsonable_encoder(model, by_alias=True)

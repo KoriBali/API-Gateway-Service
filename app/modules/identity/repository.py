@@ -290,7 +290,6 @@ class AuthRepository:
     async def rotate_refresh_token(
         db: AsyncSession, old_rt: RefreshToken, user_id: str, new_raw_token: str
     ) -> RefreshToken:
-        """Atomik: revoke token lama + terbitkan token baru (satu commit)."""
         old_rt.revoked = True
         expires_at = datetime.now(timezone.utc) + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
@@ -363,7 +362,5 @@ class DepartmentRepository:
 
     @staticmethod
     async def delete(db: AsyncSession, dept: Department) -> None:
-        """PANGGIL HANYA setelah count_usage() memastikan department kosong.
-        Menghapus department yang masih dipakai akan CASCADE menghapus user & request."""
         await db.delete(dept)
         await db.commit()

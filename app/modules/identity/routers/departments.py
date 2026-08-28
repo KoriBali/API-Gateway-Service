@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
-from app.utils.response import success_response
+from app.utils.response import success_response, to_json
 from app.modules.identity.repository import DepartmentRepository
 from app.modules.identity.schemas import (
     DepartmentCreate,
@@ -12,11 +11,8 @@ from app.modules.identity.schemas import (
     DepartmentRead,
 )
 
-routerDepartment = APIRouter(prefix="/api/departments", tags=["Department"])
+routerDepartment = APIRouter(prefix="/api/departments", tags=["Departments"])
 
-
-def _json(model) -> dict | list:
-    return jsonable_encoder(model, by_alias=True)
 
 
 # ===== Read (superadmin + admin) =====
@@ -26,7 +22,7 @@ async def list_departments(
     actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
 ):
     rows = await DepartmentRepository.list_all(db)
-    data = [_json(DepartmentRead.model_validate(d)) for d in rows]
+    data = [to_json(DepartmentRead.model_validate(d)) for d in rows]
     return success_response(data=data, to_camel=False, message="Departments retrieved")
 
 
@@ -40,7 +36,7 @@ async def get_department(
     if dept is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
     return success_response(
-        data=_json(DepartmentRead.model_validate(dept)),
+        data=to_json(DepartmentRead.model_validate(dept)),
         to_camel=False,
         message="Department retrieved",
     )
@@ -60,7 +56,7 @@ async def create_department(
 
     dept = await DepartmentRepository.create(db, payload)
     return success_response(
-        data=_json(DepartmentRead.model_validate(dept)),
+        data=to_json(DepartmentRead.model_validate(dept)),
         to_camel=False,
         status_code=status.HTTP_201_CREATED,
         message="Department created",
@@ -90,7 +86,7 @@ async def update_department(
 
     updated = await DepartmentRepository.update(db, dept, payload)
     return success_response(
-        data=_json(DepartmentRead.model_validate(updated)),
+        data=to_json(DepartmentRead.model_validate(updated)),
         to_camel=False,
         message="Department updated",
     )

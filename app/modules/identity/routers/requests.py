@@ -1,12 +1,11 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
-from app.utils.response import success_response
+from app.utils.response import success_response, to_json
 from app.modules.identity.repository import RequestRepository
 from app.modules.identity import permissions
 from app.database.models.identity import (
@@ -20,14 +19,11 @@ from app.modules.identity.schemas import (
     RequestRead,
 )
 
-routerRequest = APIRouter(prefix="/api/requests", tags=["Request"])
+routerRequest = APIRouter(prefix="/api/requests", tags=["Requests"])
 
 # Semua role terautentikasi boleh menyentuh modul ini, scope sudah di setting
 _ANY_ROLE = require_roles("superadmin", "admin", "drafter")
 
-
-def _json(model) -> dict | list:
-    return jsonable_encoder(model, by_alias=True)
 
 
 def _can_read(actor: CurrentUser, req) -> bool:
@@ -67,7 +63,7 @@ async def list_requests(
         limit=limit,
         offset=offset,
     )
-    items = [_json(RequestRead.model_validate(r)) for r in rows]
+    items = [to_json(RequestRead.model_validate(r)) for r in rows]
     return success_response(
         data={"items": items, "total": total, "limit": limit, "offset": offset},
         to_camel=False,
@@ -85,7 +81,7 @@ async def get_request(
     if req is None or not _can_read(actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     return success_response(
-        data=_json(RequestRead.model_validate(req)),
+        data=to_json(RequestRead.model_validate(req)),
         to_camel=False,
         message="Request retrieved",
     )
@@ -118,7 +114,7 @@ async def create_request(
         responsible_department_id=actor.department_id,
     )
     return success_response(
-        data=_json(RequestRead.model_validate(req)),
+        data=to_json(RequestRead.model_validate(req)),
         to_camel=False,
         status_code=status.HTTP_201_CREATED,
         message="Request created",
@@ -148,7 +144,7 @@ async def update_request(
 
     updated = await RequestRepository.update(db, req, payload)
     return success_response(
-        data=_json(RequestRead.model_validate(updated)),
+        data=to_json(RequestRead.model_validate(updated)),
         to_camel=False,
         message="Request updated",
     )
