@@ -1,4 +1,5 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, or_, func, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,152 @@ from app.core.security import (
     hash_token,
 )
 from app.database.models.identity import User, RefreshToken, Department, Request
-from app.modules.identity.schemas import UserCreate, UserUpdate, DepartmentCreate, DepartmentUpdate
+from app.modules.identity.schemas import (
+    UserCreate, UserUpdate,
+    DepartmentCreate, DepartmentUpdate,
+    RequestCreate, RequestUpdate,
+)
+
+from app.database.models.master import PoleCategory
+from app.database.models.calculation import CalculationCase
+from app.database.models.drawing import DrawingCase
+
+
+
+if TYPE_CHECKING:
+    from app.database.models.identity import (
+        RequestType, RequestCategory, DesignType
+    )
+
+
+
+# ===== Request =====
+class RequestRepository:
+
+    @staticmethod
+    async def get_by_id(db: AsyncSession, request_id: str) -> Request | None:
+        result = await db.execute(select(Request).where(Request.id == request_id))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def pole_category_exists(db: AsyncSession, pole_category_id: str) -> bool:
+        found = await db.scalar(
+            select(PoleCategory.id).where(PoleCategory.id == pole_category_id)
+        )
+        return found is not None
+
+    @staticmethod
+    async def list_scoped(
+        db: AsyncSession,
+        *,
+        role: str,
+        actor_id: str,
+        actor_department_id: str | None,
+        request_type: "RequestType | None" = None,
+        request_category: "RequestCategory | None" = None,
+        design_type: "DesignType | None" = None,
+        pole_category_id: str | None = None,
+        due_from: date | None = None,
+        due_to: date | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Request], int]:
+        stmt = select(Request)
+
+        # Scope per Role
+        if role == "superadmin":
+            pass 
+        elif role == "admin":
+            stmt = stmt.where(Request.responsible_department_id == actor_department_id)
+        else: 
+            stmt = stmt.where(Request.created_by_user_id == actor_id)
+
+        # Filter opsional
+        if request_type is not None:
+            stmt = stmt.where(Request.request_type == request_type)
+        if request_category is not None:
+            stmt = stmt.where(Request.request_category == request_category)
+        if design_type is not None:
+            stmt = stmt.where(Request.design_type == design_type)
+        if pole_category_id is not None:
+            stmt = stmt.where(Request.pole_category_id == pole_category_id)
+        if due_from is not None:
+            stmt = stmt.where(Request.due_date >= due_from)
+        if due_to is not None:
+            stmt = stmt.where(Request.due_date <= due_to)
+
+        # Total 
+        total = await db.scalar(
+            select(func.count()).select_from(stmt.subquery())
+        )
+
+        # Halaman data
+        stmt = stmt.order_by(Request.created_at.desc()).limit(limit).offset(offset)
+        result = await db.execute(stmt)
+        rows = list(result.scalars().all())
+        return rows, int(total or 0)
+
+    @staticmethod
+    async def create(
+        db: AsyncSession,
+        payload: RequestCreate,
+        *,
+        created_by_user_id: str,
+        responsible_department_id: str,
+    ) -> Request:
+        req = Request(
+            responsible_department_id=responsible_department_id,
+            created_by_user_id=created_by_user_id,
+            pole_category_id=payload.pole_category_id,
+            request_no=payload.request_no,
+            receipt_no=payload.receipt_no,
+            pj_no=payload.pj_no,
+            request_type=payload.request_type,
+            design_type=payload.design_type,
+            request_category=payload.request_category,
+            pole_kind=payload.pole_kind,
+            company_name=payload.company_name,
+            project_name=payload.project_name,
+            due_date=payload.due_date,
+        )
+        db.add(req)
+        await db.commit()
+        await db.refresh(req)
+        return req
+
+    @staticmethod
+    async def update(db: AsyncSession, req: Request, payload: RequestUpdate) -> Request:
+        data = payload.model_dump(exclude_unset=True)
+        editable = (
+            "pole_category_id", "request_no", "receipt_no", "pj_no",
+            "request_type", "design_type", "request_category",
+            "pole_kind", "company_name", "project_name", "due_date",
+        )
+        for field in editable:
+            if field in data:
+                setattr(req, field, data[field])
+        await db.commit()
+        await db.refresh(req)
+        return req
+
+    @staticmethod
+    async def count_children(db: AsyncSession, request_id: str) -> tuple[int, int]:
+        calc_count = await db.scalar(
+            select(func.count()).select_from(CalculationCase).where(
+                CalculationCase.request_id == request_id
+            )
+        )
+        draw_count = await db.scalar(
+            select(func.count()).select_from(DrawingCase).where(
+                DrawingCase.request_id == request_id
+            )
+        )
+        return int(calc_count or 0), int(draw_count or 0)
+
+    @staticmethod
+    async def delete(db: AsyncSession, req: Request) -> None:
+        await db.delete(req)
+        await db.commit()
 
 
 

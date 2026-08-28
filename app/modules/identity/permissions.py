@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 
 from app.core.security import CurrentUser
-from app.database.models.identity import Role, User
+from app.database.models.identity import Role, User, Request
 
 
 
@@ -47,3 +47,21 @@ def ensure_can_change_role_or_department(actor: CurrentUser) -> None:
     # Only Superadmin
     if actor.role != "superadmin":
         raise _forbidden("Only superadmin can change role or department")
+
+
+
+def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
+    """
+    Boleh update/delete:
+    - superadmin (semua)
+    - admin di departemen penanggung jawab request
+    - pembuat request itu sendiri (record miliknya)
+    """
+    if actor.role == "superadmin":
+        return
+    if actor.role == "admin" and actor.department_id is not None \
+            and request.responsible_department_id == actor.department_id:
+        return
+    if request.created_by_user_id == actor.id:
+        return
+    raise _forbidden()    

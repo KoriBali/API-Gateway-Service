@@ -1,13 +1,52 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import EmailStr, Field
 
 from app.utils.base_schema import CamelBaseModel
-from app.database.models.identity import Role
+from app.database.models.identity import (
+    Role,
+    RequestType,
+    DesignType,
+    RequestCategory,
+    PoleKind
+)
 
 
 
 # ===== Input =====
+class RequestCreate(CamelBaseModel):
+    pole_category_id: str = Field(min_length=1)
+
+    request_no: str = Field(min_length=1, max_length=100)
+    receipt_no: str = Field(min_length=1, max_length=100)
+    pj_no: str = Field(min_length=1, max_length=100)
+
+    request_type: RequestType
+    design_type: DesignType
+    request_category: RequestCategory
+
+    pole_kind: PoleKind | None = None
+    company_name: str | None = Field(default=None, max_length=200)
+    project_name: str | None = Field(default=None, max_length=200)
+    due_date: date | None = None
+
+
+
+class RequestUpdate(CamelBaseModel):
+    pole_category_id: str | None = Field(default=None, min_length=1)
+    request_no: str | None = Field(default=None, min_length=1, max_length=100)
+    receipt_no: str | None = Field(default=None, min_length=1, max_length=100)
+    pj_no: str | None = Field(default=None, min_length=1, max_length=100)
+    request_type: RequestType | None = None
+    design_type: DesignType | None = None
+    request_category: RequestCategory | None = None
+    pole_kind: PoleKind | None = None
+    company_name: str | None = Field(default=None, max_length=200)
+    project_name: str | None = Field(default=None, max_length=200)
+    due_date: date | None = None
+
+
+
 class DepartmentCreate(CamelBaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(min_length=1, max_length=120)
@@ -66,6 +105,26 @@ class PasswordResetRequest(CamelBaseModel):
 
 
 # ===== Output =====
+class RequestRead(CamelBaseModel):
+    id: str
+    responsible_department_id: str
+    created_by_user_id: str
+    pole_category_id: str
+    request_no: str
+    receipt_no: str
+    pj_no: str
+    request_type: RequestType
+    design_type: DesignType
+    request_category: RequestCategory
+    pole_kind: PoleKind | None = None
+    company_name: str | None = None
+    project_name: str | None = None
+    due_date: date | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+
 class DepartmentRead(CamelBaseModel):
     id: str
     code: str
