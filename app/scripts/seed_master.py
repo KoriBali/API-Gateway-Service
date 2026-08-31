@@ -26,6 +26,13 @@ from app.database.models import (
     PoleCombination,
     PoleThickness,
     PoleThicknessPosition,
+    CouplingCase, 
+    CouplingShape,
+    CouplingPosition, 
+    CouplingSize, 
+    CouplingType,
+    PoleDiagram, 
+    PoleMounting, 
 )
 
 MATERIALS = ["STK400", "STK490", "STK500", "STK590", "STKR400"]
@@ -95,6 +102,99 @@ TAPER_POLES = {
 }
 
 
+
+# ===== Coupling =====
+COUPLING_POSITIONS = [("front", "Front"), ("right", "Right"), ("back", "Back"), ("left", "Left")]
+COUPLING_SIZES = [("#16","#16"),("#22","#22"),("#28","#28"),("#36","#36"),("#42","#42"),("#54","#54"),("#70","#70")]
+COUPLING_TYPES = [("JIS","JIS"),("standard","Standard"),("short","Short"),("long","Long")]
+
+
+
+# Couple case number
+S, PD, PA = CouplingShape.single, CouplingShape.pair_distance, CouplingShape.pair_angular
+COUPLING_CASES = [
+    (1, 1, S,  None, True),
+    (2, 1, PD, None, False),
+    (3, 1, PA, None, False),
+    (4, 2, S,  S,    False),
+    (5, 1, PA, None, False),  
+    (6, 2, PD, PD,   False),
+    (7, 2, PA, PA,   False),
+    (8, 2, S,  PD,   False),
+    (9, 2, S,  PA,   False),
+    (10,2, S,  PA,   False),  
+]
+
+
+
+# ===== Pole Diagram ==== 
+POLE_DIAGRAMS = {
+    "IS": {
+        "baseplate": {"on_GL": "/images/IS-Type-OnGL.svg", "under_GL": "/images/IS-Type-UnderGL.svg"},
+        "embed": {None: "/images/IS-Type-Embed.svg"},
+    },
+    "IA": {
+        "baseplate": {"on_GL": "/images/IA-Type-OnGL.svg", "under_GL": "/images/IA-Type-UnderGL.svg"},
+        "embed": {None: "/images/IA-Type-Embed.svg"},
+    },
+    "LS": {
+        "baseplate": {"on_GL": "/images/LS-Type-OnGL.svg", "under_GL": "/images/LS-Type-UnderGL.svg"},
+        "embed": {None: "/images/LS-Type-Embed.svg"},
+    },
+    "LA": {
+        "baseplate": {"on_GL": "/images/LA-Type-OnGL.svg", "under_GL": "/images/LA-Type-UnderGL.svg"},
+        "embed": {None: "/images/LA-Type-Embed.svg"},
+    },
+    "TS": {
+        "baseplate": {"on_GL": "/images/TS-Type-OnGL.svg", "under_GL": "/images/TS-Type-UnderGL.svg"},
+        "embed": {None: "/images/TS-Type-Embed.svg"},
+    },
+    "TA": {
+        "baseplate": {"on_GL": "/images/TA-Type-OnGL.svg", "under_GL": "/images/TA-Type-UnderGL.svg"},
+        "embed": {None: "/images/TA-Type-Embed.svg"},
+    },
+}
+
+
+
+async def _seed_pole_diagrams(db):
+    for code, mountings in POLE_DIAGRAMS.items():
+        res = await db.execute(select(PoleStandard).where(PoleStandard.code == code))
+        std = res.scalar_one_or_none()
+        if std is None:
+            continue  # taper harus sudah di-seed oleh _seed_taper_pole
+        for mounting_str, grounds in mountings.items():
+            for ground_str, url in grounds.items():
+                gp = PoleHeightGroundPosition(ground_str) if ground_str else None
+                exists = await db.execute(select(PoleDiagram).where(
+                    PoleDiagram.pole_standard_id == std.id,
+                    PoleDiagram.mounting == PoleMounting(mounting_str),
+                    PoleDiagram.ground_position == gp,
+                ))
+                if exists.scalar_one_or_none() is None:
+                    db.add(PoleDiagram(pole_standard_id=std.id,
+                                       mounting=PoleMounting(mounting_str),
+                                       ground_position=gp, image_url=url))
+
+
+
+async def _seed_coupling_cases(db):
+    for num, groups, cp1, cp2, eo in COUPLING_CASES:
+        exists = await db.execute(select(CouplingCase).where(CouplingCase.case_number == num))
+        if exists.scalar_one_or_none() is None:
+            db.add(CouplingCase(
+                case_number=num,
+                num_groups=groups,
+                cp1_shape=cp1,
+                cp2_shape=cp2,
+                external_object_required=eo,
+                image_url=f"/images/CP-Case{num}.svg",
+                detail_image_url=f"/images/CPdetail-Case{num}.svg",
+                sort_order=num,
+            ))
+
+
+
 async def _seed_simple_name(db, model, names):
     # for table with only "name" column
     for name in names:
@@ -109,6 +209,16 @@ async def _seed_code_label(db, model, pairs):
         exists = await db.execute(select(model).where(model.code == code))
         if exists.scalar_one_or_none() is None:
             db.add(model(code=code, label=label))
+
+
+
+async def _seed_code_label_ordered(db, model, pairs):
+    # sama seperti _seed_code_label, tapi isi sort_order = posisi di list (0,1,2,...)
+    for index, (code, label) in enumerate(pairs):
+        exists = await db.execute(select(model).where(model.code == code))
+        if exists.scalar_one_or_none() is None:
+            db.add(model(code=code, label=label, sort_order=index))
+
 
 
 # Design Standard
@@ -319,6 +429,11 @@ async def main():
         await _seed_design_standards(db)
         await _seed_straight_pole(db)
         await _seed_taper_pole(db)
+        await _seed_code_label_ordered(db, CouplingPosition, COUPLING_POSITIONS)
+        await _seed_code_label_ordered(db, CouplingSize, COUPLING_SIZES)
+        await _seed_code_label_ordered(db, CouplingType, COUPLING_TYPES)
+        await _seed_coupling_cases(db)
+        await _seed_pole_diagrams(db)   
         await db.commit()
     print("Seed master selesai.")
 

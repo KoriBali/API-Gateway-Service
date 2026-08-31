@@ -1,8 +1,8 @@
-"""init schema
+"""init_schema
 
-Revision ID: 37dbea1cea8a
+Revision ID: 088f388a688e
 Revises: 
-Create Date: 2026-08-21 17:33:19.031242
+Create Date: 2026-08-31 14:53:45.827671
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '37dbea1cea8a'
+revision: str = '088f388a688e'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,51 +26,95 @@ def upgrade() -> None:
     sa.Column('code', sa.String(), nullable=False),
     sa.Column('label', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_author_codes'))
+    )
+    op.create_table('coupling_cases',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('case_number', sa.Integer(), nullable=False),
+    sa.Column('num_groups', sa.Integer(), nullable=False),
+    sa.Column('cp1_shape', sa.Enum('single', 'pair_distance', 'pair_angular', name='couplingshape'), nullable=False),
+    sa.Column('cp2_shape', sa.Enum('single', 'pair_distance', 'pair_angular', name='couplingshape'), nullable=True),
+    sa.Column('external_object_required', sa.Boolean(), nullable=False),
+    sa.Column('image_url', sa.String(), nullable=True),
+    sa.Column('detail_image_url', sa.String(), nullable=True),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_coupling_cases')),
+    sa.UniqueConstraint('case_number', name=op.f('uq_coupling_cases_case_number'))
+    )
+    op.create_table('coupling_positions',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('code', sa.String(), nullable=False),
+    sa.Column('label', sa.String(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_coupling_positions')),
+    sa.UniqueConstraint('code', name=op.f('uq_coupling_positions_code'))
+    )
+    op.create_table('coupling_sizes',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('code', sa.String(), nullable=False),
+    sa.Column('label', sa.String(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_coupling_sizes')),
+    sa.UniqueConstraint('code', name=op.f('uq_coupling_sizes_code'))
+    )
+    op.create_table('coupling_types',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('code', sa.String(), nullable=False),
+    sa.Column('label', sa.String(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_coupling_types')),
+    sa.UniqueConstraint('code', name=op.f('uq_coupling_types_code'))
     )
     op.create_table('department_codes',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('code', sa.String(), nullable=False),
     sa.Column('label', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_department_codes'))
     )
     op.create_table('departments',
     sa.Column('id', sa.String(), nullable=False),
+    sa.Column('code', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_departments')),
+    sa.UniqueConstraint('code', name=op.f('uq_departments_code')),
+    sa.UniqueConstraint('name', name=op.f('uq_departments_name'))
     )
     op.create_table('lighting_company_codes',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('code', sa.String(), nullable=False),
     sa.Column('label', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_lighting_company_codes'))
     )
     op.create_table('materials',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_materials'))
     )
     op.create_table('object_types',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_object_types'))
     )
     op.create_table('pole_categories',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_categories'))
     )
     op.create_table('region_codes',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('code', sa.String(), nullable=False),
     sa.Column('label', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_region_codes'))
     )
     op.create_table('design_standards',
     sa.Column('id', sa.String(), nullable=False),
@@ -79,8 +123,8 @@ def upgrade() -> None:
     sa.Column('default_wind_speed', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('default_air_density', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], name=op.f('fk_design_standards_pole_category_id_pole_categories'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_design_standards'))
     )
     op.create_table('pole_standards',
     sa.Column('id', sa.String(), nullable=False),
@@ -90,8 +134,8 @@ def upgrade() -> None:
     sa.Column('type', sa.Enum('taper', 'straight', name='polestandardtype'), nullable=False),
     sa.Column('geometry', sa.JSON(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], name=op.f('fk_pole_standards_pole_category_id_pole_categories'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standards'))
     )
     op.create_table('users',
     sa.Column('id', sa.String(), nullable=False),
@@ -106,18 +150,28 @@ def upgrade() -> None:
     sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['department_id'], ['departments.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('username')
+    sa.ForeignKeyConstraint(['department_id'], ['departments.id'], name=op.f('fk_users_department_id_departments'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_users')),
+    sa.UniqueConstraint('email', name=op.f('uq_users_email')),
+    sa.UniqueConstraint('username', name=op.f('uq_users_username'))
+    )
+    op.create_table('pole_diagrams',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('pole_standard_id', sa.String(), nullable=False),
+    sa.Column('mounting', sa.Enum('baseplate', 'embed', name='polemounting'), nullable=False),
+    sa.Column('ground_position', sa.Enum('on_GL', 'under_GL', name='poleheightgroundposition'), nullable=True),
+    sa.Column('image_url', sa.String(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], name=op.f('fk_pole_diagrams_pole_standard_id_pole_standards'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_diagrams'))
     )
     op.create_table('pole_diameters',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_standard_id', sa.String(), nullable=False),
     sa.Column('diameter', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], name=op.f('fk_pole_diameters_pole_standard_id_pole_standards'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_diameters'))
     )
     op.create_table('pole_standard_heights',
     sa.Column('id', sa.String(), nullable=False),
@@ -125,8 +179,8 @@ def upgrade() -> None:
     sa.Column('ground_position', sa.Enum('on_GL', 'under_GL', name='poleheightgroundposition'), nullable=False),
     sa.Column('height', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], name=op.f('fk_pole_standard_heights_pole_standard_id_pole_standards'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_heights'))
     )
     op.create_table('refresh_tokens',
     sa.Column('id', sa.String(), nullable=False),
@@ -135,9 +189,9 @@ def upgrade() -> None:
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('revoked', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('token_hash')
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_refresh_tokens_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_refresh_tokens')),
+    sa.UniqueConstraint('token_hash', name=op.f('uq_refresh_tokens_token_hash'))
     )
     op.create_table('requests',
     sa.Column('id', sa.String(), nullable=False),
@@ -156,10 +210,10 @@ def upgrade() -> None:
     sa.Column('due_date', sa.Date(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['created_by_user_id'], ['users.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['responsible_department_id'], ['departments.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['created_by_user_id'], ['users.id'], name=op.f('fk_requests_created_by_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], name=op.f('fk_requests_pole_category_id_pole_categories'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['responsible_department_id'], ['departments.id'], name=op.f('fk_requests_responsible_department_id_departments'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_requests'))
     )
     op.create_table('drawing_cases',
     sa.Column('id', sa.String(), nullable=False),
@@ -178,19 +232,19 @@ def upgrade() -> None:
     sa.Column('coupling', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['lighting_company_id'], ['lighting_company_codes.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['supersedes_case_id'], ['drawing_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['lighting_company_id'], ['lighting_company_codes.id'], name=op.f('fk_drawing_cases_lighting_company_id_lighting_company_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], name=op.f('fk_drawing_cases_owner_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_drawing_cases_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['supersedes_case_id'], ['drawing_cases.id'], name=op.f('fk_drawing_cases_supersedes_case_id_drawing_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_cases'))
     )
     op.create_table('pole_combinations',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_diameter_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['pole_diameter_id'], ['pole_diameters.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['pole_diameter_id'], ['pole_diameters.id'], name=op.f('fk_pole_combinations_pole_diameter_id_pole_diameters'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_combinations'))
     )
     op.create_table('calculation_cases',
     sa.Column('id', sa.String(), nullable=False),
@@ -209,13 +263,13 @@ def upgrade() -> None:
     sa.Column('title', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['pole_combination_id'], ['pole_combinations.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['supersedes_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], name=op.f('fk_calculation_cases_owner_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['pole_combination_id'], ['pole_combinations.id'], name=op.f('fk_calculation_cases_pole_combination_id_pole_combinations'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], name=op.f('fk_calculation_cases_pole_standard_height_id_pole_standard_heights'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], name=op.f('fk_calculation_cases_pole_standard_id_pole_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_calculation_cases_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['supersedes_case_id'], ['calculation_cases.id'], name=op.f('fk_calculation_cases_supersedes_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_cases'))
     )
     op.create_table('pole_thicknesses',
     sa.Column('id', sa.String(), nullable=False),
@@ -223,8 +277,8 @@ def upgrade() -> None:
     sa.Column('position', sa.Enum('upper', 'lower', name='polethicknessposition'), nullable=False),
     sa.Column('thickness', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['pole_combination_id'], ['pole_combinations.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['pole_combination_id'], ['pole_combinations.id'], name=op.f('fk_pole_thicknesses_pole_combination_id_pole_combinations'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_thicknesses'))
     )
     op.create_table('arms',
     sa.Column('id', sa.String(), nullable=False),
@@ -240,9 +294,9 @@ def upgrade() -> None:
     sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('fix_angle', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('quantity', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_arms_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_arms_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_arms'))
     )
     op.create_table('base_plates',
     sa.Column('id', sa.String(), nullable=False),
@@ -258,8 +312,8 @@ def upgrade() -> None:
     sa.Column('rib_plate_scallop', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('rib_plate_angle', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('weld_leg_length', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_base_plates_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_base_plates'))
     )
     op.create_table('calculation_runs',
     sa.Column('id', sa.String(), nullable=False),
@@ -267,8 +321,8 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('ok', 'ng', name='statuscalculationrun'), nullable=False),
     sa.Column('input_snapshot', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('run_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_calculation_runs_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_runs'))
     )
     op.create_table('conditions',
     sa.Column('id', sa.String(), nullable=False),
@@ -276,9 +330,9 @@ def upgrade() -> None:
     sa.Column('design_standard_id', sa.String(), nullable=False),
     sa.Column('wind_speed', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('air_density', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['design_standard_id'], ['design_standards.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_conditions_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['design_standard_id'], ['design_standards.id'], name=op.f('fk_conditions_design_standard_id_design_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_conditions'))
     )
     op.create_table('direct_objects',
     sa.Column('id', sa.String(), nullable=False),
@@ -290,9 +344,9 @@ def upgrade() -> None:
     sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('weight', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['object_type_id'], ['object_types.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_direct_objects_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['object_type_id'], ['object_types.id'], name=op.f('fk_direct_objects_object_type_id_object_types'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_direct_objects'))
     )
     op.create_table('foundations',
     sa.Column('id', sa.String(), nullable=False),
@@ -306,8 +360,8 @@ def upgrade() -> None:
     sa.Column('foundation_width_x', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('foundation_width_y', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('foundation_width', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_foundations_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_foundations'))
     )
     op.create_table('opening_parts',
     sa.Column('id', sa.String(), nullable=False),
@@ -318,8 +372,8 @@ def upgrade() -> None:
     sa.Column('opening_suerface_height', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('box_thickness', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('opening_length', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_opening_parts_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_opening_parts'))
     )
     op.create_table('overhead_wires',
     sa.Column('id', sa.String(), nullable=False),
@@ -333,8 +387,8 @@ def upgrade() -> None:
     sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('fix_angle', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('vertical_angle', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_overhead_wires_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_overhead_wires'))
     )
     op.create_table('reports',
     sa.Column('id', sa.String(), nullable=False),
@@ -349,11 +403,11 @@ def upgrade() -> None:
     sa.Column('report_title_3', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['author_code_id'], ['author_codes.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['department_code_id'], ['department_codes.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['region_code_id'], ['region_codes.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['author_code_id'], ['author_codes.id'], name=op.f('fk_reports_author_code_id_author_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_reports_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['department_code_id'], ['department_codes.id'], name=op.f('fk_reports_department_code_id_department_codes'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['region_code_id'], ['region_codes.id'], name=op.f('fk_reports_region_code_id_region_codes'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_reports'))
     )
     op.create_table('step_poles',
     sa.Column('id', sa.String(), nullable=False),
@@ -365,9 +419,9 @@ def upgrade() -> None:
     sa.Column('thickness', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('height', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_step_poles_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_step_poles_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_step_poles'))
     )
     op.create_table('arm_objects',
     sa.Column('id', sa.String(), nullable=False),
@@ -379,9 +433,9 @@ def upgrade() -> None:
     sa.Column('distance', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['arm_id'], ['arms.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['object_type_id'], ['object_types.id'], onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['arm_id'], ['arms.id'], name=op.f('fk_arm_objects_arm_id_arms'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['object_type_id'], ['object_types.id'], name=op.f('fk_arm_objects_object_type_id_object_types'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_arm_objects'))
     )
     op.create_table('calculation_results',
     sa.Column('id', sa.String(), nullable=False),
@@ -389,8 +443,8 @@ def upgrade() -> None:
     sa.Column('total_moment', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('total_windload', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('status', sa.Enum('ok', 'ng', name='statuscalculationrun'), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_run_id'], ['calculation_runs.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_run_id'], ['calculation_runs.id'], name=op.f('fk_calculation_results_calculation_run_id_calculation_runs'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_results'))
     )
     op.create_table('direct_object_results',
     sa.Column('id', sa.String(), nullable=False),
@@ -398,9 +452,9 @@ def upgrade() -> None:
     sa.Column('calculation_result_id', sa.String(), nullable=False),
     sa.Column('windload', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('moment', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_result_id'], ['calculation_results.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['direct_object_id'], ['direct_objects.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_result_id'], ['calculation_results.id'], name=op.f('fk_direct_object_results_calculation_result_id_calculation_results'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['direct_object_id'], ['direct_objects.id'], name=op.f('fk_direct_object_results_direct_object_id_direct_objects'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_direct_object_results'))
     )
     op.create_table('pole_results',
     sa.Column('id', sa.String(), nullable=False),
@@ -408,9 +462,9 @@ def upgrade() -> None:
     sa.Column('calculation_result_id', sa.String(), nullable=False),
     sa.Column('windload', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('moment', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_result_id'], ['calculation_results.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['step_pole_id'], ['step_poles.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['calculation_result_id'], ['calculation_results.id'], name=op.f('fk_pole_results_calculation_result_id_calculation_results'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['step_pole_id'], ['step_poles.id'], name=op.f('fk_pole_results_step_pole_id_step_poles'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_results'))
     )
     # ### end Alembic commands ###
 
@@ -440,6 +494,7 @@ def downgrade() -> None:
     op.drop_table('refresh_tokens')
     op.drop_table('pole_standard_heights')
     op.drop_table('pole_diameters')
+    op.drop_table('pole_diagrams')
     op.drop_table('users')
     op.drop_table('pole_standards')
     op.drop_table('design_standards')
@@ -450,5 +505,9 @@ def downgrade() -> None:
     op.drop_table('lighting_company_codes')
     op.drop_table('departments')
     op.drop_table('department_codes')
+    op.drop_table('coupling_types')
+    op.drop_table('coupling_sizes')
+    op.drop_table('coupling_positions')
+    op.drop_table('coupling_cases')
     op.drop_table('author_codes')
     # ### end Alembic commands ###

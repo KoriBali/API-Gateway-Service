@@ -183,6 +183,12 @@ class PoleStandard(Base):
     )
 
     # Parent
+    pole_diagrams: Mapped[list["PoleDiagram"]] = relationship(
+        back_populates="pole_standard",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    
     pole_standard_heights: Mapped[list["PoleStandardHeight"]] = relationship(
         back_populates="pole_standard",
         cascade="all, delete-orphan",
@@ -541,3 +547,116 @@ class ObjectType(Base):
         back_populates="object_type",
         passive_deletes=True
     )
+
+
+
+# === Coupling Shape ===
+class CouplingShape(str, enum.Enum):
+    single = "single"
+    pair_distance = "pair_distance"
+    pair_angular = "pair_angular"
+
+
+# === 10 Coupling Case ===
+class CouplingCase(Base):
+    __tablename__ = "coupling_cases"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    case_number: Mapped[int] = mapped_column(          
+        # Integer diimpor dari sqlalchemy
+        nullable=False,
+        unique=True,
+    )
+
+    num_groups: Mapped[int] = mapped_column(nullable=False)      
+
+    cp1_shape: Mapped[CouplingShape] = mapped_column(
+        Enum(CouplingShape),
+        nullable=False,
+    )
+
+    cp2_shape: Mapped[CouplingShape | None] = mapped_column(
+        Enum(CouplingShape),
+        nullable=True,                                  
+    )
+
+    external_object_required: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,                                  
+    )
+
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)         
+    detail_image_url: Mapped[str | None] = mapped_column(String, nullable=True)  
+
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+
+# === Coupling Position / Size / Type (katalog pilihan) ===
+class CouplingPosition(Base):
+    __tablename__ = "coupling_positions"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True)     # front/right/back/left
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+
+class CouplingSize(Base):
+    __tablename__ = "coupling_sizes"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True)     # #16..#70
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+
+class CouplingType(Base):
+    __tablename__ = "coupling_types"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True)     # JIS/standard/short/long
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+
+# === Pole Mounting ===
+class PoleMounting(str, enum.Enum):
+    baseplate = "baseplate"
+    embed = "embed"
+
+
+# === Pole Diagram (pointer gambar per varian) ===
+class PoleDiagram(Base):
+    __tablename__ = "pole_diagrams"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    pole_standard_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("pole_standards.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+
+    mounting: Mapped[PoleMounting] = mapped_column(Enum(PoleMounting), nullable=False)
+
+    ground_position: Mapped[PoleHeightGroundPosition | None] = mapped_column(
+        Enum(PoleHeightGroundPosition),                 # reuse enum on_GL/under_GL yang sudah ada
+        nullable=True,                                  # NULL untuk mounting=embed (ground di-collapse)
+    )
+
+    image_url: Mapped[str] = mapped_column(String, nullable=False)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    pole_standard: Mapped["PoleStandard"] = relationship(back_populates="pole_diagrams")
