@@ -49,12 +49,6 @@ if TYPE_CHECKING:
 
 
 # ===== Enums =====
-class StatusCalculationCase(str, enum.Enum):
-    draft = "draft"
-    submitted = "submitted"
-    superseded = "superseded"
-
-
 class PoleFamily(str, enum.Enum):
     taper = "taper"
     straight = "straight"
@@ -93,12 +87,6 @@ class CalculationCase(Base):
         ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
-    supersedes_case_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"),
-        nullable=True
-    )
-
     pole_standard_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey('pole_standards.id', ondelete="RESTRICT", onupdate="CASCADE"),
@@ -115,11 +103,6 @@ class CalculationCase(Base):
         String,
         ForeignKey('pole_combinations.id', ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=True
-    )
-
-    status: Mapped[StatusCalculationCase] = mapped_column(
-        Enum(StatusCalculationCase),
-        default=StatusCalculationCase.draft
     )
 
     pole_family: Mapped[PoleFamily | None] = mapped_column(
@@ -163,16 +146,6 @@ class CalculationCase(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-    )
-
-    # Self
-    supersedes: Mapped["CalculationCase | None"] = relationship(
-        remote_side=[id],
-        back_populates="superseded_by"
-    )
-
-    superseded_by: Mapped[list["CalculationCase"]] = relationship(
-        back_populates="supersedes"
     )
 
     # Parent

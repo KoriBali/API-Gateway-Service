@@ -8,7 +8,8 @@ from app.database.models.identity import (
     RequestType,
     DesignType,
     RequestCategory,
-    PoleKind
+    PoleKind,
+    RequestStatus
 )
 
 
@@ -29,6 +30,13 @@ class RequestCreate(CamelBaseModel):
     company_name: str | None = Field(default=None, max_length=200)
     project_name: str | None = Field(default=None, max_length=200)
     due_date: date | None = None
+    confirm_supersede: bool = False
+
+
+class RequestClone(CamelBaseModel):
+    request_no: str = Field(min_length=1, max_length=100)
+    receipt_no: str = Field(min_length=1, max_length=100)
+    pj_no: str = Field(min_length=1, max_length=100)
 
 
 
@@ -122,6 +130,8 @@ class RequestRead(CamelBaseModel):
     due_date: date | None = None
     created_at: datetime
     updated_at: datetime
+    status: RequestStatus
+    supersedes_request_id: str | None = None
 
 
 

@@ -12,11 +12,13 @@ from app.database.models.identity import (
     RequestType,
     DesignType,
     RequestCategory,
+    RequestStatus
 )
 from app.modules.identity.schemas import (
     RequestCreate,
     RequestUpdate,
     RequestRead,
+    RequestClone
 )
 
 routerRequest = APIRouter(prefix="/api/requests", tags=["Requests"])
@@ -48,6 +50,7 @@ async def list_requests(
     due_to: date | None = Query(default=None, alias="dueTo"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    status_filter: RequestStatus | None = Query(default=None, alias="status")
 ):
     rows, total = await RequestRepository.list_scoped(
         db,
@@ -62,6 +65,7 @@ async def list_requests(
         due_to=due_to,
         limit=limit,
         offset=offset,
+        status=status_filter
     )
     items = [to_json(RequestRead.model_validate(r)) for r in rows]
     return success_response(
@@ -107,12 +111,28 @@ async def create_request(
             detail="poleCategoryId does not reference an existing pole category",
         )
 
+    # Deteksi duplikat draft (nomor sama, 1 department).
+    dup = await RequestRepository.find_active_duplicate(
+        db, request_no=payload.request_no, receipt_no=payload.receipt_no,
+        pj_no=payload.pj_no, department_id=actor.department_id,
+    )
+    if dup is not None and not payload.confirm_supersede:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "A draft request with the same numbers already exists in your department",
+                "supersedesCandidateId": dup.id,
+            },
+        )
+
     req = await RequestRepository.create(
         db,
         payload,
         created_by_user_id=actor.id,
         responsible_department_id=actor.department_id,
+        supersedes=(dup if (dup is not None and payload.confirm_supersede) else None),
     )
+
     return success_response(
         data=to_json(RequestRead.model_validate(req)),
         to_camel=False,
@@ -133,6 +153,11 @@ async def update_request(
     if req is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
+
+    if actor.role == "drafter" and req.status != RequestStatus.draft:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Only draft requests can be edited")
+
 
     data = payload.model_dump(exclude_unset=True)
     if "pole_category_id" in data and data["pole_category_id"] != req.pole_category_id:
@@ -162,6 +187,11 @@ async def delete_request(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
 
+    if actor.role == "drafter" and req.status != RequestStatus.draft:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Drafter can only delete a draft request")
+
+
     calc_count, draw_count = await RequestRepository.count_children(db, request_id)
     if calc_count > 0 or draw_count > 0:
         raise HTTPException(
@@ -174,3 +204,41 @@ async def delete_request(
 
     await RequestRepository.delete(db, req)
     return success_response(data={"deleted": True}, message="Request deleted")
+
+
+
+# ===== Submit Request =====
+@routerRequest.post("/{request_id}/submit")
+async def submit_request(request_id: str, db: AsyncSession = Depends(get_db),
+                         actor: CurrentUser = Depends(_ANY_ROLE)):
+    req = await RequestRepository.get_by_id(db, request_id)
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+    permissions.ensure_can_submit_request(actor, req)
+    if req.status != RequestStatus.draft:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Cannot submit a request with status '{req.status.value}'")
+    updated = await RequestRepository.set_status(db, req, RequestStatus.submitted)
+    return success_response(data=to_json(RequestRead.model_validate(updated)),
+                            to_camel=False, message="Request submitted")
+
+
+
+# ===== Clone Request =====
+@routerRequest.post("/{request_id}/clone")
+async def clone_request(request_id: str, payload: RequestClone,
+                        db: AsyncSession = Depends(get_db),
+                        actor: CurrentUser = Depends(_ANY_ROLE)):
+    src = await RequestRepository.get_by_id(db, request_id)
+    if src is None or not _can_read(actor, src):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+    if actor.department_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="User has no department; cannot clone a request")
+    if src.status != RequestStatus.submitted:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Only submitted requests can be cloned")
+    new_req = await RequestRepository.clone_from_submitted(
+        db, src, payload, actor_id=actor.id, responsible_department_id=actor.department_id)
+    return success_response(data=to_json(RequestRead.model_validate(new_req)),
+                            to_camel=False, status_code=status.HTTP_201_CREATED, message="Request cloned")

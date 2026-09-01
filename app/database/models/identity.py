@@ -28,6 +28,12 @@ class Role(str, enum.Enum):
     drafter = "drafter"
 
 
+class RequestStatus(str, enum.Enum):
+    draft = "draft"
+    submitted = "submitted"
+    superseded = "superseded"
+
+
 class RequestType(str, enum.Enum):
     generally = "generally"
     special = "special"
@@ -282,6 +288,18 @@ class Request(Base):
         nullable=False,
     )
 
+    supersedes_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("requests.id", ondelete="SET NULL", onupdate="CASCADE"),
+        nullable=True,
+    )
+
+    status: Mapped[RequestStatus] = mapped_column(
+        Enum(RequestStatus),
+        default=RequestStatus.draft,
+        server_default=RequestStatus.draft.value,
+        nullable=False,
+    )
+
     request_no: Mapped[str] = mapped_column(
         String,
         nullable=False,
@@ -343,6 +361,16 @@ class Request(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    # Self
+    supersedes: Mapped["Request | None"] = relationship(
+        "Request",
+        remote_side=[id],
+        back_populates="superseded_by",
+    )
+    superseded_by: Mapped[list["Request"]] = relationship(
+        back_populates="supersedes",
     )
 
     # Child

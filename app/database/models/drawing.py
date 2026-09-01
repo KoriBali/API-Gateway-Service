@@ -25,11 +25,6 @@ if TYPE_CHECKING:
     )
 
 
-# === Status Case ===
-class StatusDrawingCase(str, enum.Enum):
-    draft = "draft"
-    submitted = "submitted"
-    superseded = "superseded"
 
 # === Drawing Case ===
 class DrawingCase(Base):
@@ -51,20 +46,9 @@ class DrawingCase(Base):
         ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
-    supersedes_case_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey('drawing_cases.id', ondelete="CASCADE", onupdate="CASCADE"),
-        nullable=True
-    )
-
     lighting_company_id: Mapped[str] = mapped_column(
         String,
         ForeignKey('lighting_company_codes.id', ondelete="RESTRICT", onupdate="CASCADE")
-    )
-
-    status: Mapped[StatusDrawingCase] = mapped_column(
-        Enum(StatusDrawingCase),
-        default=StatusDrawingCase.draft
     )
 
     title: Mapped[str] = mapped_column(

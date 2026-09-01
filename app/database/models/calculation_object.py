@@ -587,6 +587,13 @@ class Arm(Base):
         back_populates="arms"
     )
 
+    # Parent
+    arm_objects: Mapped[list["ArmObject"]] = relationship(
+        back_populates="arm",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
 
 
 # === Arm Object ===
@@ -640,6 +647,10 @@ class ArmObject(Base):
     )
 
     # Child
+    arm: Mapped["Arm"] = relationship(
+        back_populates="arm_objects"
+    )
+
     object_type: Mapped["ObjectType"] = relationship(
         back_populates="arm_objects"
     )

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta, date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, or_, func, update as sa_update
+from sqlalchemy import select, or_, func, update as sa_update, inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -10,15 +10,21 @@ from app.core.security import (
     verify_password,
     hash_token,
 )
-from app.database.models.identity import User, RefreshToken, Department, Request
+from app.database.models.identity import User, RefreshToken, Department, Request, RequestStatus
 from app.modules.identity.schemas import (
     UserCreate, UserUpdate,
     DepartmentCreate, DepartmentUpdate,
     RequestCreate, RequestUpdate,
+    RequestClone
 )
 
+from app.database.models.calculation_object import (
+    StepPole, DirectObject, OverheadWire, OpeningPart, BasePlate, Foundation, Arm, ArmObject,
+)
+
+
 from app.database.models.master import PoleCategory
-from app.database.models.calculation import CalculationCase
+from app.database.models.calculation import CalculationCase, Condition
 from app.database.models.drawing import DrawingCase
 
 
@@ -27,6 +33,17 @@ if TYPE_CHECKING:
     from app.database.models.identity import (
         RequestType, RequestCategory, DesignType
     )
+
+
+
+_CLONE_SKIP_COLS = frozenset({"id", "created_at", "updated_at"})
+
+def _clone_row(source, *, overrides: dict):
+    """Instance baru kelas sama; salin semua kolom kecuali PK & timestamp; terapkan overrides."""
+    mapper = sa_inspect(type(source))
+    data = {c.key: getattr(source, c.key) for c in mapper.columns if c.key not in _CLONE_SKIP_COLS}
+    data.update(overrides)
+    return type(source)(**data)
 
 
 
@@ -58,6 +75,7 @@ class RequestRepository:
         pole_category_id: str | None = None,
         due_from: date | None = None,
         due_to: date | None = None,
+        status: RequestStatus | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Request], int]:
@@ -84,6 +102,8 @@ class RequestRepository:
             stmt = stmt.where(Request.due_date >= due_from)
         if due_to is not None:
             stmt = stmt.where(Request.due_date <= due_to)
+        if status is not None:
+            stmt = stmt.where(Request.status == status)
 
         # Total 
         total = await db.scalar(
@@ -103,6 +123,7 @@ class RequestRepository:
         *,
         created_by_user_id: str,
         responsible_department_id: str,
+        supersedes: Request | None = None
     ) -> Request:
         req = Request(
             responsible_department_id=responsible_department_id,
@@ -118,8 +139,11 @@ class RequestRepository:
             company_name=payload.company_name,
             project_name=payload.project_name,
             due_date=payload.due_date,
+            supersedes_request_id=(supersedes.id if supersedes is not None else None)
         )
         db.add(req)
+        if supersedes is not None:
+            supersedes.status = RequestStatus.superseded
         await db.commit()
         await db.refresh(req)
         return req
@@ -157,6 +181,91 @@ class RequestRepository:
     async def delete(db: AsyncSession, req: Request) -> None:
         await db.delete(req)
         await db.commit()
+
+
+
+    @staticmethod
+    async def find_active_duplicate(
+        db, *, request_no: str, receipt_no: str, pj_no: str, department_id: str,
+    ) -> "Request | None":
+        """Request DRAFT dengan ketiga nomor sama di department sama (kandidat supersede).
+        Bila >1, ambil yang paling lama (created_at ASC)."""
+        stmt = (
+            select(Request)
+            .where(
+                Request.responsible_department_id == department_id,
+                Request.request_no == request_no,
+                Request.receipt_no == receipt_no,
+                Request.pj_no == pj_no,
+                Request.status == RequestStatus.draft,
+            )
+            .order_by(Request.created_at.asc())
+        )
+        return (await db.execute(stmt)).scalars().first()
+
+    @staticmethod
+    async def set_status(db, req: Request, new_status: RequestStatus) -> Request:
+        req.status = new_status
+        await db.commit()
+        await db.refresh(req)
+        return req
+
+    @staticmethod
+    async def clone_from_submitted(
+        db, source: Request, payload: RequestClone, *,
+        actor_id: str, responsible_department_id: str,
+    ) -> Request:
+        """
+        Duplikasi request submitted -> request DRAFT baru + subtree INPUT anak.
+        SKIP calculation_runs/results (output) & reports (TODO). Clone != supersede:
+        supersedes_request_id = None.
+        """
+        new_req = Request(
+            responsible_department_id=responsible_department_id,
+            created_by_user_id=actor_id,
+            pole_category_id=source.pole_category_id,
+            request_no=payload.request_no, receipt_no=payload.receipt_no, pj_no=payload.pj_no,
+            request_type=source.request_type, design_type=source.design_type,
+            request_category=source.request_category, pole_kind=source.pole_kind,
+            company_name=source.company_name, project_name=source.project_name,
+            due_date=source.due_date,
+            status=RequestStatus.draft,
+            supersedes_request_id=None,
+        )
+        db.add(new_req)
+        await db.flush()  # butuh new_req.id
+
+        draw_rows = (await db.execute(select(DrawingCase).where(DrawingCase.request_id == source.id))).scalars().all()
+        for dc in draw_rows:
+            db.add(_clone_row(dc, overrides={"request_id": new_req.id, "owner_user_id": actor_id}))
+
+        calc_rows = (await db.execute(select(CalculationCase).where(CalculationCase.request_id == source.id))).scalars().all()
+        for cc in calc_rows:
+            new_cc = _clone_row(cc, overrides={"request_id": new_req.id, "owner_user_id": actor_id})
+            db.add(new_cc)
+            await db.flush()  # butuh new_cc.id
+            await RequestRepository._clone_calc_children(db, old_case_id=cc.id, new_case_id=new_cc.id)
+
+        await db.commit()
+        await db.refresh(new_req)
+        return new_req
+
+    @staticmethod
+    async def _clone_calc_children(db, *, old_case_id: str, new_case_id: str) -> None:
+        """Salin koleksi INPUT (FK induk = calculation_case_id). SKIP runs/results & reports."""
+        for Model in (Condition, DirectObject, StepPole, OverheadWire, OpeningPart, BasePlate, Foundation):
+            rows = (await db.execute(select(Model).where(Model.calculation_case_id == old_case_id))).scalars().all()
+            for r in rows:
+                db.add(_clone_row(r, overrides={"calculation_case_id": new_case_id}))
+
+        arms = (await db.execute(select(Arm).where(Arm.calculation_case_id == old_case_id))).scalars().all()
+        for arm in arms:
+            new_arm = _clone_row(arm, overrides={"calculation_case_id": new_case_id})
+            db.add(new_arm)
+            await db.flush()  # butuh new_arm.id
+            arm_objs = (await db.execute(select(ArmObject).where(ArmObject.arm_id == arm.id))).scalars().all()
+            for ao in arm_objs:
+                db.add(_clone_row(ao, overrides={"arm_id": new_arm.id}))
 
 
 

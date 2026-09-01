@@ -65,3 +65,11 @@ def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
     if request.created_by_user_id == actor.id:
         return
     raise _forbidden()    
+
+
+
+def ensure_can_submit_request(actor: CurrentUser, request: Request) -> None:
+    """Hanya PEMBUAT yang boleh submit (draft -> submitted)."""
+    if request.created_by_user_id == actor.id:
+        return
+    raise _forbidden("Only the request creator can submit this request")

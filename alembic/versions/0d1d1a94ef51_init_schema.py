@@ -1,8 +1,8 @@
-"""init_schema
+"""init schema
 
-Revision ID: 088f388a688e
+Revision ID: 0d1d1a94ef51
 Revises: 
-Create Date: 2026-08-31 14:53:45.827671
+Create Date: 2026-09-01 10:59:10.361583
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '088f388a688e'
+revision: str = '0d1d1a94ef51'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -198,6 +198,8 @@ def upgrade() -> None:
     sa.Column('responsible_department_id', sa.String(), nullable=False),
     sa.Column('created_by_user_id', sa.String(), nullable=False),
     sa.Column('pole_category_id', sa.String(), nullable=False),
+    sa.Column('supersedes_request_id', sa.String(), nullable=True),
+    sa.Column('status', sa.Enum('draft', 'submitted', 'superseded', name='requeststatus'), server_default='draft', nullable=False),
     sa.Column('request_no', sa.String(), nullable=False),
     sa.Column('receipt_no', sa.String(), nullable=False),
     sa.Column('pj_no', sa.String(), nullable=False),
@@ -213,15 +215,14 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['created_by_user_id'], ['users.id'], name=op.f('fk_requests_created_by_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], name=op.f('fk_requests_pole_category_id_pole_categories'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['responsible_department_id'], ['departments.id'], name=op.f('fk_requests_responsible_department_id_departments'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['supersedes_request_id'], ['requests.id'], name=op.f('fk_requests_supersedes_request_id_requests'), onupdate='CASCADE', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_requests'))
     )
     op.create_table('drawing_cases',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('request_id', sa.String(), nullable=False),
     sa.Column('owner_user_id', sa.String(), nullable=False),
-    sa.Column('supersedes_case_id', sa.String(), nullable=True),
     sa.Column('lighting_company_id', sa.String(), nullable=False),
-    sa.Column('status', sa.Enum('draft', 'submitted', 'superseded', name='statusdrawingcase'), nullable=False),
     sa.Column('title', sa.String(), nullable=False),
     sa.Column('drawing_type', sa.String(), nullable=False),
     sa.Column('drawing_number', sa.String(), nullable=False),
@@ -235,7 +236,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['lighting_company_id'], ['lighting_company_codes.id'], name=op.f('fk_drawing_cases_lighting_company_id_lighting_company_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], name=op.f('fk_drawing_cases_owner_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_drawing_cases_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['supersedes_case_id'], ['drawing_cases.id'], name=op.f('fk_drawing_cases_supersedes_case_id_drawing_cases'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_cases'))
     )
     op.create_table('pole_combinations',
@@ -250,11 +250,9 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('request_id', sa.String(), nullable=False),
     sa.Column('owner_user_id', sa.String(), nullable=False),
-    sa.Column('supersedes_case_id', sa.String(), nullable=True),
     sa.Column('pole_standard_id', sa.String(), nullable=True),
     sa.Column('pole_standard_height_id', sa.String(), nullable=True),
     sa.Column('pole_combination_id', sa.String(), nullable=True),
-    sa.Column('status', sa.Enum('draft', 'submitted', 'superseded', name='statuscalculationcase'), nullable=False),
     sa.Column('pole_family', sa.Enum('taper', 'straight', name='polefamily'), nullable=True),
     sa.Column('ground_position', sa.Enum('embedment', 'on_GL', 'upper_GL', 'under_GL', name='groundposition'), nullable=True),
     sa.Column('lowest_height', sa.Numeric(precision=10, scale=5), nullable=True),
@@ -268,7 +266,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], name=op.f('fk_calculation_cases_pole_standard_height_id_pole_standard_heights'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], name=op.f('fk_calculation_cases_pole_standard_id_pole_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_calculation_cases_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['supersedes_case_id'], ['calculation_cases.id'], name=op.f('fk_calculation_cases_supersedes_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_cases'))
     )
     op.create_table('pole_thicknesses',
