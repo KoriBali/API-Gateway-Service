@@ -24,8 +24,15 @@ DEPARTMENTS = [
 ]
 
 EMPLOYEES = [
+    # YSG: 2 drafter + 1 admin (uji isolasi antar-drafter & scope admin dalam 1 department)
     {"username": "budi", "email": "budi@corp.id", "full_name": "Budi Santoso", "role": "drafter", "department_code": "YSG"},
+    {"username": "andi", "email": "andi@corp.id", "full_name": "Andi Nugroho", "role": "drafter", "department_code": "YSG"},
     {"username": "sari", "email": "sari@corp.id", "full_name": "Sari Dewi",    "role": "admin",   "department_code": "YSG"},
+    # YSC: 1 drafter + 1 admin (uji scope lintas-department)
+    {"username": "dewi", "email": "dewi@corp.id", "full_name": "Dewi Lestari", "role": "drafter", "department_code": "YSC"},
+    {"username": "citra", "email": "citra@corp.id", "full_name": "Citra Wijaya", "role": "admin",  "department_code": "YSC"},
+    # YSF: 1 drafter
+    {"username": "eko", "email": "eko@corp.id", "full_name": "Eko Prasetyo",   "role": "drafter", "department_code": "YSF"},
 ]
 
 
