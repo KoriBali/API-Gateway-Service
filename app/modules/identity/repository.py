@@ -19,13 +19,13 @@ from app.modules.identity.schemas import (
 )
 
 from app.database.models.calculation_object import (
-    StepPole, DirectObject, OverheadWire, OpeningPart, BasePlate, Foundation, Arm, ArmObject,
+    StepPole, DirectObject, OverheadWire, Arm, ArmObject, CalculationBasePlate, CalculationOpening, CalculationFoundation
 )
 
 
 from app.database.models.master import PoleCategory
 from app.database.models.calculation import CalculationCase, Condition
-from app.database.models.drawing import DrawingCase
+from app.database.models.drawing import DrawingCase, DrawingOpening, DrawingFoundation, DrawingBasePlate, DrawingStepPole
 
 
 
@@ -237,7 +237,10 @@ class RequestRepository:
 
         draw_rows = (await db.execute(select(DrawingCase).where(DrawingCase.request_id == source.id))).scalars().all()
         for dc in draw_rows:
-            db.add(_clone_row(dc, overrides={"request_id": new_req.id, "owner_user_id": actor_id}))
+            new_dc = _clone_row(dc, overrides={"request_id": new_req.id, "owner_user_id": actor_id})
+            db.add(new_dc)
+            await db.flush() 
+            await RequestRepository._clone_drawing_children(db, old_case_id=dc.id, new_case_id=new_dc.id)
 
         calc_rows = (await db.execute(select(CalculationCase).where(CalculationCase.request_id == source.id))).scalars().all()
         for cc in calc_rows:
@@ -253,7 +256,7 @@ class RequestRepository:
     @staticmethod
     async def _clone_calc_children(db, *, old_case_id: str, new_case_id: str) -> None:
         """Salin koleksi INPUT (FK induk = calculation_case_id). SKIP runs/results & reports."""
-        for Model in (Condition, DirectObject, StepPole, OverheadWire, OpeningPart, BasePlate, Foundation):
+        for Model in (Condition, DirectObject, StepPole, OverheadWire, CalculationOpening, CalculationBasePlate, CalculationFoundation):
             rows = (await db.execute(select(Model).where(Model.calculation_case_id == old_case_id))).scalars().all()
             for r in rows:
                 db.add(_clone_row(r, overrides={"calculation_case_id": new_case_id}))
@@ -266,6 +269,14 @@ class RequestRepository:
             arm_objs = (await db.execute(select(ArmObject).where(ArmObject.arm_id == arm.id))).scalars().all()
             for ao in arm_objs:
                 db.add(_clone_row(ao, overrides={"arm_id": new_arm.id}))
+
+    @staticmethod
+    async def _clone_drawing_children(db, *, old_case_id: str, new_case_id: str) -> None:
+        """Salin koleksi INPUT drawing (FK induk = drawing_case_id)."""
+        for Model in (DrawingOpening, DrawingBasePlate, DrawingFoundation, DrawingStepPole):
+            rows = (await db.execute(select(Model).where(Model.drawing_case_id == old_case_id))).scalars().all()
+            for r in rows:
+                db.add(_clone_row(r, overrides={"drawing_case_id": new_case_id}))
 
 
 

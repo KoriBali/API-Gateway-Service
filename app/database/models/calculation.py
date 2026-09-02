@@ -32,9 +32,9 @@ if TYPE_CHECKING:
     from app.database.models.calculation_object import(
         StepPole,
         OverheadWire,
-        OpeningPart,
-        BasePlate,
-        Foundation,
+        CalculationBasePlate,
+        CalculationOpening,
+        CalculationFoundation,
         Arm
     )
 
@@ -185,19 +185,19 @@ class CalculationCase(Base):
         passive_deletes=True
     )
 
-    base_plates: Mapped[list["BasePlate"]] = relationship(
+    calculation_base_plates: Mapped[list["CalculationBasePlate"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
-    opening_parts: Mapped[list["OpeningPart"]] = relationship(
+    calculation_openings: Mapped[list["CalculationOpening"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
-    foundations: Mapped[list["Foundation"]] = relationship(
+    calculation_foundations: Mapped[list["CalculationFoundation"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True

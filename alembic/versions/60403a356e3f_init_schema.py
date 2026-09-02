@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: 0d1d1a94ef51
+Revision ID: 60403a356e3f
 Revises: 
-Create Date: 2026-09-01 10:59:10.361583
+Create Date: 2026-09-02 14:09:02.935661
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '0d1d1a94ef51'
+revision: str = '60403a356e3f'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -223,6 +223,8 @@ def upgrade() -> None:
     sa.Column('request_id', sa.String(), nullable=False),
     sa.Column('owner_user_id', sa.String(), nullable=False),
     sa.Column('lighting_company_id', sa.String(), nullable=False),
+    sa.Column('pole_standard_id', sa.String(), nullable=True),
+    sa.Column('pole_standard_height_id', sa.String(), nullable=True),
     sa.Column('title', sa.String(), nullable=False),
     sa.Column('drawing_type', sa.String(), nullable=False),
     sa.Column('drawing_number', sa.String(), nullable=False),
@@ -231,10 +233,16 @@ def upgrade() -> None:
     sa.Column('checked_by_name', sa.String(), nullable=False),
     sa.Column('approved_by_name', sa.String(), nullable=False),
     sa.Column('coupling', sa.Boolean(), nullable=False),
+    sa.Column('pole_family', sa.Enum('taper', 'straight', name='polefamily'), nullable=True),
+    sa.Column('ground_position', sa.Enum('embedment', 'on_GL', 'upper_GL', 'under_GL', name='groundposition'), nullable=True),
+    sa.Column('lowest_height', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('embedment_length', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['lighting_company_id'], ['lighting_company_codes.id'], name=op.f('fk_drawing_cases_lighting_company_id_lighting_company_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], name=op.f('fk_drawing_cases_owner_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], name=op.f('fk_drawing_cases_pole_standard_height_id_pole_standard_heights'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['pole_standard_id'], ['pole_standards.id'], name=op.f('fk_drawing_cases_pole_standard_id_pole_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_drawing_cases_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_cases'))
     )
@@ -268,6 +276,52 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_calculation_cases_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_cases'))
     )
+    op.create_table('drawing_base_plates',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('drawing_case_id', sa.String(), nullable=False),
+    sa.Column('type', sa.Enum('four_rib', 'eight_rib', name='baseplatetype'), nullable=False),
+    sa.Column('base_plate_width', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.ForeignKeyConstraint(['drawing_case_id'], ['drawing_cases.id'], name=op.f('fk_drawing_base_plates_drawing_case_id_drawing_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_base_plates'))
+    )
+    op.create_table('drawing_foundations',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('drawing_case_id', sa.String(), nullable=False),
+    sa.Column('type', sa.Enum('square', 'circle', name='foundationtype'), nullable=False),
+    sa.Column('embedment_depth', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('n_value', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('gamma_c', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('gamma', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('alpha', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('foundation_width', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('foundation_width_x', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('foundation_width_y', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.ForeignKeyConstraint(['drawing_case_id'], ['drawing_cases.id'], name=op.f('fk_drawing_foundations_drawing_case_id_drawing_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_foundations'))
+    )
+    op.create_table('drawing_openings',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('drawing_case_id', sa.String(), nullable=False),
+    sa.Column('type', sa.Enum('box', 'r', name='openingtype'), nullable=False),
+    sa.Column('opening_direction', sa.Enum('left', 'right', 'front', 'back', name='openingdirection'), nullable=False),
+    sa.Column('opening_length', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.ForeignKeyConstraint(['drawing_case_id'], ['drawing_cases.id'], name=op.f('fk_drawing_openings_drawing_case_id_drawing_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_openings'))
+    )
+    op.create_table('drawing_step_poles',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('drawing_case_id', sa.String(), nullable=False),
+    sa.Column('material_id', sa.String(), nullable=False),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('order', sa.Integer(), nullable=False),
+    sa.Column('diameter', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('thickness', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('height', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('quantity', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['drawing_case_id'], ['drawing_cases.id'], name=op.f('fk_drawing_step_poles_drawing_case_id_drawing_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_drawing_step_poles_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_step_poles'))
+    )
     op.create_table('pole_thicknesses',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_combination_id', sa.String(), nullable=False),
@@ -295,7 +349,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_arms_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_arms'))
     )
-    op.create_table('base_plates',
+    op.create_table('calculation_base_plates',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('calculation_case_id', sa.String(), nullable=False),
     sa.Column('type', sa.Enum('four_rib', 'eight_rib', name='baseplatetype'), nullable=False),
@@ -309,8 +363,36 @@ def upgrade() -> None:
     sa.Column('rib_plate_scallop', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('rib_plate_angle', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('weld_leg_length', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_base_plates_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_base_plates'))
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_calculation_base_plates_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_base_plates'))
+    )
+    op.create_table('calculation_foundations',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('calculation_case_id', sa.String(), nullable=False),
+    sa.Column('type', sa.Enum('square', 'circle', name='foundationtype'), nullable=False),
+    sa.Column('embedment_depth', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('n_value', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('gamma_c', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('gamma', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('alpha', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('foundation_width', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('foundation_width_x', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('foundation_width_y', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_calculation_foundations_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_foundations'))
+    )
+    op.create_table('calculation_openings',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('calculation_case_id', sa.String(), nullable=False),
+    sa.Column('type', sa.Enum('box', 'r', name='openingtype'), nullable=False),
+    sa.Column('opening_direction', sa.Enum('left', 'right', 'front', 'back', name='openingdirection'), nullable=False),
+    sa.Column('opening_width', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('box_width', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('opening_suerface_height', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('box_thickness', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('opening_length', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_calculation_openings_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_openings'))
     )
     op.create_table('calculation_runs',
     sa.Column('id', sa.String(), nullable=False),
@@ -344,33 +426,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_direct_objects_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['object_type_id'], ['object_types.id'], name=op.f('fk_direct_objects_object_type_id_object_types'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_direct_objects'))
-    )
-    op.create_table('foundations',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('calculation_case_id', sa.String(), nullable=False),
-    sa.Column('type', sa.Enum('square', 'circle', name='foundationtype'), nullable=False),
-    sa.Column('embedment_depth', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('n_value', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('gamma_c', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('gamma', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('alpha', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('foundation_width_x', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('foundation_width_y', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('foundation_width', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_foundations_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_foundations'))
-    )
-    op.create_table('opening_parts',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('calculation_case_id', sa.String(), nullable=False),
-    sa.Column('type', sa.Enum('box', 'r', name='openingtype'), nullable=False),
-    sa.Column('opening_width', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('box_width', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('opening_suerface_height', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('box_thickness', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('opening_length', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_opening_parts_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_opening_parts'))
     )
     op.create_table('overhead_wires',
     sa.Column('id', sa.String(), nullable=False),
@@ -476,14 +531,18 @@ def downgrade() -> None:
     op.drop_table('step_poles')
     op.drop_table('reports')
     op.drop_table('overhead_wires')
-    op.drop_table('opening_parts')
-    op.drop_table('foundations')
     op.drop_table('direct_objects')
     op.drop_table('conditions')
     op.drop_table('calculation_runs')
-    op.drop_table('base_plates')
+    op.drop_table('calculation_openings')
+    op.drop_table('calculation_foundations')
+    op.drop_table('calculation_base_plates')
     op.drop_table('arms')
     op.drop_table('pole_thicknesses')
+    op.drop_table('drawing_step_poles')
+    op.drop_table('drawing_openings')
+    op.drop_table('drawing_foundations')
+    op.drop_table('drawing_base_plates')
     op.drop_table('calculation_cases')
     op.drop_table('pole_combinations')
     op.drop_table('drawing_cases')

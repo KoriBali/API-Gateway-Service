@@ -309,9 +309,16 @@ class OpeningType(str, enum.Enum):
     box = "box"
     r = "r"
 
-# === Opening Part ===
-class OpeningPart(Base):
-    __tablename__ = "opening_parts"
+# === Opening Direction (dipakai calc & drawing) ===
+class OpeningDirection(str, enum.Enum):
+    left = "left"
+    right = "right"
+    front = "front"
+    back = "back"
+
+# === Calculation Opening ===
+class CalculationOpening(Base):
+    __tablename__ = "calculation_openings"
 
     id: Mapped[str] = mapped_column(
         String,
@@ -327,6 +334,10 @@ class OpeningPart(Base):
     type: Mapped[OpeningType] = mapped_column(
         Enum(OpeningType),
         nullable=False
+    )
+
+    opening_direction: Mapped[OpeningDirection] = mapped_column( 
+        Enum(OpeningDirection), nullable=False
     )
 
     opening_width: Mapped[Decimal] = mapped_column(
@@ -356,7 +367,7 @@ class OpeningPart(Base):
 
     # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
-        back_populates="opening_parts"
+        back_populates="calculation_openings"
     )
 
 
@@ -367,8 +378,8 @@ class BasePlateType(str, enum.Enum):
     eight_rib = "eight_rib"
 
 # === Base Plate ===
-class BasePlate(Base):
-    __tablename__ = "base_plates"
+class CalculationBasePlate(Base):
+    __tablename__ = "calculation_base_plates"
 
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
@@ -435,7 +446,7 @@ class BasePlate(Base):
 
     # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
-        back_populates="base_plates"
+        back_populates="calculation_base_plates"
     )
 
 
@@ -445,69 +456,34 @@ class FoundationType(str, enum.Enum):
     square = "square"
     circle = "circle"
 
-# === Foundation ===
-class Foundation(Base):
-    __tablename__ = "foundations"
+# === Mixin for calculation & drawing ===
+class FoundationColumnsMixin:
+    """Definisi kolom dipakai bersama oleh CalculationFoundation & DrawingFoundation.
+    Bukan tabel — hanya declarative mixin. Kolom di-copy ke tiap subclass."""
+    type: Mapped[FoundationType] = mapped_column(Enum(FoundationType), nullable=False)
+    embedment_depth: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    n_value: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    gamma_c: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    gamma: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    alpha: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    foundation_width: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)    
+    foundation_width_x: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  
+    foundation_width_y: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  
+
+
+
+# === Calculation Foundation ===
+class CalculationFoundation(Base, FoundationColumnsMixin):
+    __tablename__ = "calculation_foundations"
 
     id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4())
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-
     calculation_case_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
+        String, ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
     )
-
-    type: Mapped[FoundationType] = mapped_column(
-        Enum(FoundationType),
-        nullable=False
-    )
-
-    embedment_depth: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    n_value: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    gamma_c: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    gamma: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    alpha: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    foundation_width_x: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    foundation_width_y: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    foundation_width: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
-        back_populates="foundations"
+        back_populates="calculation_foundations"
     )
 
 
