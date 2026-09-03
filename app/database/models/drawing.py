@@ -11,7 +11,8 @@ from sqlalchemy import (
     String,
     Boolean,
     Numeric,
-    Integer
+    Integer,
+    UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -168,6 +169,11 @@ class DrawingCase(Base):
         passive_deletes=True,
     )
 
+    drawing_coupling_heights: Mapped[list["DrawingCouplingHeight"]] = relationship(
+        back_populates="drawing_case",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     # Child
     request: Mapped["Request"] = relationship(
@@ -255,3 +261,126 @@ class DrawingStepPole(Base):
 
     # Child
     drawing_case: Mapped["DrawingCase"] = relationship(back_populates="drawing_step_poles")
+
+
+
+# === Drawing Coupling Height ===
+class DrawingCouplingHeight(Base):
+    __tablename__ = "drawing_coupling_heights"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    drawing_case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("drawing_cases.id", ondelete="CASCADE", onupdate="CASCADE")
+    )
+    height_index: Mapped[int] = mapped_column(Integer, nullable=False)          # slot 1=H1, 2=H2, 3=H3
+    height_value: Mapped[Decimal] = mapped_column(Numeric(7, 2), nullable=False)  # mm
+    has_hookband: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("drawing_case_id", "height_index", name="uq_coupling_height_slot"),
+    )
+
+    drawing_case: Mapped["DrawingCase"] = relationship(back_populates="drawing_coupling_heights")
+    couplings: Mapped[list["DrawingCoupling"]] = relationship(
+        back_populates="height", cascade="all, delete-orphan", passive_deletes=True,
+    )
+
+
+# === Drawing Coupling ===
+class DrawingCoupling(Base):
+    __tablename__ = "drawing_couplings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    height_id: Mapped[str] = mapped_column(
+        String, ForeignKey("drawing_coupling_heights.id", ondelete="CASCADE", onupdate="CASCADE")
+    )
+    coupling_case_id: Mapped[str] = mapped_column(
+        String, ForeignKey("coupling_cases.id", ondelete="RESTRICT", onupdate="CASCADE")
+    )
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    height: Mapped["DrawingCouplingHeight"] = relationship(back_populates="couplings")
+    groups: Mapped[list["DrawingCouplingGroup"]] = relationship(
+        back_populates="coupling", cascade="all, delete-orphan", passive_deletes=True,
+    )
+
+
+# === Drawing Coupling Group ===
+class DrawingCouplingGroup(Base):
+    __tablename__ = "drawing_coupling_groups"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    coupling_id: Mapped[str] = mapped_column(
+        String, ForeignKey("drawing_couplings.id", ondelete="CASCADE", onupdate="CASCADE")
+    )
+    group_index: Mapped[int] = mapped_column(Integer, nullable=False)   # 1=CP1, 2=CP2
+
+    position_id: Mapped[str] = mapped_column(
+        String, ForeignKey("coupling_positions.id", ondelete="RESTRICT", onupdate="CASCADE")
+    )
+    size_id: Mapped[str] = mapped_column(
+        String, ForeignKey("coupling_sizes.id", ondelete="RESTRICT", onupdate="CASCADE")
+    )
+    type_id: Mapped[str] = mapped_column(
+        String, ForeignKey("coupling_types.id", ondelete="RESTRICT", onupdate="CASCADE")
+    )
+
+    vertical_angle: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=0)  # derajat, default 0
+    distance: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)          # hanya pair_distance
+    horizontal_angle: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)  # hanya pair_angular
+    custom_name: Mapped[str | None] = mapped_column(String, nullable=True)                       # "Other" (opsional)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("coupling_id", "group_index", name="uq_coupling_group_index"),
+    )
+
+    coupling: Mapped["DrawingCoupling"] = relationship(back_populates="groups")
+    external_objects: Mapped[list["DrawingCouplingGroupExternalObject"]] = relationship(
+        back_populates="group", cascade="all, delete-orphan", passive_deletes=True,
+    )
+
+
+# === Drawing Coupling External Object ===
+class DrawingCouplingGroupExternalObject(Base):
+    __tablename__ = "drawing_coupling_group_external_objects"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id: Mapped[str] = mapped_column(
+        String, ForeignKey("drawing_coupling_groups.id", ondelete="CASCADE", onupdate="CASCADE")
+    )
+    external_object_id: Mapped[str] = mapped_column(
+        String, ForeignKey("external_objects.id", ondelete="RESTRICT", onupdate="CASCADE")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        UniqueConstraint("group_id", "external_object_id", name="uq_group_external_object"),
+    )
+
+    group: Mapped["DrawingCouplingGroup"] = relationship(back_populates="external_objects")

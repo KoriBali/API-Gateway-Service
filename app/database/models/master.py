@@ -9,7 +9,9 @@ from sqlalchemy import (
     String,
     Numeric,
     Boolean,
-    JSON
+    JSON,
+    Integer,
+    UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -568,7 +570,6 @@ class CouplingCase(Base):
     )
 
     case_number: Mapped[int] = mapped_column(          
-        # Integer diimpor dari sqlalchemy
         nullable=False,
         unique=True,
     )
@@ -582,15 +583,13 @@ class CouplingCase(Base):
 
     cp2_shape: Mapped[CouplingShape | None] = mapped_column(
         Enum(CouplingShape),
-        nullable=True,                                  
+        nullable=True,
     )
 
-    external_object_required: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,                                  
-    )
+    cp1_label: Mapped[str | None] = mapped_column(String, nullable=True)
+    cp2_label: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    image_url: Mapped[str | None] = mapped_column(String, nullable=True)         
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     detail_image_url: Mapped[str | None] = mapped_column(String, nullable=True)  
 
     sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
@@ -599,7 +598,7 @@ class CouplingCase(Base):
 
 
 
-# === Coupling Position / Size / Type (katalog pilihan) ===
+# === Coupling Position / Size / Type ===
 class CouplingPosition(Base):
     __tablename__ = "coupling_positions"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -627,6 +626,46 @@ class CouplingType(Base):
     label: Mapped[str] = mapped_column(String, nullable=False)
     sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+
+# === Region (zona utility Jepang: East / West) ===
+class Region(Base):
+    __tablename__ = "regions"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True)   # east_japan / west_japan
+    label: Mapped[str] = mapped_column(String, nullable=False)               # "East Japan"
+    # frequency_hz: Mapped[int | None] = mapped_column(Integer, nullable=True) 
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+# === External Object (katalog nama) ===
+class ExternalObject(Base):
+    __tablename__ = "external_objects"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True)   
+    label: Mapped[str] = mapped_column(String, nullable=False)               
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+# === External Object Availability ===
+class ExternalObjectAvailability(Base):
+    __tablename__ = "external_object_availabilities"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    region_id: Mapped[str] = mapped_column(
+        String, ForeignKey("regions.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False
+    )
+    external_object_id: Mapped[str] = mapped_column(
+        String, ForeignKey("external_objects.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False
+    )
+    avail_when_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)     
+    avail_when_nonzero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)  
+
+    __table_args__ = (
+        UniqueConstraint("region_id", "external_object_id", name="uq_eo_avail_region_object"),
+    )
 
 
 

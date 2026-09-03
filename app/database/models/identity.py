@@ -18,6 +18,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.database.models.calculation import CalculationCase
     from app.database.models.drawing import DrawingCase
+    from app.database.models.master import Region
 
 
 
@@ -335,6 +336,11 @@ class Request(Base):
         nullable=True,
     )
 
+    region_id: Mapped[str | None] = mapped_column(
+        ForeignKey("regions.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True,
+    )
+
     company_name: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
@@ -372,6 +378,8 @@ class Request(Base):
     superseded_by: Mapped[list["Request"]] = relationship(
         back_populates="supersedes",
     )
+
+    region: Mapped["Region | None"] = relationship("Region")
 
     # Child
     created_by_user: Mapped["User"] = relationship(
