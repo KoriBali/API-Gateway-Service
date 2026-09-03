@@ -33,6 +33,9 @@ from app.database.models import (
     CouplingType,
     PoleDiagram, 
     PoleMounting, 
+    Region,
+    ExternalObject,
+    ExternalObjectAvailability
 )
 
 MATERIALS = ["STK400", "STK490", "STK500", "STK590", "STKR400"]
@@ -105,24 +108,53 @@ TAPER_POLES = {
 
 # ===== Coupling =====
 COUPLING_POSITIONS = [("front", "Front"), ("right", "Right"), ("back", "Back"), ("left", "Left")]
-COUPLING_SIZES = [("#16","#16"),("#22","#22"),("#28","#28"),("#36","#36"),("#42","#42"),("#54","#54"),("#70","#70")]
-COUPLING_TYPES = [("JIS","JIS"),("standard","Standard"),("short","Short"),("long","Long")]
+COUPLING_SIZES = [("16","#16"),("22","#22"),("28","#28"),("36","#36"),("42","#42"),("54","#54"),("70","#70")]
+COUPLING_TYPES = [("jis","JIS"),("standard","Standard"),("short","Short"),("long","Long")]
 
+
+
+# ===== Region (zona utility) =====
+REGIONS = [
+    # (code, label)
+    ("east_japan", "East Japan"),
+    ("west_japan", "West Japan"),
+]
+
+# ===== External Object =====
+EXTERNAL_OBJECTS = [
+    # (code, label)
+    ("yupilon_bushing", "Yupilon Bushing"),
+    ("nipple", "Nipple"),
+    ("terminal_cap", "Terminal Cap"),
+]
+
+# ===== Matriks availability External Object =====
+# (region_code, external_object_code, avail_when_zero, avail_when_nonzero)
+# West: keputusan stakeholder (adopsi matriks FE) — menimpa KB lama. Lihat memory
+# coupling-west-availability-conflict. West = bushing@≠0, terminal_cap@0, nipple tak pernah.
+EXTERNAL_OBJECT_AVAILABILITY = [
+    ("east_japan", "yupilon_bushing", False, True),
+    ("east_japan", "nipple",          True,  True),
+    ("east_japan", "terminal_cap",    True,  False),
+    ("west_japan", "yupilon_bushing", False, True),
+    ("west_japan", "terminal_cap",    True,  False),
+    # west_japan/nipple sengaja tak ada (tak pernah available)
+]
 
 
 # Couple case number
 S, PD, PA = CouplingShape.single, CouplingShape.pair_distance, CouplingShape.pair_angular
 COUPLING_CASES = [
-    (1, 1, S,  None, True),
-    (2, 1, PD, None, False),
-    (3, 1, PA, None, False),
-    (4, 2, S,  S,    False),
-    (5, 1, PA, None, False),  
-    (6, 2, PD, PD,   False),
-    (7, 2, PA, PA,   False),
-    (8, 2, S,  PD,   False),
-    (9, 2, S,  PA,   False),
-    (10,2, S,  PA,   False),  
+    (1,  1, S,  None, None, None),
+    (2,  1, PD, None, "d",  None),
+    (3,  1, PA, None, "θ",  None),
+    (4,  2, S,  S,    None, None),
+    (5,  1, PA, None, "θ1", None),
+    (6,  2, PD, PD,   "d",  "d"),
+    (7,  2, PA, PA,   "θ",  "θ"),
+    (8,  2, S,  PD,   None, "d"),
+    (9,  2, S,  PA,   None, "θ"),
+    (10, 2, S,  PA,   None, "θ2"),
 ]
 
 
@@ -157,6 +189,43 @@ POLE_DIAGRAMS = {
 
 
 
+async def _seed_regions(db):
+    for index, (code, label) in enumerate(REGIONS):
+        exists = await db.execute(select(Region).where(Region.code == code))
+        if exists.scalar_one_or_none() is None:
+            db.add(Region(code=code, label=label, sort_order=index))
+
+
+async def _seed_external_objects(db):
+    for index, (code, label) in enumerate(EXTERNAL_OBJECTS):
+        exists = await db.execute(select(ExternalObject).where(ExternalObject.code == code))
+        if exists.scalar_one_or_none() is None:
+            db.add(ExternalObject(code=code, label=label, sort_order=index))
+
+
+async def _seed_external_object_availability(db):
+    # region & external_object harus sudah ada → flush dulu di main() sebelum fungsi ini
+    for region_code, eo_code, when_zero, when_nonzero in EXTERNAL_OBJECT_AVAILABILITY:
+        region = (await db.execute(select(Region).where(Region.code == region_code))).scalar_one_or_none()
+        eo = (await db.execute(select(ExternalObject).where(ExternalObject.code == eo_code))).scalar_one_or_none()
+        if region is None or eo is None:
+            continue  
+        exists = await db.execute(
+            select(ExternalObjectAvailability).where(
+                ExternalObjectAvailability.region_id == region.id,
+                ExternalObjectAvailability.external_object_id == eo.id,
+            )
+        )
+        if exists.scalar_one_or_none() is None:
+            db.add(ExternalObjectAvailability(
+                region_id=region.id,
+                external_object_id=eo.id,
+                avail_when_zero=when_zero,
+                avail_when_nonzero=when_nonzero,
+            ))
+
+
+
 async def _seed_pole_diagrams(db):
     for code, mountings in POLE_DIAGRAMS.items():
         res = await db.execute(select(PoleStandard).where(PoleStandard.code == code))
@@ -179,7 +248,7 @@ async def _seed_pole_diagrams(db):
 
 
 async def _seed_coupling_cases(db):
-    for num, groups, cp1, cp2, eo in COUPLING_CASES:
+    for num, groups, cp1, cp2, cp1_label, cp2_label in COUPLING_CASES:
         exists = await db.execute(select(CouplingCase).where(CouplingCase.case_number == num))
         if exists.scalar_one_or_none() is None:
             db.add(CouplingCase(
@@ -187,7 +256,8 @@ async def _seed_coupling_cases(db):
                 num_groups=groups,
                 cp1_shape=cp1,
                 cp2_shape=cp2,
-                external_object_required=eo,
+                cp1_label=cp1_label,
+                cp2_label=cp2_label,
                 image_url=f"/images/CP-Case{num}.svg",
                 detail_image_url=f"/images/CPdetail-Case{num}.svg",
                 sort_order=num,
@@ -434,6 +504,10 @@ async def main():
         await _seed_code_label_ordered(db, CouplingType, COUPLING_TYPES)
         await _seed_coupling_cases(db)
         await _seed_pole_diagrams(db)   
+        await _seed_regions(db)
+        await _seed_external_objects(db)
+        await db.flush()
+        await _seed_external_object_availability(db)
         await db.commit()
     print("Seed master selesai.")
 
