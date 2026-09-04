@@ -37,6 +37,28 @@ if TYPE_CHECKING:
         PoleStandardHeight
     )
 
+# === Surface Enums ===
+class SurfaceTreatmentOption(str, enum.Enum):
+    plating_only = "plating_only"
+    plating_painting = "plating_painting"
+
+
+class PlatingType(str, enum.Enum):
+    standard = "standard"
+    non_standard = "non_standard"
+
+
+class PaintingType(str, enum.Enum):
+    acrylic_silicone = "acrylic_silicone"    
+    stain_coating = "stain_coating"
+    ceramic_coating = "ceramic_coating"
+    specified_color_paint = "specified_color_paint"
+
+
+# Nilai "Specific Plating Type Code"
+PLATING_DEFAULT_SPEC = {
+    PlatingType.standard: "HZTD",
+}
 
 
 # === Drawing Case ===
@@ -171,6 +193,13 @@ class DrawingCase(Base):
 
     drawing_coupling_heights: Mapped[list["DrawingCouplingHeight"]] = relationship(
         back_populates="drawing_case",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    drawing_surface: Mapped["DrawingSurface | None"] = relationship(
+        back_populates="drawing_case",
+        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
@@ -384,3 +413,55 @@ class DrawingCouplingGroupExternalObject(Base):
     )
 
     group: Mapped["DrawingCouplingGroup"] = relationship(back_populates="external_objects")
+
+
+
+# === Drawing Surface (1:1 dengan DrawingCase) ===
+class DrawingSurface(Base):
+    __tablename__ = "drawing_surfaces"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+
+    drawing_case_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("drawing_cases.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+
+    treatment_option: Mapped[SurfaceTreatmentOption | None] = mapped_column(
+        Enum(SurfaceTreatmentOption), nullable=True
+    )
+
+    # Plating
+    plating_type: Mapped[PlatingType | None] = mapped_column(
+        Enum(PlatingType), nullable=True
+    )
+    plating_spec: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    ) 
+
+    # Painting
+    painting_type: Mapped[PaintingType | None] = mapped_column(
+        Enum(PaintingType), nullable=True
+    )
+
+    # Specified Color Details
+    color_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    munsell_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    color_code: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("drawing_case_id", name="uq_drawing_surface_case"), 
+    )
+
+    drawing_case: Mapped["DrawingCase"] = relationship(back_populates="drawing_surface")
