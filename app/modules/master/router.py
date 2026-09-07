@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.response import success_response
+# from app.core.security import require_roles   # aktifkan saat produksi (lihat NOTE)
 
 from app.core.database import get_db
 from app.modules.master.repository import MasterRepository
@@ -20,7 +21,20 @@ from app.modules.master.schemas import (
 )
 
 
-routerMaster = APIRouter(prefix="/api/master", tags=["Master Data"])
+# NOTE (review 2026-09-07): endpoint /api/master/* SENGAJA dibiarkan PUBLIK
+# (tanpa auth) untuk mempermudah tahap development — keputusan stakeholder,
+# BUKAN kelalaian. Ini utang teknis yang HARUS ditutup sebelum rilis produksi:
+# semua endpoint identity sudah pakai RBAC, master belum.
+#
+# Cara mengaktifkan RBAC nanti (produksi):
+#   1. uncomment import require_roles di atas
+#   2. uncomment _ANY_ROLE & argumen dependencies di bawah
+# _ANY_ROLE = require_roles("superadmin", "admin", "drafter")
+routerMaster = APIRouter(
+    prefix="/api/master",
+    tags=["Master Data"],
+    # dependencies=[Depends(_ANY_ROLE)],   # <- uncomment untuk kunci seluruh route
+)
 
 @routerMaster.get("/ping")
 async def ping():
