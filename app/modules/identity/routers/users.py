@@ -10,7 +10,7 @@ from app.core.security import (
     require_roles,
     verify_password,
 )
-from app.utils.response import success_response, to_json
+from app.utils.response import success_response
 from app.modules.identity import permissions
 from app.modules.identity.repository import UserRepository, AuthRepository
 from app.modules.identity.schemas import (
@@ -34,7 +34,7 @@ async def get_me(
     user = await UserRepository.get_by_id(db, current.id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return success_response(data=to_json(UserRead.model_validate(user)), to_camel=False, message="Current user")
+    return success_response(data=UserRead.model_validate(user), message="Current user")
 
 
 @routerUsers.post("/me/password")
@@ -71,8 +71,7 @@ async def create_user(
 
     user = await UserRepository.create_user(db, payload)
     return success_response(
-        data=to_json(UserRead.model_validate(user)),
-        to_camel=False,
+        data=UserRead.model_validate(user),
         status_code=status.HTTP_201_CREATED,
         message="User created",
     )
@@ -85,8 +84,8 @@ async def list_users(
 ):
     dept_filter = None if actor.role == "superadmin" else actor.department_id
     rows = await UserRepository.list_users(db, department_id=dept_filter)
-    data = [to_json(UserRead.model_validate(u)) for u in rows]
-    return success_response(data=data, to_camel=False, message="Users retrieved")
+    data = [UserRead.model_validate(u) for u in rows]
+    return success_response(data=data, message="Users retrieved")
 
 
 @routerUsers.get("/{user_id}")
@@ -99,7 +98,7 @@ async def get_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     permissions.ensure_can_manage_user(actor, user)  # admin hanya drafter di dept-nya
-    return success_response(data=to_json(UserRead.model_validate(user)), to_camel=False, message="User retrieved")
+    return success_response(data=UserRead.model_validate(user), message="User retrieved")
 
 
 @routerUsers.patch("/{user_id}")
@@ -126,7 +125,7 @@ async def update_user(
     if was_active and updated.is_active is False:
         await AuthRepository.revoke_all_for_user(db, updated.id)
 
-    return success_response(data=to_json(UserRead.model_validate(updated)), to_camel=False, message="User updated")
+    return success_response(data=UserRead.model_validate(updated), message="User updated")
 
 
 @routerUsers.post("/{user_id}/reset-password")
