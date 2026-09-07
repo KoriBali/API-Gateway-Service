@@ -23,7 +23,7 @@ from app.database.models.calculation_object import (
 )
 
 
-from app.database.models.master import PoleCategory
+from app.database.models.master import PoleCategory, Region
 from app.database.models.calculation import CalculationCase, Condition
 from app.database.models.drawing import DrawingCase, DrawingOpening, DrawingFoundation, DrawingBasePlate, DrawingStepPole
 
@@ -60,6 +60,11 @@ class RequestRepository:
         found = await db.scalar(
             select(PoleCategory.id).where(PoleCategory.id == pole_category_id)
         )
+        return found is not None
+
+    @staticmethod
+    async def region_exists(db: AsyncSession, region_id: str) -> bool:
+        found = await db.scalar(select(Region.id).where(Region.id == region_id))
         return found is not None
 
     @staticmethod
@@ -129,6 +134,7 @@ class RequestRepository:
             responsible_department_id=responsible_department_id,
             created_by_user_id=created_by_user_id,
             pole_category_id=payload.pole_category_id,
+            region_id=payload.region_id,          
             request_no=payload.request_no,
             receipt_no=payload.receipt_no,
             pj_no=payload.pj_no,
@@ -152,7 +158,7 @@ class RequestRepository:
     async def update(db: AsyncSession, req: Request, payload: RequestUpdate) -> Request:
         data = payload.model_dump(exclude_unset=True)
         editable = (
-            "pole_category_id", "request_no", "receipt_no", "pj_no",
+            "pole_category_id", "region_id", "request_no", "receipt_no", "pj_no",
             "request_type", "design_type", "request_category",
             "pole_kind", "company_name", "project_name", "due_date",
         )
@@ -231,6 +237,7 @@ class RequestRepository:
             due_date=source.due_date,
             status=RequestStatus.draft,
             supersedes_request_id=None,
+            region_id=source.region_id,   # clone mewarisi region dari request sumber
         )
         db.add(new_req)
         await db.flush()  # butuh new_req.id
@@ -348,8 +355,9 @@ class UserRepository:
 
     @staticmethod
     async def update_last_login(db: AsyncSession, user: User) -> None:
+        # perubahan langsung ke database tanpa memengaruhi transaction
         user.last_login_at = datetime.now(timezone.utc)
-        await db.commit()
+        await db.flush()
 
 
 

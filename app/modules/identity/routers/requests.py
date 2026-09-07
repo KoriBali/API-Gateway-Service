@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
-from app.utils.response import success_response, to_json
+from app.utils.response import success_response
 from app.modules.identity.repository import RequestRepository
 from app.modules.identity import permissions
 from app.database.models.identity import (
@@ -67,10 +67,9 @@ async def list_requests(
         offset=offset,
         status=status_filter
     )
-    items = [to_json(RequestRead.model_validate(r)) for r in rows]
+    items = [RequestRead.model_validate(r) for r in rows]
     return success_response(
         data={"items": items, "total": total, "limit": limit, "offset": offset},
-        to_camel=False,
         message="Requests retrieved",
     )
 
@@ -85,8 +84,7 @@ async def get_request(
     if req is None or not _can_read(actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     return success_response(
-        data=to_json(RequestRead.model_validate(req)),
-        to_camel=False,
+        data=RequestRead.model_validate(req),
         message="Request retrieved",
     )
 
@@ -109,6 +107,13 @@ async def create_request(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="poleCategoryId does not reference an existing pole category",
+        )
+
+    # Validasi FK region_id (opsional; hanya bila diisi)
+    if payload.region_id is not None and not await RequestRepository.region_exists(db, payload.region_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="regionId does not reference an existing region",
         )
 
     # Deteksi duplikat draft (nomor sama, 1 department).
@@ -134,8 +139,7 @@ async def create_request(
     )
 
     return success_response(
-        data=to_json(RequestRead.model_validate(req)),
-        to_camel=False,
+        data=RequestRead.model_validate(req),
         status_code=status.HTTP_201_CREATED,
         message="Request created",
     )
@@ -166,11 +170,18 @@ async def update_request(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="poleCategoryId does not reference an existing pole category",
             )
+        
+
+    if payload.region_id is not None and not await RequestRepository.region_exists(db, payload.region_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="regionId does not reference an existing region",
+        )
+    
 
     updated = await RequestRepository.update(db, req, payload)
     return success_response(
-        data=to_json(RequestRead.model_validate(updated)),
-        to_camel=False,
+        data=RequestRead.model_validate(updated),
         message="Request updated",
     )
 
@@ -215,12 +226,23 @@ async def submit_request(request_id: str, db: AsyncSession = Depends(get_db),
     if req is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_submit_request(actor, req)
+    
     if req.status != RequestStatus.draft:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Cannot submit a request with status '{req.status.value}'")
+
+    if req.region_id is not None and not await RequestRepository.region_exists(db, req.region_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="regionId does not reference an existing region",
+        )
+
+    
     updated = await RequestRepository.set_status(db, req, RequestStatus.submitted)
-    return success_response(data=to_json(RequestRead.model_validate(updated)),
-                            to_camel=False, message="Request submitted")
+    return success_response(
+        data=RequestRead.model_validate(updated),
+        message="Request submitted"
+    )
 
 
 
@@ -240,5 +262,8 @@ async def clone_request(request_id: str, payload: RequestClone,
                             detail="Only submitted requests can be cloned")
     new_req = await RequestRepository.clone_from_submitted(
         db, src, payload, actor_id=actor.id, responsible_department_id=actor.department_id)
-    return success_response(data=to_json(RequestRead.model_validate(new_req)),
-                            to_camel=False, status_code=status.HTTP_201_CREATED, message="Request cloned")
+    return success_response(
+        data=RequestRead.model_validate(new_req),
+        status_code=status.HTTP_201_CREATED, 
+        message="Request cloned"
+    )

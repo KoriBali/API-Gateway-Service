@@ -10,7 +10,7 @@ from app.core.security import (
     create_access_token,
     generate_refresh_token,
 )
-from app.utils.response import success_response, to_json
+from app.utils.response import success_response
 from app.modules.identity.repository import UserRepository, AuthRepository
 from app.modules.identity.schemas import (
     LoginRequest,
@@ -39,7 +39,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     await UserRepository.update_last_login(db, user)
     tokens = await _issue_tokens(db, user)
-    return success_response(data=to_json(tokens), to_camel=False, message="Login success")
+    return success_response(data=tokens, message="Login success")
 
 
 @routerAuth.post("/refresh")
@@ -67,7 +67,7 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
     new_raw = generate_refresh_token()
     await AuthRepository.rotate_refresh_token(db, rt, user.id, new_raw)
     tokens = TokenPair(access_token=create_access_token(user), refresh_token=new_raw)
-    return success_response(data=to_json(tokens), to_camel=False, message="Token refreshed")
+    return success_response(data=tokens, message="Token refreshed")
 
 
 @routerAuth.post("/logout")

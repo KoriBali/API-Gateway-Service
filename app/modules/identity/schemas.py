@@ -31,6 +31,7 @@ class RequestCreate(CamelBaseModel):
     project_name: str | None = Field(default=None, max_length=200)
     due_date: date | None = None
     confirm_supersede: bool = False
+    region_id: str | None = Field(default=None, min_length=1)
 
 
 class RequestClone(CamelBaseModel):
@@ -52,6 +53,7 @@ class RequestUpdate(CamelBaseModel):
     company_name: str | None = Field(default=None, max_length=200)
     project_name: str | None = Field(default=None, max_length=200)
     due_date: date | None = None
+    region_id: str | None = Field(default=None, min_length=1)
 
 
 
@@ -132,6 +134,7 @@ class RequestRead(CamelBaseModel):
     updated_at: datetime
     status: RequestStatus
     supersedes_request_id: str | None = None
+    region_id: str | None = None
 
 
 
