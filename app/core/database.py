@@ -11,7 +11,12 @@ from app.core.config import settings, build_async_db_url_and_connect_args
 # DATABASE_URL = "sqlite+aiosqlite:///./gateway.db"
 
 # Supabase Conf
-_db_url, _connect_args = build_async_db_url_and_connect_args(settings.DATABASE_URL)
+_db_url, _connect_args = build_async_db_url_and_connect_args(
+    settings.DATABASE_URL,
+    ca_path=settings.DB_SSL_CA_PATH,
+    check_hostname=settings.DB_SSL_CHECK_HOSTNAME,
+    verify=settings.DB_SSL_VERIFY,
+)
 
 
 NAMING_CONVENTION = {

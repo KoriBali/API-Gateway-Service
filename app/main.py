@@ -46,8 +46,8 @@ app = FastAPI(
 # CORS 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # bisa diganti url agar lebih spesifik
-    allow_credentials=False,  # harus False kalau allow_origins="*"
+    allow_origins=settings.allowed_origins_list,  # daftar origin dari .env (per-environment)
+    allow_credentials=True,  # boleh True karena origin eksplisit (bukan "*")
     allow_methods=["*"],
     allow_headers=["*"],
 )
