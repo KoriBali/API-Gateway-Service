@@ -108,7 +108,7 @@ TAPER_POLES = {
 
 # ===== Coupling =====
 COUPLING_POSITIONS = [("front", "Front"), ("right", "Right"), ("back", "Back"), ("left", "Left")]
-COUPLING_SIZES = [("16","#16"),("22","#22"),("28","#28"),("36","#36"),("42","#42"),("54","#54"),("70","#70")]
+COUPLING_SIZES = [("#16","#16"),("#22","#22"),("#28","#28"),("#36","#36"),("#42","#42"),("#54","#54"),("#70","#70")]
 COUPLING_TYPES = [("jis","JIS"),("standard","Standard"),("short","Short"),("long","Long")]
 
 
@@ -151,9 +151,9 @@ COUPLING_CASES = [
     (4,  2, S,  S,    None, None),
     (5,  1, PA, None, "θ1", None),
     (6,  2, PD, PD,   "d",  "d"),
-    (7,  2, PA, PA,   "θ",  "θ"),
+    (7,  2, PA, PA,   "01",  "02"),
     (8,  2, S,  PD,   None, "d"),
-    (9,  2, S,  PA,   None, "θ"),
+    (9,  2, S,  PA,   None, "02"),
     (10, 2, S,  PA,   None, "θ2"),
 ]
 
