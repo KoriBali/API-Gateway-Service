@@ -21,6 +21,9 @@ from app.modules.master.router import routerMaster
 # Identity Data
 from app.modules.identity.routers import router as identityRouter
 
+# Calculation
+from app.modules.calculation.routers import router as calculationRouter
+
 # setup logging saat app start
 setup_logging()
 
@@ -63,6 +66,9 @@ app.include_router(identityRouter)
 
 # app.include_router(routerLoadObject)
 app.include_router(routerOpeningPart)
+
+# Calculation
+app.include_router(calculationRouter)
 
 
 
