@@ -309,7 +309,7 @@ class OpeningType(str, enum.Enum):
     box = "box"
     r = "r"
 
-# === Opening Direction (dipakai calc & drawing) ===
+# === Opening Direction (only drawing) ===
 class OpeningDirection(str, enum.Enum):
     left = "left"
     right = "right"
@@ -334,10 +334,6 @@ class CalculationOpening(Base):
     type: Mapped[OpeningType] = mapped_column(
         Enum(OpeningType),
         nullable=False
-    )
-
-    opening_direction: Mapped[OpeningDirection] = mapped_column( 
-        Enum(OpeningDirection), nullable=False
     )
 
     opening_width: Mapped[Decimal] = mapped_column(
