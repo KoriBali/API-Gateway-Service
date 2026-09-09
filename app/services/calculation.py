@@ -31,7 +31,7 @@ async def forward(path: str, payload: Union[BaseModel, dict]) -> ForwarderResult
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                json=json_payload,            # ← pakai json_payload
+                json=json_payload,            # pakai json_payload
                 headers=get_internal_service_headers(),
                 timeout=30.0
             )
