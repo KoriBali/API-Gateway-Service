@@ -187,11 +187,13 @@ class User(Base):
 
     calculation_cases: Mapped[list["CalculationCase"]] = relationship(
         back_populates="owner_user",
+        cascade="all, delete-orphan",    
         passive_deletes=True,
     )
 
     drawing_cases: Mapped[list["DrawingCase"]] = relationship(
         back_populates="owner_user",
+        cascade="all, delete-orphan",
         passive_deletes=True,
     )
 

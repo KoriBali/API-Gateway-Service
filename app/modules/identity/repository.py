@@ -90,7 +90,11 @@ class RequestRepository:
         if role == "superadmin":
             pass 
         elif role == "admin":
+            # admin tanpa department tak dapat melihat data apapun
+            if actor_department_id is None:
+                return [], 0          
             stmt = stmt.where(Request.responsible_department_id == actor_department_id)
+
         else: 
             stmt = stmt.where(Request.created_by_user_id == actor_id)
 
@@ -332,6 +336,11 @@ class UserRepository:
     @staticmethod
     async def update_user(db: AsyncSession, user: User, payload: UserUpdate) -> User:
         data = payload.model_dump(exclude_unset=True)
+        # NOTE: UserUpdate sengaja TIDAK memuat username/email, jadi identitas tak
+        # dapat diubah lewat jalur ini (tak ada risiko ambiguitas login). Bila kelak
+        # username/email dibuat editable, WAJIB panggil
+        # UserRepository.find_identity_conflicts(..., exclude_user_id=user.id) di router
+        # sebelum menyimpan jangan mengandalkan constraint DB saja (pesan errornya jelek).
         for field in ("full_name", "is_active", "role", "department_id"):
             if field in data:
                 setattr(user, field, data[field])
@@ -358,6 +367,35 @@ class UserRepository:
         # perubahan langsung ke database tanpa memengaruhi transaction
         user.last_login_at = datetime.now(timezone.utc)
         await db.flush()
+        
+    @staticmethod
+    async def find_identity_conflicts(
+        db: AsyncSession, *, username: str, email: str, exclude_user_id: str | None = None
+    ) -> set[str]:
+        """
+        Cek keunikan namespace GABUNGAN: sebuah string wajib unik lintas kolom
+        username & email. Kembalikan subset dari {"username", "email"} sesuai field
+        payload mana yang bentrok dengan baris manapun (di kolom username ATAU email).
+
+        exclude_user_id: abaikan baris milik user tsb (disiapkan untuk jalur update
+        bila kelak identitas jadi editable). Saat ini create_user tak memakainya.
+        """
+        candidates = {username, email}
+        stmt = select(User).where(
+            or_(User.username.in_(candidates), User.email.in_(candidates))
+        )
+        if exclude_user_id is not None:
+            stmt = stmt.where(User.id != exclude_user_id)
+
+        rows = (await db.execute(stmt)).scalars().all()
+
+        conflicts: set[str] = set()
+        for u in rows:
+            if u.username == username or u.email == username:
+                conflicts.add("username")
+            if u.username == email or u.email == email:
+                conflicts.add("email")
+        return conflicts
 
 
 
@@ -492,3 +530,8 @@ class DepartmentRepository:
     async def delete(db: AsyncSession, dept: Department) -> None:
         await db.delete(dept)
         await db.commit()
+        
+    @staticmethod
+    async def exists(db: AsyncSession, department_id: str) -> bool:
+        found = await db.scalar(select(Department.id).where(Department.id == department_id))
+        return found is not None

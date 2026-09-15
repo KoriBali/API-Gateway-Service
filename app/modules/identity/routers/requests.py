@@ -28,15 +28,6 @@ _ANY_ROLE = require_roles("superadmin", "admin", "drafter")
 
 
 
-def _can_read(actor: CurrentUser, req) -> bool:
-    if actor.role == "superadmin":
-        return True
-    if actor.role == "admin":
-        return actor.department_id is not None and \
-            req.responsible_department_id == actor.department_id
-    return req.created_by_user_id == actor.id
-
-
 # ===== Read (semua role, discope) =====
 @routerRequest.get("")
 async def list_requests(
@@ -81,7 +72,7 @@ async def get_request(
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
     req = await RequestRepository.get_by_id(db, request_id)
-    if req is None or not _can_read(actor, req):
+    if req is None or not permissions.can_read_request(actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     return success_response(
         data=RequestRead.model_validate(req),
@@ -158,9 +149,10 @@ async def update_request(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
 
-    if actor.role == "drafter" and req.status != RequestStatus.draft:
+    if req.status != RequestStatus.draft:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="Only draft requests can be edited")
+
 
 
     data = payload.model_dump(exclude_unset=True)
@@ -202,17 +194,6 @@ async def delete_request(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Drafter can only delete a draft request")
 
-
-    calc_count, draw_count = await RequestRepository.count_children(db, request_id)
-    if calc_count > 0 or draw_count > 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Request still has {calc_count} calculation case(s) and "
-                f"{draw_count} drawing case(s); remove them before deleting"
-            ),
-        )
-
     await RequestRepository.delete(db, req)
     return success_response(data={"deleted": True}, message="Request deleted")
 
@@ -252,7 +233,7 @@ async def clone_request(request_id: str, payload: RequestClone,
                         db: AsyncSession = Depends(get_db),
                         actor: CurrentUser = Depends(_ANY_ROLE)):
     src = await RequestRepository.get_by_id(db, request_id)
-    if src is None or not _can_read(actor, src):
+    if src is None or not permissions.can_read_request(actor, src):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     if actor.department_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,

@@ -5,6 +5,7 @@ from app.utils.response import success_response
 
 from app.core.database import get_db
 from app.modules.master.repository import MasterRepository
+from app.database.models.master import PoleStandardType
 from app.modules.master.schemas import (
     MaterialSchema,
     ObjectTypeSchema,
@@ -123,7 +124,7 @@ async def get_design_standards(
 @routerMaster.get("/pole-standards")
 async def get_pole_standards(
     category: str | None = None,
-    type: str | None = None,
+    type: PoleStandardType | None = None,
     db: AsyncSession = Depends(get_db)
 ):
     rows = await MasterRepository.list_pole_standards(db, category, type)

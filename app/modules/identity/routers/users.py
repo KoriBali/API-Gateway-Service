@@ -12,7 +12,7 @@ from app.core.security import (
 )
 from app.utils.response import success_response
 from app.modules.identity import permissions
-from app.modules.identity.repository import UserRepository, AuthRepository
+from app.modules.identity.repository import UserRepository, AuthRepository, DepartmentRepository
 from app.modules.identity.schemas import (
     UserCreate,
     UserUpdate,
@@ -64,10 +64,27 @@ async def create_user(
     # ownership + batas role/department
     permissions.ensure_can_create_user(actor, payload.role, payload.department_id)
 
-    if await UserRepository.get_by_username_or_email(db, payload.username):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
-    if await UserRepository.get_by_username_or_email(db, payload.email):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+    # Gunakan find_identity_conflicts yang ada di Repository untuk detect conflict
+    conflicts = await UserRepository.find_identity_conflicts(
+        db, username=payload.username, email=payload.email
+    )
+    if "username" in conflicts:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username is already in use as a username or email of another account",
+        )
+    if "email" in conflicts:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email is already in use as a username or email of another account",
+        )
+        
+    if payload.department_id is not None and not await DepartmentRepository.exists(db, payload.department_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="departmentId does not reference an existing department",
+        )
+
 
     user = await UserRepository.create_user(db, payload)
     return success_response(
@@ -115,8 +132,12 @@ async def update_user(
     permissions.ensure_can_manage_user(actor, user)
 
     data = payload.model_dump(exclude_unset=True)
-    if "role" in data or "department_id" in data:
-        permissions.ensure_can_change_role_or_department(actor)
+    if "department_id" in data and data["department_id"] is not None \
+            and not await DepartmentRepository.exists(db, data["department_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="departmentId does not reference an existing department",
+        )
 
     was_active = user.is_active
     updated = await UserRepository.update_user(db, user, payload)

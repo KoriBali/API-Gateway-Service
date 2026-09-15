@@ -73,7 +73,7 @@ async def get_calculation_case(
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
     req = await RequestRepository.get_by_id(db, request_id)
-    if req is None or not _can_read(actor, req):
+    if req is None or not permissions.can_read_request(actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
     case = await CalculationCaseRepository.get_with_children(db, request_id)
@@ -83,12 +83,3 @@ async def get_calculation_case(
             detail="Calculation case not found for this request",
         )
     return success_response(data=_to_read(case), message="Calculation case retrieved")
-
-
-def _can_read(actor: CurrentUser, req) -> bool:
-    if actor.role == "superadmin":
-        return True
-    if actor.role == "admin":
-        return actor.department_id is not None and \
-            req.responsible_department_id == actor.department_id
-    return req.created_by_user_id == actor.id

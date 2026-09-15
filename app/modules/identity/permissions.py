@@ -73,3 +73,16 @@ def ensure_can_submit_request(actor: CurrentUser, request: Request) -> None:
     if request.created_by_user_id == actor.id:
         return
     raise _forbidden("Only the request creator can submit this request")
+
+
+
+def can_read_request(actor: CurrentUser, request: Request) -> bool:
+    """Read-scoping request (dipakai router identity & calculation).
+    superadmin: semua; admin: hanya departemen penanggung jawab-nya;
+    selain itu: hanya record miliknya."""
+    if actor.role == "superadmin":
+        return True
+    if actor.role == "admin":
+        return actor.department_id is not None and \
+            request.responsible_department_id == actor.department_id
+    return request.created_by_user_id == actor.id

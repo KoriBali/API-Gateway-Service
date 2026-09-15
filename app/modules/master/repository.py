@@ -90,7 +90,6 @@ class MasterRepository:
 # =====================
 # Relational Database
 # =====================
-
     # Design Standards
     @staticmethod
     async def list_design_standards(db:AsyncSession, category:str | None = None):
@@ -105,7 +104,7 @@ class MasterRepository:
 
     # Pole Standards 
     @staticmethod
-    async def list_pole_standards(db:AsyncSession, category: str | None = None, type: str | None = None):
+    async def list_pole_standards(db:AsyncSession, category: str | None = None, type: PoleStandardType | None = None):
         stmt = (
             select(PoleStandard)
             .where(PoleStandard.is_active == True)
@@ -121,7 +120,7 @@ class MasterRepository:
             stmt = stmt.join(PoleCategory).where(PoleCategory.name == category)
 
         if type:
-            stmt = stmt.where(PoleStandard.type == PoleStandardType(type))
+            stmt = stmt.where(PoleStandard.type == type)
 
         result = await db.execute(stmt)
         return result.scalars().all()
