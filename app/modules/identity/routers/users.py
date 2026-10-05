@@ -132,6 +132,12 @@ async def update_user(
     permissions.ensure_can_manage_user(actor, user)
 
     data = payload.model_dump(exclude_unset=True)
+    
+    role_changed = "role" in data and data["role"] != user.role
+    department_changed = "department_id" in data and data["department_id"] != user.department_id
+    if role_changed or department_changed:
+        permissions.ensure_can_change_role_or_department(actor)
+
     if "department_id" in data and data["department_id"] is not None \
             and not await DepartmentRepository.exists(db, data["department_id"]):
         raise HTTPException(
