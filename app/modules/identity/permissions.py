@@ -1,8 +1,7 @@
 from fastapi import HTTPException, status
 
 from app.core.security import CurrentUser
-from app.database.models.identity import Role, User
-from app.database.models.intake import Request
+from app.database.models.identity import User
 
 
 
@@ -48,42 +47,3 @@ def ensure_can_change_role_or_department(actor: CurrentUser) -> None:
     # Only Superadmin
     if actor.role != "superadmin":
         raise _forbidden("Only superadmin can change role or department")
-
-
-
-def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
-    """
-    Boleh update/delete:
-    - superadmin (semua)
-    - admin di departemen penanggung jawab request
-    - pembuat request itu sendiri (record miliknya)
-    """
-    if actor.role == "superadmin":
-        return
-    if actor.role == "admin" and actor.department_id is not None \
-            and request.responsible_department_id == actor.department_id:
-        return
-    if request.created_by_user_id == actor.id:
-        return
-    raise _forbidden()    
-
-
-
-def ensure_can_submit_request(actor: CurrentUser, request: Request) -> None:
-    """Hanya PEMBUAT yang boleh submit (draft -> submitted)."""
-    if request.created_by_user_id == actor.id:
-        return
-    raise _forbidden("Only the request creator can submit this request")
-
-
-
-def can_read_request(actor: CurrentUser, request: Request) -> bool:
-    """Read-scoping request (dipakai router identity & calculation).
-    superadmin: semua; admin: hanya departemen penanggung jawab-nya;
-    selain itu: hanya record miliknya."""
-    if actor.role == "superadmin":
-        return True
-    if actor.role == "admin":
-        return actor.department_id is not None and \
-            request.responsible_department_id == actor.department_id
-    return request.created_by_user_id == actor.id

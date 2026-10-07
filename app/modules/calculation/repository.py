@@ -1,8 +1,7 @@
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.database.models.calculation import CalculationCase, Condition
+from app.database.models.calculation import CalculationCase
 from app.modules.calculation.schemas import CalculationCaseUpsert
 
 # Field skalar yang boleh di-update dari payload (whitelist).
@@ -30,16 +29,6 @@ class CalculationCaseRepository:
         return res.scalars().first()
 
     @staticmethod
-    async def get_with_children(db: AsyncSession, request_id: str) -> CalculationCase | None:
-        """Untuk resume: case + condition (anak lain menyusul saat dipetakan)."""
-        res = await db.execute(
-            select(CalculationCase)
-            .where(CalculationCase.request_id == request_id)
-            .options(selectinload(CalculationCase.conditions))
-        )
-        return res.scalars().first()
-
-    @staticmethod
     async def upsert(
         db: AsyncSession,
         *,
@@ -47,7 +36,8 @@ class CalculationCaseRepository:
         owner_user_id: str,
         payload: CalculationCaseUpsert,
     ) -> CalculationCase:
-        """Buat/-update satu calc case + tulis-ulang anaknya dalam SATU transaksi."""
+        """Buat/-update satu calc case + tulis-ulang anaknya dalam SATU transaksi.
+        Conditions milik request (PATCH /api/requests/{id}/conditions), bukan milik case."""
         case = await CalculationCaseRepository.get_by_request(db, request_id)
         data = payload.model_dump(exclude_unset=True)
 
@@ -65,20 +55,6 @@ class CalculationCaseRepository:
         for field in _CASE_SCALAR_FIELDS:
             if field in data:
                 setattr(case, field, data[field])
-
-        await db.execute(
-            delete(Condition).where(Condition.calculation_case_id == case.id)
-        )
-        cond = payload.condition
-        if cond is not None and None not in (
-            cond.design_standard_id, cond.wind_speed, cond.air_density
-        ):
-            db.add(Condition(
-                calculation_case_id=case.id,
-                design_standard_id=cond.design_standard_id,
-                wind_speed=cond.wind_speed,
-                air_density=cond.air_density,
-            ))
 
         # TODO(calc-contract): tulis-ulang komponen (openings/baseplates/foundations)
         #   dengan pola delete-then-insert yang sama, setelah field domain difinalkan.

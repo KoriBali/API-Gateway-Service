@@ -22,12 +22,6 @@ class CalculateRequest(CamelBaseModel):
 
 
 # ===== Save Draft =====
-class ConditionInput(CamelBaseModel):
-    design_standard_id: str | None = None
-    wind_speed: float | None = None
-    air_density: float | None = None
-
-
 class CalculationCaseUpsert(CamelBaseModel):
     title: str | None = None
     pole_standard_id: str | None = None
@@ -38,8 +32,6 @@ class CalculationCaseUpsert(CamelBaseModel):
     lowest_height: float | None = None
     embedment_length: float | None = None
     overdesign_factor: int | None = None
-
-    condition: ConditionInput | None = None
 
     # TODO(calc-contract): komponen belum difinalkan. Skeleton pass-through.
     #   Dipetakan konkret ke CalculationOpening/BasePlate/Foundation di iterasi lanjut.
@@ -62,6 +54,5 @@ class CalculationCaseRead(CamelBaseModel):
     lowest_height: float | None = None
     embedment_length: float | None = None
     overdesign_factor: int | None = None
-    condition: ConditionInput | None = None
     created_at: datetime
     updated_at: datetime

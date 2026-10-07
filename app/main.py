@@ -15,6 +15,9 @@ from app.modules.opening_part.router import routerOpeningPart
 from app.core.database import engine, Base
 # from app.database.models import StagingProject
 
+# Intake
+from app.modules.intake.routers import router as intakeRouter
+
 # Master Data
 from app.modules.master.router import routerMaster
 
@@ -60,6 +63,9 @@ app.include_router(routerMaster)
 
 # Identity Data
 app.include_router(identityRouter)
+
+# Intake
+app.include_router(intakeRouter)
 
 # register router
 # app.include_router(routerInternal)

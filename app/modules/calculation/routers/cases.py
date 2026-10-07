@@ -4,35 +4,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
-from app.modules.identity.repository import RequestRepository
-from app.modules.identity import permissions
-from app.database.models.identity import RequestStatus
+from app.modules.intake.repository import RequestRepository
+from app.modules.intake import permissions
 from app.modules.calculation.repository import CalculationCaseRepository
 from app.modules.calculation.schemas import (
     CalculationCaseUpsert,
     CalculationCaseRead,
-    ConditionInput,
 )
 
 routerCalculationCase = APIRouter(prefix="/api/requests", tags=["Calculation"])
 
 _ANY_ROLE = require_roles("superadmin", "admin", "drafter")
-
-
-def _to_read(case) -> CalculationCaseRead:
-    """Bangun response, termasuk condition (0..1) dari relasi."""
-    cond = None
-    conditions = getattr(case, "conditions", None) or []
-    if conditions:
-        c = conditions[0]
-        cond = ConditionInput(
-            design_standard_id=c.design_standard_id,
-            wind_speed=c.wind_speed,
-            air_density=c.air_density,
-        )
-    read = CalculationCaseRead.model_validate(case)
-    read.condition = cond
-    return read
 
 
 # ===== Save Draft =====
@@ -48,19 +30,11 @@ async def save_calculation_case(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
 
-    if req.status != RequestStatus.draft:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Only draft requests can be edited",
-        )
-
     case = await CalculationCaseRepository.upsert(
         db, request_id=request_id, owner_user_id=actor.id, payload=payload
     )
-    # Reload dgn condition utk response konsisten dgn GET.
-    case = await CalculationCaseRepository.get_with_children(db, request_id)
     return success_response(
-        data=_to_read(case),
+        data=CalculationCaseRead.model_validate(case),
         message="Calculation draft saved",
     )
 
@@ -76,10 +50,13 @@ async def get_calculation_case(
     if req is None or not permissions.can_read_request(actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
-    case = await CalculationCaseRepository.get_with_children(db, request_id)
+    case = await CalculationCaseRepository.get_by_request(db, request_id)
     if case is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Calculation case not found for this request",
         )
-    return success_response(data=_to_read(case), message="Calculation case retrieved")
+    return success_response(
+        data=CalculationCaseRead.model_validate(case),
+        message="Calculation case retrieved",
+    )
