@@ -10,7 +10,8 @@ from app.core.security import (
     verify_password,
     hash_token,
 )
-from app.database.models.identity import User, RefreshToken, Department, Request, RequestStatus
+from app.database.models.identity import User, RefreshToken, Department
+from app.database.models.intake import Request, RequestStatus
 from app.modules.identity.schemas import (
     UserCreate, UserUpdate,
     DepartmentCreate, DepartmentUpdate,

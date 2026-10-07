@@ -18,10 +18,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.database.models.identity import(
-        User,
-        Request,
-    )
+    from app.database.models.identity import User
+    from app.database.models.intake import Request
 
     from app.database.models.calculation_object import(
         DirectObject,
@@ -149,12 +147,6 @@ class CalculationCase(Base):
     )
 
     # Parent
-    conditions: Mapped[list["Condition"]] = relationship(
-        back_populates="calculation_case",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
     calculation_runs: Mapped[list["CalculationRun"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
@@ -241,9 +233,11 @@ class Condition(Base):
         default=lambda: str(uuid.uuid4())
     )
 
-    calculation_case_id: Mapped[str] = mapped_column(
+    request_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
+        ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        unique=True
     )
 
     design_standard_id: Mapped[str] = mapped_column(
@@ -251,9 +245,9 @@ class Condition(Base):
         ForeignKey('design_standards.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
 
-    wind_speed: Mapped[Decimal] = mapped_column(
+    wind_speed: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 5),
-        nullable=False
+        nullable=True
     )
 
     air_density: Mapped[Decimal] = mapped_column(
@@ -262,7 +256,7 @@ class Condition(Base):
     )
 
     # Child
-    calculation_case: Mapped["CalculationCase"] = relationship(
+    request: Mapped["Request"] = relationship(
         back_populates="conditions"
     )
 

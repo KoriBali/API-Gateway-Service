@@ -1,7 +1,8 @@
 from fastapi import HTTPException, status
 
 from app.core.security import CurrentUser
-from app.database.models.identity import Role, User, Request
+from app.database.models.identity import Role, User
+from app.database.models.intake import Request
 
 
 

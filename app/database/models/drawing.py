@@ -26,10 +26,8 @@ from app.database.models.calculation_object import (
 from app.database.models.calculation import PoleFamily, GroundPosition
 
 if TYPE_CHECKING:
-    from app.database.models.identity import(
-        User,
-        Request,
-    )
+    from app.database.models.identity import User
+    from app.database.models.intake import Request
 
     from app.database.models.master import(
         LightingCompanyCode,
@@ -53,6 +51,14 @@ class PaintingType(str, enum.Enum):
     stain_coating = "stain_coating"
     ceramic_coating = "ceramic_coating"
     specified_color_paint = "specified_color_paint"
+    urethane = "urethane"
+    
+
+class DrawingType(str, enum.Enum):
+    approval = "approval"
+    manufacturer = "manufacturer"
+    order = "order"
+    meeting = "meeting"
 
 
 # Nilai "Specific Plating Type Code"
