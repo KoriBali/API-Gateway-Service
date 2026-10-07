@@ -1,3 +1,8 @@
+"""Uraian 図番 (zuban, nomor request DataBank YP) saat intake. DD G11 dan invariant intake 9.
+
+Hasil uraian hanya USULAN untuk form. Tidak pernah menolak input, dan tidak pernah
+merangkai segmen kembali menjadi document_no.
+"""
 import re
 
 from app.database.models.intake import BrandLine
