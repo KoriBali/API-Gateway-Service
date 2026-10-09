@@ -1,5 +1,5 @@
 """
-File ini untuk inisiasi Data awal (seeding) Data Request (intake).
+File ini untuk inisiasi Data awal (seeding) Data Request (intake), bentuk DD v0.9.
 
 Prasyarat (jalankan lebih dulu):
     python -m app.scripts.seed_master     # pole_categories, design_standards, regions, materials
@@ -12,9 +12,12 @@ Catatan desain:
 - Data contoh fiktif untuk uji scope dan intake, bukan data pesanan nyata.
 - responsible_department_id SELALU mengikuti department si pembuat (created_by_user),
   sesuai aturan create_request di router (department dikunci ke pembuat).
-- Setiap request lahir lengkap seperti di endpoint intake: ekstensi form sesuai
-  brand_line, request_design_conditions, request_finish, dan conditions.
-- Request YP selalu membawa document_no (図番), sesuai aturan form intake YP.
+- Setiap request lahir lengkap seperti di endpoint intake (DD G12): request_shared_details,
+  ekstensi form sesuai brand_line, request_finish, dan conditions.
+- Setiap request mematuhi aturan form intake yang ditegakkan API: request_no, subject,
+  request_date, due_date, requesting_department_name terisi; request YP mengisi
+  requesting_department_code; request yang memuat drawing mengisi region dan drawing_type.
+- request_no YP = 図番 utuh (mis. EPJ100001-1), request_no YS = 依頼No (mis. YSE-26-0001).
 - Idempotent: project di-skip bila identitasnya (request_form, scope_code, pj_no)
   sudah ada; request di-skip bila (created_by_user_id, request_no) sudah ada.
 """
@@ -32,23 +35,23 @@ from app.database.models.intake import (
     RequestType,
     DesignType,
     RequestClassification,
-    PoleKind,
+    RequestSharedDetails,
     RequestYpDetails,
     RequestYsDetails,
-    RequestDesignCondition,
     RequestFinish,
 )
 from app.database.models.calculation import Condition
 from app.database.models.calculation_object import FoundationType
 from app.database.models.drawing import DrawingType, SurfaceTreatmentOption, PlatingType, PaintingType
-from app.database.models.master import PoleCategory, DesignStandard, Material
+from app.database.models.master import PoleCategory, DesignStandard, Material, Region
 
 
 _TODAY = date.today()
+_REQUEST_DATE = _TODAY - timedelta(days=3)
 
 
-def _due(days: int | None) -> date | None:
-    return None if days is None else _TODAY + timedelta(days=days)
+def _due(days: int) -> date:
+    return _TODAY + timedelta(days=days)
 
 
 # (request_form, scope_code, pj_no). YS selalu scope_code kosong.
@@ -60,27 +63,30 @@ PROJECTS = [
 
 # creator = username pembuat; pole_category = nama kategori; design_standard = nama
 # standar di kategori itu (lihat seed_master). project = indeks PROJECTS atau None
-# (request berkepala General Affairs, tanpa project). design_conditions.material =
-# nama di master materials (diubah jadi material_id).
+# (request berkepala General Affairs, tanpa project). shared_details.region = kode di
+# master regions (diubah jadi region_id); ys_details.material = nama di master materials
+# (diubah jadi material_id).
 REQUESTS = [
     # budi (drafter/YSG)
     {
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
         "pole_category": "lighting-pole", "design_standard": "JIL",
-        "request_no": "REQ-2026-001", "receipt_no": "RCP-001", "pj_no": "100001",
+        "request_no": "EPJ100001-1", "pj_no": "100001",
         "request_type": RequestType.general, "design_type": DesignType.drawing,
-        "request_classification": RequestClassification.new, "pole_kind": PoleKind.standard,
+        "request_classification": RequestClassification.new,
         "subject": "Sample lighting pole A", "due_in_days": 14,
+        "requesting_department_name": "Sample East Office",
         "wind_speed": 60, "air_density": 1.23,
-        "yp_details": {
-            "document_no": "EPJ100001-1", "tail_code": "PJ", "record_no": "1",
-            "brand_mark": BrandLine.yp, "drafting_design": True,
+        "shared_details": {
+            "scheduled_delivery_date": "3/末", "delivery_quantity": 2,
+            "requester_pic_name": "Sample PIC", "region": "east_japan",
+            "drawing_type": DrawingType.approval, "paper_size": "A3",
+            "is_cad_data_requested": True, "cad_format": "DXF",
         },
-        "design_conditions": {
-            "material_text": "STK400", "material": "STK400",
-            "foundation_type": FoundationType.square,
-            "foundation_width_x": 800, "foundation_width_y": 800, "embedment_depth": 1500,
-            "drawing_type": DrawingType.approval,
+        "yp_details": {
+            "requesting_department_code": "E", "tail_code": "PJ", "record_no": "1",
+            "brand_mark": BrandLine.yp, "drafting_design": True,
+            "schedule_flexibility": "Adjustable", "paper_frame": "YP Frame",
         },
         "finish": {"treatment_option": SurfaceTreatmentOption.plating_only, "plating_type": PlatingType.standard},
     },
@@ -88,13 +94,14 @@ REQUESTS = [
         # tail YS di request form YP: tail mengikuti merek, bukan form; project tetap sama
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
         "pole_category": "acemast", "design_standard": "V60",
-        "request_no": "REQ-2026-002", "receipt_no": "RCP-002", "pj_no": "100001",
-        "request_type": RequestType.special, "design_type": DesignType.calculation,
-        "request_classification": RequestClassification.change, "pole_kind": PoleKind.custom,
+        "request_no": "EYS100001-2", "pj_no": "100001",
+        "request_type": RequestType.general, "design_type": DesignType.calculation,
+        "request_classification": RequestClassification.change,
         "subject": "Sample acemast change", "due_in_days": 30,
+        "requesting_department_name": "Sample East Office",
         "wind_speed": None, "air_density": 1.23,
         "yp_details": {
-            "document_no": "EYS100001-2", "tail_code": "YS", "record_no": "2",
+            "requesting_department_code": "E", "tail_code": "YS", "record_no": "2",
             "brand_mark": BrandLine.ys, "calc_strength": True, "has_competitor": False,
         },
     },
@@ -102,26 +109,36 @@ REQUESTS = [
     {
         "creator": "andi", "project": 1, "brand_line": BrandLine.yp,
         "pole_category": "signboard", "design_standard": "V60",
-        "request_no": "REQ-2026-003", "receipt_no": None, "pj_no": "100002",
+        "request_no": "EPJ100002", "pj_no": "100002",   # 図番 tanpa seq
         "request_type": RequestType.general, "design_type": DesignType.drawing_calculation,
-        "request_classification": RequestClassification.reuse_new, "pole_kind": PoleKind.standard,
-        "subject": None, "due_in_days": 7,
+        "request_classification": RequestClassification.reuse_new,
+        "subject": "Sample signboard reuse", "due_in_days": 7,
+        "requesting_department_name": "Sample East Office",
         "wind_speed": 34, "air_density": 1.22,
-        "yp_details": {"document_no": "EPJ100002"},   # tanpa seq, segmen lain kosong
+        "shared_details": {"region": "west_japan", "drawing_type": DrawingType.meeting},
+        "yp_details": {"requesting_department_code": "E"},   # segmen lain kosong
     },
     # dewi (drafter/YSC) -> department berbeda, menguji scope lintas-department
     {
         "creator": "dewi", "project": 2, "brand_line": BrandLine.ys,
         "pole_category": "lighting-pole", "design_standard": "JIL",
-        "request_no": "REQ-2026-004", "receipt_no": "RCP-004", "pj_no": "20001",
-        "request_type": RequestType.special, "design_type": DesignType.calculation,
-        "request_classification": RequestClassification.new, "pole_kind": PoleKind.custom,
+        "request_no": "YSE-26-0001", "pj_no": "20001",
+        "request_type": RequestType.general, "design_type": DesignType.calculation,
+        "request_classification": RequestClassification.new,
         "subject": "Sample YS pole", "due_in_days": 21,
+        "requesting_department_name": "Sample YS Company",
         "wind_speed": 40, "air_density": 1.23,
-        "ys_details": {"delivery_quantity": 3},
-        "design_conditions": {
-            "drawing_type": DrawingType.manufacturer, "design_standard_text": "未定",
-            "opening_height": "GL+750", "concrete_strength": "Fc24", "opening_direction_note": "A",
+        "shared_details": {
+            "scheduled_delivery_date": "2026/11/30", "delivery_quantity": 3,
+            "is_cad_data_requested": False,
+        },
+        "ys_details": {
+            "receipt_no": "26-0034",
+            "material_text": "STK400", "material": "STK400",
+            "foundation_type": FoundationType.square,
+            "foundation_width_x": 800, "foundation_width_y": 800, "embedment_depth": 1500,
+            "design_standard_text": "未定", "opening_height": "GL+750",
+            "concrete_strength": "Fc24", "opening_direction_note": "A",
         },
         "finish": {
             "treatment_option": SurfaceTreatmentOption.plating_painting,
@@ -129,26 +146,28 @@ REQUESTS = [
         },
     },
     {
-        # semua field opsional kosong, tanpa project -> menguji nullable
+        # hanya kolom wajib, tanpa project -> menguji nullable di tabel tambahan
         "creator": "dewi", "project": None, "brand_line": BrandLine.ys,
         "pole_category": "multiple", "design_standard": "V60",
-        "request_no": "REQ-2026-005", "receipt_no": None, "pj_no": "20002",
-        "request_type": RequestType.general, "design_type": DesignType.drawing,
-        "request_classification": RequestClassification.new, "pole_kind": None,
-        "subject": None, "due_in_days": None,
+        "request_no": "YSE-26-0002", "pj_no": "20002",
+        "request_type": RequestType.special, "design_type": DesignType.calculation,
+        "request_classification": RequestClassification.new,
+        "subject": "Sample YS minimal", "due_in_days": 60,
+        "requesting_department_name": "Sample YS Company",
         "wind_speed": None, "air_density": 1.23,
-        "ys_details": {},
     },
     # eko (drafter/YSF)
     {
+        # request berkepala General Affairs (総務部): request_type special, tanpa project
         "creator": "eko", "project": None, "brand_line": BrandLine.yp,
         "pole_category": "acemast", "design_standard": "V60",
-        "request_no": "REQ-2026-006", "receipt_no": "RCP-006", "pj_no": "100003",
-        "request_type": RequestType.general, "design_type": DesignType.calculation,
-        "request_classification": RequestClassification.new, "pole_kind": PoleKind.standard,
+        "request_no": "EPJ100003-1", "pj_no": "100003",
+        "request_type": RequestType.special, "design_type": DesignType.calculation,
+        "request_classification": RequestClassification.new,
         "subject": "Sample general affairs request", "due_in_days": 45,
+        "requesting_department_name": "Sample General Affairs",
         "wind_speed": None, "air_density": 1.23,
-        "yp_details": {"document_no": "EPJ100003-1", "tail_code": "PJ", "record_no": "1"},
+        "yp_details": {"requesting_department_code": "E", "tail_code": "PJ", "record_no": "1"},
     },
 ]
 
@@ -188,7 +207,19 @@ async def _design_standard_id(db, category_name: str, standard_name: str) -> tup
     return row[0], row[1]
 
 
-async def _design_conditions(db, spec: dict) -> dict:
+async def _shared_details(db, spec: dict) -> dict:
+    """Salin dict spec, lalu ganti kode region menjadi region_id."""
+    data = dict(spec)
+    region_code = data.pop("region", None)
+    if region_code is not None:
+        region_id = await db.scalar(select(Region.id).where(Region.code == region_code))
+        if region_id is None:
+            raise ValueError(f"Region '{region_code}' tidak ada. Jalankan seed_master dulu.")
+        data["region_id"] = region_id
+    return data
+
+
+async def _ys_details(db, spec: dict) -> dict:
     """Salin dict spec, lalu ganti nama material menjadi material_id."""
     data = dict(spec)
     material_name = data.pop("material", None)
@@ -233,25 +264,27 @@ async def _seed_requests(db, projects: list[DatabankProject]) -> int:
             created_by_user_id=user.id,
             pole_category_id=category_id,
             request_no=spec["request_no"],
-            receipt_no=spec["receipt_no"],
             pj_no=spec["pj_no"],
             request_type=spec["request_type"],
             design_type=spec["design_type"],
             request_classification=spec["request_classification"],
-            pole_kind=spec["pole_kind"],
             subject=spec["subject"],
+            request_date=_REQUEST_DATE,
             due_date=_due(spec["due_in_days"]),
+            requesting_department_name=spec["requesting_department_name"],
         )
         db.add(req)
         await db.flush()  # butuh req.id untuk baris anak
 
+        db.add(RequestSharedDetails(
+            request_id=req.id, **await _shared_details(db, spec.get("shared_details", {})),
+        ))
         if spec["brand_line"] == BrandLine.yp:
             db.add(RequestYpDetails(request_id=req.id, brand_line=BrandLine.yp, **spec["yp_details"]))
         else:
-            db.add(RequestYsDetails(request_id=req.id, brand_line=BrandLine.ys, **spec.get("ys_details", {})))
-        db.add(RequestDesignCondition(
-            request_id=req.id, **await _design_conditions(db, spec.get("design_conditions", {})),
-        ))
+            db.add(RequestYsDetails(
+                request_id=req.id, brand_line=BrandLine.ys, **await _ys_details(db, spec.get("ys_details", {})),
+            ))
         db.add(RequestFinish(request_id=req.id, **spec.get("finish", {})))
         db.add(Condition(
             request_id=req.id,
