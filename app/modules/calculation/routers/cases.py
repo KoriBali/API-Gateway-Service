@@ -29,6 +29,13 @@ async def save_calculation_case(
     if req is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
+    
+    # pole_kind dipilih drafter saat case DIBUAT with no default value
+    if payload.pole_kind is None and await CalculationCaseRepository.get_by_request(db, request_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="poleKind is required when creating a calculation case",
+        )
 
     case = await CalculationCaseRepository.upsert(
         db, request_id=request_id, owner_user_id=actor.id, payload=payload

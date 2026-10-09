@@ -1,10 +1,10 @@
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 
 from app.utils.base_schema import CamelBaseModel, snake_to_camel
 
 from datetime import datetime
 
-from app.database.models.calculation import PoleFamily, GroundPosition
+from app.database.models.calculation import PoleFamily, GroundPosition, PoleKind
 
 
 # ===== Calculate =====
@@ -24,6 +24,7 @@ class CalculateRequest(CamelBaseModel):
 # ===== Save Draft =====
 class CalculationCaseUpsert(CamelBaseModel):
     title: str | None = None
+    pole_kind: PoleKind | None = None
     pole_standard_id: str | None = None
     pole_standard_height_id: str | None = None
     pole_combination_id: str | None = None
@@ -38,6 +39,12 @@ class CalculationCaseUpsert(CamelBaseModel):
     openings: list[dict] | None = None
     baseplates: list[dict] | None = None
     foundations: list[dict] | None = None
+    
+    @model_validator(mode="after")
+    def _pole_kind_not_null(self):
+        if "pole_kind" in self.model_fields_set and self.pole_kind is None:
+            raise ValueError("poleKind cannot be null")
+        return self
 
 
 # ===== Save Draft =====
@@ -46,6 +53,7 @@ class CalculationCaseRead(CamelBaseModel):
     request_id: str
     owner_user_id: str
     title: str
+    pole_kind: PoleKind
     pole_standard_id: str | None = None
     pole_standard_height_id: str | None = None
     pole_combination_id: str | None = None
