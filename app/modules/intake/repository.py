@@ -12,9 +12,9 @@ from app.database.models.intake import (
     RequestType,
     DesignType,
     RequestClassification,
+    RequestSharedDetails,
     RequestYpDetails,
     RequestYsDetails,
-    RequestDesignCondition,
     RequestFinish,
 )
 from app.database.models.calculation import Condition
@@ -23,24 +23,23 @@ from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
     RequestUpdate,
+    SharedDetailsWrite,
     YpDetailsWrite,
     YsDetailsWrite,
-    DesignConditionsWrite,
     FinishWrite,
     ConditionsUpdate,
 )
 
 
 _REQUEST_EDITABLE = (
-    "project_id", "pole_category_id", "request_no", "receipt_no", "pj_no",
-    "request_type", "design_type", "request_classification", "pole_kind", "region_id",
-    "requesting_department_code", "requesting_department_name", "subject",
-    "due_date", "request_date", "notes", "requester_pic_name", "document_delivery_target",
+    "project_id", "pole_category_id", "request_no", "pj_no",
+    "request_type", "design_type", "request_classification",
+    "subject", "request_date", "due_date", "requesting_department_name", "notes",
 )
 
+_SHARED_EDITABLE = tuple(SharedDetailsWrite.model_fields)
 _YP_EDITABLE = tuple(YpDetailsWrite.model_fields)
 _YS_EDITABLE = tuple(YsDetailsWrite.model_fields)
-_DESIGN_CONDITIONS_EDITABLE = tuple(DesignConditionsWrite.model_fields)
 _FINISH_EDITABLE = tuple(FinishWrite.model_fields)
 _CONDITIONS_EDITABLE = ("design_standard_id", "wind_speed", "air_density")
 
@@ -130,14 +129,14 @@ class RequestRepository:
 
     @staticmethod
     async def get_detail(db: AsyncSession, request_id: str) -> Request | None:
-        """Request + ekstensi form + design condition + finish + conditions."""
+        """Request + tabel bersama + ekstensi form + finish + conditions."""
         result = await db.execute(
             select(Request)
             .where(Request.id == request_id)
             .options(
+                selectinload(Request.shared_details),
                 selectinload(Request.yp_details),
                 selectinload(Request.ys_details),
-                selectinload(Request.design_conditions),
                 selectinload(Request.finish),
                 selectinload(Request.conditions),
             )
@@ -170,15 +169,12 @@ class RequestRepository:
         return found is not None
 
     @staticmethod
-    async def list_by_document_no(
-        db: AsyncSession, document_no: str, *, exclude_request_id: str | None = None,
+    async def list_by_request_no(
+        db: AsyncSession, request_no: str, *, exclude_request_id: str | None = None,
     ) -> list[Request]:
-        """Semua request YP ber-図番 sama, TANPA scope peran. Router yang menyaring."""
-        stmt = (
-            select(Request)
-            .join(RequestYpDetails, RequestYpDetails.request_id == Request.id)
-            .where(RequestYpDetails.document_no == document_no)
-        )
+        """Semua request ber-request_no sama (kedua form), TANPA scope peran. Router yang menyaring."""
+        stmt = select(Request).where(Request.request_no == request_no)
+
         if exclude_request_id is not None:
             stmt = stmt.where(Request.id != exclude_request_id)
         stmt = stmt.order_by(Request.created_at)
@@ -255,7 +251,8 @@ class RequestRepository:
         created_by_user_id: str,
         responsible_department_id: str,
     ) -> Request:
-        """Intake dalam SATU transaksi: request + ekstensi form + design condition + finish + conditions."""
+        """Intake dalam SATU transaksi (DD G12): request + tabel bersama + ekstensi form
+        + finish + conditions. Semua baris anak lahir walau isiannya kosong."""
         req = Request(
             brand_line=payload.brand_line,
             responsible_department_id=responsible_department_id,
@@ -268,12 +265,11 @@ class RequestRepository:
         db.add(req)
         await db.flush()  # butuh req.id untuk baris anak
 
+        db.add(RequestSharedDetails(request_id=req.id, **_dump(payload.shared_details)))
         if payload.brand_line == BrandLine.yp:
             db.add(RequestYpDetails(request_id=req.id, brand_line=BrandLine.yp, **_dump(payload.yp_details)))
         else:
             db.add(RequestYsDetails(request_id=req.id, brand_line=BrandLine.ys, **_dump(payload.ys_details)))
-
-        db.add(RequestDesignCondition(request_id=req.id, **_dump(payload.design_conditions)))
         db.add(RequestFinish(request_id=req.id, **_dump(payload.finish)))
         db.add(Condition(request_id=req.id, **payload.conditions.model_dump()))
 
@@ -286,6 +282,21 @@ class RequestRepository:
         await db.commit()
         await db.refresh(req)
         return req
+    
+    @staticmethod
+    async def get_shared_details(db: AsyncSession, request_id: str) -> RequestSharedDetails | None:
+        return await db.scalar(
+            select(RequestSharedDetails).where(RequestSharedDetails.request_id == request_id)
+        )
+
+    @staticmethod
+    async def update_shared_details(db: AsyncSession, req: Request, payload: SharedDetailsWrite) -> None:
+        row = await RequestRepository.get_shared_details(db, req.id)
+        if row is None:
+            row = RequestSharedDetails(request_id=req.id)
+            db.add(row)
+        _apply(row, payload.model_dump(exclude_unset=True), _SHARED_EDITABLE)
+        await db.commit()
 
     @staticmethod
     async def update_yp_details(db: AsyncSession, req: Request, payload: YpDetailsWrite) -> None:
@@ -303,19 +314,6 @@ class RequestRepository:
             row = RequestYsDetails(request_id=req.id, brand_line=BrandLine.ys)
             db.add(row)
         _apply(row, payload.model_dump(exclude_unset=True), _YS_EDITABLE)
-        await db.commit()
-
-    @staticmethod
-    async def update_design_conditions(
-        db: AsyncSession, req: Request, payload: DesignConditionsWrite,
-    ) -> None:
-        row = await db.scalar(
-            select(RequestDesignCondition).where(RequestDesignCondition.request_id == req.id)
-        )
-        if row is None:
-            row = RequestDesignCondition(request_id=req.id)
-            db.add(row)
-        _apply(row, payload.model_dump(exclude_unset=True), _DESIGN_CONDITIONS_EDITABLE)
         await db.commit()
 
     @staticmethod

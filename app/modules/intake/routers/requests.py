@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
 from app.modules.intake import permissions
-from app.modules.intake.document_no import DocumentNoWarning, parse_document_no, tail_matches_brand
+from app.modules.intake.request_no import RequestNoWarning, parse_request_no, tail_matches_brand
 from app.modules.intake.repository import ProjectRepository, RequestRepository
 from app.database.models.intake import (
     BrandLine,
@@ -17,17 +17,18 @@ from app.database.models.intake import (
     RequestClassification,
 )
 from app.modules.intake.schemas import (
+    DRAWING_DESIGN_TYPES,
     RequestCreate,
     RequestUpdate,
     RequestRead,
     RequestDetailRead,
+    SharedDetailsWrite,
     YpDetailsWrite,
     YsDetailsWrite,
-    DesignConditionsWrite,
     FinishWrite,
     ConditionsUpdate,
-    DocumentNoCheckRead,
-    DocumentNoDuplicate,
+    RequestNoCheckRead,
+    RequestNoDuplicate,
 )
 
 routerRequest = APIRouter(prefix="/api/requests", tags=["Requests"])
@@ -51,9 +52,23 @@ async def _ensure_project_matches(db: AsyncSession, project_id: str, brand_line:
         raise _unprocessable("projectId references a project with a different request form")
 
 
+async def _ensure_region_exists(db: AsyncSession, region_id: str | None) -> None:
+    if region_id is not None and not await RequestRepository.region_exists(db, region_id):
+        raise _unprocessable("sharedDetails.regionId does not reference an existing region")
+
+
 async def _ensure_material_exists(db: AsyncSession, material_id: str | None) -> None:
     if material_id is not None and not await RequestRepository.material_exists(db, material_id):
-        raise _unprocessable("designConditions.materialId does not reference an existing material")
+        raise _unprocessable("ysDetails.materialId does not reference an existing material")
+
+
+def _ensure_drawing_fields(design_type, region_id, drawing_type) -> None:
+    """DD invariant intake 11, diperiksa pada keadaan SESUDAH perubahan."""
+    if design_type in DRAWING_DESIGN_TYPES and (region_id is None or drawing_type is None):
+        raise _unprocessable(
+            "sharedDetails.regionId and sharedDetails.drawingType are required "
+            "when designType includes drawing"
+        )
 
 
 async def _load_managed(db: AsyncSession, request_id: str, actor: CurrentUser):
@@ -117,49 +132,53 @@ async def list_requests(
 
 
 # Path statis WAJIB didaftarkan sebelum "/{request_id}", kalau tidak tertelan sebagai request_id.
-@routerRequest.get("/document-no-check")
-async def check_document_no(
-    document_no: str = Query(alias="documentNo", min_length=1, max_length=100),
+@routerRequest.get("/request-no-check")
+async def check_request_no(
+    request_no: str = Query(alias="requestNo", min_length=1, max_length=100),
     brand_mark: BrandLine | None = Query(default=None, alias="brandMark"),
     exclude_request_id: str | None = Query(default=None, alias="excludeRequestId"),
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
-    """Usulan segmen 図番 + peringatan intake. Tidak pernah menolak dan tidak menulis apa pun."""
+    """Usulan segmen 図番 + peringatan intake YP. Tidak pernah menolak dan tidak menulis apa pun.
+
+    Dipanggil form intake YP saja (DD invariant intake 9). Pencarian kembar tetap
+    memeriksa seluruh requests.request_no, karena kolom itu milik kedua form.
+    """
     warnings: list[str] = []
     project_id = None
 
-    segments = parse_document_no(document_no)
+    segments = parse_request_no(request_no)
     if segments is None:
-        warnings.append(DocumentNoWarning.PATTERN_MISMATCH)
+        warnings.append(RequestNoWarning.PATTERN_MISMATCH)
     else:
         if not tail_matches_brand(segments.tail_code, brand_mark):
-            warnings.append(DocumentNoWarning.TAIL_BRAND_MISMATCH)
+            warnings.append(RequestNoWarning.TAIL_BRAND_MISMATCH)
         # Identitas project = head + base (tanpa tail). Bantu frontend memilih project yang sudah ada.
         project = await ProjectRepository.find_by_identity(
             db, request_form=BrandLine.yp, scope_code=segments.scope_code, pj_no=segments.pj_no,
         )
         project_id = project.id if project is not None else None
 
-    others = await RequestRepository.list_by_document_no(
-        db, document_no, exclude_request_id=exclude_request_id,
+    others = await RequestRepository.list_by_request_no(
+        db, request_no, exclude_request_id=exclude_request_id,
     )
     if others:
-        warnings.append(DocumentNoWarning.DUPLICATE)
+        warnings.append(RequestNoWarning.DUPLICATE)
     # Jumlah dihitung dari semua request; rinciannya hanya yang boleh dibaca actor.
     visible = [r for r in others if permissions.can_read_request(actor, r)]
 
     return success_response(
-        data=DocumentNoCheckRead(
-            document_no=document_no,
+        data=RequestNoCheckRead(
+            request_no=request_no,
             matches_pattern=segments is not None,
             segments=segments,
             project_id=project_id,
             warnings=warnings,
             duplicate_count=len(others),
-            duplicates=[DocumentNoDuplicate.model_validate(r) for r in visible],
+            duplicates=[RequestNoDuplicate.model_validate(r) for r in visible],
         ),
-        message="Document number checked",
+        message="Request number checked",
     )
 
 
@@ -197,10 +216,10 @@ async def create_request(
         await _ensure_project_matches(db, payload.project_id, payload.brand_line)
     if not await RequestRepository.pole_category_exists(db, payload.pole_category_id):
         raise _unprocessable("poleCategoryId does not reference an existing pole category")
-    if payload.region_id is not None and not await RequestRepository.region_exists(db, payload.region_id):
-        raise _unprocessable("regionId does not reference an existing region")
-    if payload.design_conditions is not None:
-        await _ensure_material_exists(db, payload.design_conditions.material_id)
+    if payload.shared_details is not None:
+        await _ensure_region_exists(db, payload.shared_details.region_id)
+    if payload.ys_details is not None:
+        await _ensure_material_exists(db, payload.ys_details.material_id)
     if not await RequestRepository.design_standard_exists(db, payload.conditions.design_standard_id):
         raise _unprocessable("conditions.designStandardId does not reference an existing design standard")
 
@@ -230,16 +249,43 @@ async def update_request(
     if "pole_category_id" in data and data["pole_category_id"] != req.pole_category_id:
         if not await RequestRepository.pole_category_exists(db, data["pole_category_id"]):
             raise _unprocessable("poleCategoryId does not reference an existing pole category")
-    if data.get("region_id") is not None and data["region_id"] != req.region_id:
-        if not await RequestRepository.region_exists(db, data["region_id"]):
-            raise _unprocessable("regionId does not reference an existing region")
+    if "design_type" in data:
+        shared = await RequestRepository.get_shared_details(db, req.id)
+        _ensure_drawing_fields(
+            data["design_type"],
+            shared.region_id if shared is not None else None,
+            shared.drawing_type if shared is not None else None,
+        )
 
     await RequestRepository.update(db, req, payload)
     return await _detail_response(db, request_id, "Request updated")
 
 
 
-# ===== Update ekstensi form, design condition, finish, conditions =====
+# ===== Update tabel bersama, ekstensi form, finish, conditions =====
+@routerRequest.patch("/{request_id}/shared-details")
+async def update_shared_details(
+    request_id: str,
+    payload: SharedDetailsWrite,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_ANY_ROLE),
+):
+    req = await _load_managed(db, request_id, actor)
+    data = payload.model_dump(exclude_unset=True)
+    await _ensure_region_exists(db, data.get("region_id"))
+
+    # Keadaan sesudah PATCH = nilai yang dikirim, atau nilai lama bila tidak dikirim.
+    shared = await RequestRepository.get_shared_details(db, req.id)
+    _ensure_drawing_fields(
+        req.design_type,
+        data.get("region_id", shared.region_id if shared is not None else None),
+        data.get("drawing_type", shared.drawing_type if shared is not None else None),
+    )
+
+    await RequestRepository.update_shared_details(db, req, payload)
+    return await _detail_response(db, request_id, "Shared details updated")
+
+
 @routerRequest.patch("/{request_id}/yp-details")
 async def update_yp_details(
     request_id: str,
@@ -266,21 +312,9 @@ async def update_ys_details(
     if req.brand_line != BrandLine.ys:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="ysDetails only apply to a YS request")
+    await _ensure_material_exists(db, payload.material_id)
     await RequestRepository.update_ys_details(db, req, payload)
     return await _detail_response(db, request_id, "YS details updated")
-
-
-@routerRequest.patch("/{request_id}/design-conditions")
-async def update_design_conditions(
-    request_id: str,
-    payload: DesignConditionsWrite,
-    db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_ANY_ROLE),
-):
-    req = await _load_managed(db, request_id, actor)
-    await _ensure_material_exists(db, payload.material_id)
-    await RequestRepository.update_design_conditions(db, req, payload)
-    return await _detail_response(db, request_id, "Design conditions updated")
 
 
 @routerRequest.patch("/{request_id}/finish")

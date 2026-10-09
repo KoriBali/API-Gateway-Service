@@ -9,10 +9,7 @@ from app.database.models.intake import (
     RequestType,
     DesignType,
     RequestClassification,
-    PoleKind,
     DesignOrigin,
-    ScheduleFlexibility,
-    PaperFrame,
 )
 from app.database.models.calculation_object import FoundationType
 from app.database.models.drawing import (
@@ -22,6 +19,10 @@ from app.database.models.drawing import (
     PaintingType,
 )
 
+
+# design_type yang memuat pekerjaan gambar. Request seperti ini wajib mengisi
+# sharedDetails.regionId dan sharedDetails.drawingType (DD invariant intake 11).
+DRAWING_DESIGN_TYPES = frozenset({DesignType.drawing, DesignType.drawing_calculation})
 
 
 def _reject_null(model: CamelBaseModel, fields: tuple[str, ...]):
@@ -49,18 +50,30 @@ class ProjectCreate(CamelBaseModel):
 
 
 
-# ===== Ekstensi form, design condition, finish (dipakai create dan patch) =====
-# document_no nullable di DB, tetapi wajib di form intake YP (DD invariant intake 8).
+# ===== Tabel tambahan, finish, conditions (dipakai create dan patch) =====
+class SharedDetailsWrite(CamelBaseModel):
+    scheduled_delivery_date: str | None = Field(default=None, max_length=100)
+    delivery_quantity: int | None = Field(default=None, ge=0)
+    requester_pic_name: str | None = Field(default=None, max_length=120)
+    region_id: str | None = Field(default=None, min_length=1)
+    drawing_type: DrawingType | None = None
+    # Teks berpilihan: label Inggris dari form (None, A1, ..., DXF, DWG) atau isian bebas.
+    paper_size: str | None = Field(default=None, max_length=50)
+    is_cad_data_requested: bool | None = None
+    cad_format: str | None = Field(default=None, max_length=50)
+
+
+# requesting_department_code nullable di DB, tetapi wajib di form intake YP (DD invariant intake 12).
 _YP_NOT_NULL = (
-    "document_no",
+    "requesting_department_code",
     "calc_strength", "calc_design",
     "scope_main_member", "scope_joint", "scope_foundation",
-    "drafting_tracing", "drafting_design", "deliver_cad_data",
+    "drafting_tracing", "drafting_design",
 )
 
 
 class YpDetailsWrite(CamelBaseModel):
-    document_no: str | None = Field(default=None, min_length=1, max_length=100)
+    requesting_department_code: str | None = Field(default=None, min_length=1, max_length=50)
     record_no: str | None = Field(default=None, max_length=100)
     department_code: str | None = Field(default=None, max_length=50)
     brand_mark: BrandLine | None = None
@@ -73,15 +86,14 @@ class YpDetailsWrite(CamelBaseModel):
     scope_other: str | None = Field(default=None, max_length=200)
     drafting_tracing: bool | None = None
     drafting_design: bool | None = None
-    deliver_cad_data: bool | None = None
     submission_destination_1: str | None = Field(default=None, max_length=200)
     submission_destination_2: str | None = Field(default=None, max_length=200)
     submission_destination_3: str | None = Field(default=None, max_length=200)
     has_competitor: bool | None = None
     design_origin: DesignOrigin | None = None
-    schedule_flexibility: ScheduleFlexibility | None = None
-    schedule_note: str | None = None
-    paper_frame: PaperFrame | None = None
+    # Teks berpilihan: label Inggris dari form atau isian bebas.
+    schedule_flexibility: str | None = Field(default=None, max_length=200)
+    paper_frame: str | None = Field(default=None, max_length=100)
     finished_copies: int | None = Field(default=None, ge=0)
     plating_proviso: str | None = None
 
@@ -91,10 +103,7 @@ class YpDetailsWrite(CamelBaseModel):
 
 
 class YsDetailsWrite(CamelBaseModel):
-    delivery_quantity: int | None = Field(default=None, ge=0)
-
-
-class DesignConditionsWrite(CamelBaseModel):
+    receipt_no: str | None = Field(default=None, max_length=100)
     # Field intake
     material_text: str | None = Field(default=None, max_length=200)
     material_id: str | None = Field(default=None, min_length=1)
@@ -102,7 +111,6 @@ class DesignConditionsWrite(CamelBaseModel):
     foundation_width_x: float | None = Field(default=None, gt=0)
     foundation_width_y: float | None = Field(default=None, gt=0)
     embedment_depth: float | None = Field(default=None, gt=0)
-    drawing_type: DrawingType | None = None
     # Referensi
     design_standard_text: str | None = Field(default=None, max_length=200)
     opening_height: str | None = Field(default=None, max_length=100)
@@ -139,8 +147,11 @@ class ConditionsUpdate(CamelBaseModel):
 
 
 # ===== Request =====
+# request_no, subject, due_date nullable di DB tetapi wajib di form intake (DD invariant intake 8).
 _REQUEST_NOT_NULL = (
-    "pole_category_id", "pj_no", "request_type", "design_type", "request_classification",
+    "pole_category_id", "request_no", "pj_no", "request_type", "design_type",
+    "request_classification", "subject", "request_date", "due_date",
+    "requesting_department_name",
 )
 
 
@@ -149,28 +160,22 @@ class RequestCreate(CamelBaseModel):
     project_id: str | None = Field(default=None, min_length=1)
     pole_category_id: str = Field(min_length=1)
 
-    request_no: str | None = Field(default=None, max_length=100)
-    receipt_no: str | None = Field(default=None, max_length=100)
+    request_no: str = Field(min_length=1, max_length=100)
     pj_no: str = Field(min_length=1, max_length=100)
 
     request_type: RequestType
     design_type: DesignType
     request_classification: RequestClassification
-    pole_kind: PoleKind | None = None
-    region_id: str | None = Field(default=None, min_length=1)
 
-    requesting_department_code: str | None = Field(default=None, max_length=50)
-    requesting_department_name: str | None = Field(default=None, max_length=200)
-    subject: str | None = Field(default=None, max_length=200)
-    due_date: date | None = None
-    request_date: date | None = None
+    subject: str = Field(min_length=1, max_length=200)
+    request_date: date
+    due_date: date
+    requesting_department_name: str = Field(min_length=1, max_length=200)
     notes: str | None = None
-    requester_pic_name: str | None = Field(default=None, max_length=120)
-    document_delivery_target: str | None = Field(default=None, max_length=200)
 
+    shared_details: SharedDetailsWrite | None = None
     yp_details: YpDetailsWrite | None = None
     ys_details: YsDetailsWrite | None = None
-    design_conditions: DesignConditionsWrite | None = None
     finish: FinishWrite | None = None
     conditions: ConditionsCreate
 
@@ -181,9 +186,18 @@ class RequestCreate(CamelBaseModel):
         if self.brand_line == BrandLine.ys and self.yp_details is not None:
             raise ValueError("ypDetails is only allowed for a YP request")
         if self.brand_line == BrandLine.yp and (
-            self.yp_details is None or self.yp_details.document_no is None
+            self.yp_details is None or self.yp_details.requesting_department_code is None
         ):
-            raise ValueError("ypDetails.documentNo is required for a YP request")
+            raise ValueError("ypDetails.requestingDepartmentCode is required for a YP request")
+        if self.design_type in DRAWING_DESIGN_TYPES and (
+            self.shared_details is None
+            or self.shared_details.region_id is None
+            or self.shared_details.drawing_type is None
+        ):
+            raise ValueError(
+                "sharedDetails.regionId and sharedDetails.drawingType are required "
+                "when designType includes drawing"
+            )
         return self
 
 
@@ -191,22 +205,16 @@ class RequestUpdate(CamelBaseModel):
     # brand_line sengaja tidak ada: form dikunci sejak request dibuat.
     project_id: str | None = Field(default=None, min_length=1)
     pole_category_id: str | None = Field(default=None, min_length=1)
-    request_no: str | None = Field(default=None, max_length=100)
-    receipt_no: str | None = Field(default=None, max_length=100)
+    request_no: str | None = Field(default=None, min_length=1, max_length=100)
     pj_no: str | None = Field(default=None, min_length=1, max_length=100)
     request_type: RequestType | None = None
     design_type: DesignType | None = None
     request_classification: RequestClassification | None = None
-    pole_kind: PoleKind | None = None
-    region_id: str | None = Field(default=None, min_length=1)
-    requesting_department_code: str | None = Field(default=None, max_length=50)
-    requesting_department_name: str | None = Field(default=None, max_length=200)
-    subject: str | None = Field(default=None, max_length=200)
-    due_date: date | None = None
+    subject: str | None = Field(default=None, min_length=1, max_length=200)
     request_date: date | None = None
+    due_date: date | None = None
+    requesting_department_name: str | None = Field(default=None, min_length=1, max_length=200)
     notes: str | None = None
-    requester_pic_name: str | None = Field(default=None, max_length=120)
-    document_delivery_target: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def _not_null(self):
@@ -223,9 +231,21 @@ class ProjectRead(CamelBaseModel):
     is_placeholder: bool
 
 
+class SharedDetailsRead(CamelBaseModel):
+    id: str
+    scheduled_delivery_date: str | None = None
+    delivery_quantity: int | None = None
+    requester_pic_name: str | None = None
+    region_id: str | None = None
+    drawing_type: DrawingType | None = None
+    paper_size: str | None = None
+    is_cad_data_requested: bool | None = None
+    cad_format: str | None = None
+
+
 class YpDetailsRead(CamelBaseModel):
     id: str
-    document_no: str | None = None
+    requesting_department_code: str | None = None
     record_no: str | None = None
     department_code: str | None = None
     brand_mark: BrandLine | None = None
@@ -238,33 +258,26 @@ class YpDetailsRead(CamelBaseModel):
     scope_other: str | None = None
     drafting_tracing: bool
     drafting_design: bool
-    deliver_cad_data: bool
     submission_destination_1: str | None = None
     submission_destination_2: str | None = None
     submission_destination_3: str | None = None
     has_competitor: bool | None = None
     design_origin: DesignOrigin | None = None
-    schedule_flexibility: ScheduleFlexibility | None = None
-    schedule_note: str | None = None
-    paper_frame: PaperFrame | None = None
+    schedule_flexibility: str | None = None
+    paper_frame: str | None = None
     finished_copies: int | None = None
     plating_proviso: str | None = None
 
 
 class YsDetailsRead(CamelBaseModel):
     id: str
-    delivery_quantity: int | None = None
-
-
-class DesignConditionsRead(CamelBaseModel):
-    id: str
+    receipt_no: str | None = None
     material_text: str | None = None
     material_id: str | None = None
     foundation_type: FoundationType | None = None
     foundation_width_x: float | None = None
     foundation_width_y: float | None = None
     embedment_depth: float | None = None
-    drawing_type: DrawingType | None = None
     design_standard_text: str | None = None
     opening_height: str | None = None
     concrete_strength: str | None = None
@@ -298,54 +311,49 @@ class RequestRead(CamelBaseModel):
     pole_category_id: str
     status: RequestStatus
     request_no: str | None = None
-    receipt_no: str | None = None
     pj_no: str
     request_type: RequestType
     design_type: DesignType
     request_classification: RequestClassification
-    pole_kind: PoleKind | None = None
-    region_id: str | None = None
-    requesting_department_code: str | None = None
-    requesting_department_name: str | None = None
     subject: str | None = None
+    request_date: date
     due_date: date | None = None
-    request_date: date | None = None
+    requesting_department_name: str
     notes: str | None = None
-    requester_pic_name: str | None = None
-    document_delivery_target: str | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class RequestDetailRead(RequestRead):
+    shared_details: SharedDetailsRead | None = None
     yp_details: YpDetailsRead | None = None
     ys_details: YsDetailsRead | None = None
-    design_conditions: DesignConditionsRead | None = None
     finish: FinishRead | None = None
     conditions: ConditionsRead | None = None
 
 
 
-# ===== Cek 図番 (document_no) =====
-class DocumentNoSegments(CamelBaseModel):
+# ===== Cek nomor request (図番 YP) =====
+class RequestNoSegments(CamelBaseModel):
     scope_code: str
     tail_code: str
     pj_no: str
     record_no: str | None = None
 
 
-class DocumentNoDuplicate(CamelBaseModel):
+class RequestNoDuplicate(CamelBaseModel):
     id: str
+    brand_line: BrandLine
     status: RequestStatus
     subject: str | None = None
     created_at: datetime
 
 
-class DocumentNoCheckRead(CamelBaseModel):
-    document_no: str
+class RequestNoCheckRead(CamelBaseModel):
+    request_no: str
     matches_pattern: bool
-    segments: DocumentNoSegments | None = None
+    segments: RequestNoSegments | None = None
     project_id: str | None = None
     warnings: list[str]
     duplicate_count: int
-    duplicates: list[DocumentNoDuplicate]
+    duplicates: list[RequestNoDuplicate]
