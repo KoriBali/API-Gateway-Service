@@ -57,6 +57,11 @@ class GroundPosition(str, enum.Enum):
     on_GL = "on_GL"
     upper_GL = "upper_GL"
     under_GL = "under_GL"
+    
+
+class PoleKind(str, enum.Enum):
+    standard = "standard"
+    custom = "custom"
 
 
 class StatusCalculationRun(str, enum.Enum):
@@ -130,6 +135,11 @@ class CalculationCase(Base):
 
     title: Mapped[str] = mapped_column(
         String,
+        nullable=False
+    )
+    
+    pole_kind: Mapped[PoleKind] = mapped_column(
+        Enum(PoleKind),
         nullable=False
     )
 

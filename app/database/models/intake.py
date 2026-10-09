@@ -34,7 +34,6 @@ from app.database.models.drawing import (
 
 if TYPE_CHECKING:
     from app.database.models.identity import Department, User
-    from app.database.models.master import Region
     from app.database.models.calculation import CalculationCase, Condition
     from app.database.models.drawing import DrawingCase
 
@@ -44,7 +43,7 @@ if TYPE_CHECKING:
 class BrandLine(str, enum.Enum):
     yp = "yp"
     ys = "ys"
-    
+
 
 class RequestStatus(str, enum.Enum):
     internal = "internal"
@@ -52,64 +51,47 @@ class RequestStatus(str, enum.Enum):
     submitted = "submitted"
     cleared = "cleared"
     canceled = "canceled"
-    
+
 
 class RequestType(str, enum.Enum):
-    general = "general" 
+    general = "general"
     special = "special"
-    
-    
+
+
 class DesignType(str, enum.Enum):
     drawing = "drawing"
     calculation = "calculation"
     drawing_calculation = "drawing_calculation"
-    
-    
-class RequestClassification(str, enum.Enum):
-    new = "new" 
-    change = "change" 
-    reuse_new = "reuse_new" 
-    
 
-class PoleKind(str, enum.Enum):
-    standard = "standard" 
-    custom = "custom" 
-    
-    
+
+class RequestClassification(str, enum.Enum):
+    new = "new"
+    change = "change"
+    reuse_new = "reuse_new"
+
+
 class DesignOrigin(str, enum.Enum):
     development = "development"
     proposal = "proposal"
-    existing = "existing" 
-    customer_spec = "customer_spec" 
-    
+    existing = "existing"
+    customer_spec = "customer_spec"
 
-class ScheduleFlexibility(str, enum.Enum):
-    adjustable = "adjustable" 
-    not_adjustable = "not_adjustable" 
-    strict = "strict" 
-    
 
-class PaperFrame(str, enum.Enum):
-    yp_frame = "yp_frame"
-    no_frame = "no_frame"
-    specified_frame = "specified_frame"
-    
-    
-    
+
 # ===== Databank Project =====
 class DatabankProject(Base):
     __tablename__ = "databank_projects"
     __table_args__ = (
         # For Foreign Key Composite
         UniqueConstraint(
-            "id", 
-            "request_form", 
+            "id",
+            "request_form",
             name="uq_databank_projects_id_request_form"),
-        
+
         CheckConstraint(
-            "request_form <> 'ys' OR scope_code = ''", 
+            "request_form <> 'ys' OR scope_code = ''",
             name="ys_scope_code_empty"),
-        
+
         Index(
             "uq_databank_projects_identity",
             "request_form", "scope_code", "pj_no",
@@ -117,13 +99,13 @@ class DatabankProject(Base):
             postgresql_where=text("is_placeholder = false")),
 
     )
-    
+
     id: Mapped[str] = mapped_column(
         String,
         primary_key=True,
         default=lambda: str(uuid.uuid4())
     )
-    
+
     request_form: Mapped[BrandLine] = mapped_column(
         Enum(BrandLine),
         nullable=False,
@@ -149,6 +131,8 @@ class DatabankProject(Base):
 
 # ===== Request =====
 class Request(Base):
+    """Inti intake saja (DD v0.9 catatan struktural butir 19). Field cover lain ada di
+    request_shared_details, request_yp_details, dan request_ys_details."""
     __tablename__ = "requests"
     __table_args__ = (
         # Penopang FK komposit dari request_yp_details / request_ys_details.
@@ -214,12 +198,8 @@ class Request(Base):
         nullable=False,
     )
 
+    # 図番 utuh (YP) atau 依頼No (YS). Nullable di DB, wajib di API (DD invariant intake 8).
     request_no: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
-    receipt_no: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
     )
@@ -244,29 +224,14 @@ class Request(Base):
         nullable=False,
     )
 
-    pole_kind: Mapped[PoleKind | None] = mapped_column(
-        Enum(PoleKind),
-        nullable=True,
-    )
-
-    region_id: Mapped[str | None] = mapped_column(
-        ForeignKey("regions.id", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=True,
-    )
-
-    requesting_department_code: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
-    requesting_department_name: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
     subject: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
+    )
+
+    request_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
     )
 
     due_date: Mapped[date | None] = mapped_column(
@@ -274,23 +239,13 @@ class Request(Base):
         nullable=True,
     )
 
-    request_date: Mapped[date | None] = mapped_column(
-        Date,
-        nullable=True,
+    requesting_department_name: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
     )
 
     notes: Mapped[str | None] = mapped_column(
         Text,
-        nullable=True,
-    )
-
-    requester_pic_name: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
-    document_delivery_target: Mapped[str | None] = mapped_column(
-        String,
         nullable=True,
     )
 
@@ -306,8 +261,6 @@ class Request(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-
-    region: Mapped["Region | None"] = relationship("Region")
 
     # Child
     created_by_user: Mapped["User"] = relationship(
@@ -326,7 +279,7 @@ class Request(Base):
         passive_deletes=True,
     )
 
-    design_conditions: Mapped["RequestDesignCondition | None"] = relationship(
+    shared_details: Mapped["RequestSharedDetails | None"] = relationship(
         back_populates="request",
         uselist=False,
         cascade="all, delete-orphan",
@@ -369,6 +322,53 @@ class Request(Base):
 
 
 
+# ===== Request Shared Details =====
+class RequestSharedDetails(Base):
+    """Field cover yang tercetak di form YP DAN YS. Tanpa kolom penjaga (milik kedua form)."""
+    __tablename__ = "request_shared_details"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        ForeignKey("requests.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    # Waktu kirim TIANG ke pelanggan (納入予定日 / 納入時期), teks bebas mis. "3/末".
+    # Walau berakhiran _date, kolom ini varchar: jangan diparse atau diurutkan sebagai tanggal.
+    scheduled_delivery_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    delivery_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    requester_pic_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # region_id dan drawing_type wajib di API bila design_type memuat drawing (DD invariant intake 11).
+    region_id: Mapped[str | None] = mapped_column(
+        ForeignKey("regions.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True,
+    )
+    drawing_type: Mapped[DrawingType | None] = mapped_column(         # default -> drawing_cases.drawing_type
+        Enum(DrawingType),
+        nullable=True,
+    )
+
+    # Teks berpilihan (DD catatan struktural butir 20): label Inggris atau isian bebas.
+    # Tidak pernah dibaca logika sistem (DD larangan 25).
+    paper_size: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Nullable dengan sengaja: belum diisi berbeda dari 不要 (false).
+    is_cad_data_requested: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    cad_format: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Child
+    request: Mapped["Request"] = relationship(
+        back_populates="shared_details",
+    )
+
+
+
 # ===== Request YP Details =====
 class RequestYpDetails(Base):
     __tablename__ = "request_yp_details"
@@ -402,8 +402,8 @@ class RequestYpDetails(Base):
         nullable=False,
     )
 
-    # 図番 utuh = nomor request di DataBank YP. Nullable di DB, wajib di API (form intake YP).
-    document_no: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Kode kantor peminta (依頼部署). Nullable di DB, wajib di API untuk request YP.
+    requesting_department_code: Mapped[str | None] = mapped_column(String, nullable=True)
     record_no: Mapped[str | None] = mapped_column(String, nullable=True)
     department_code: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -424,7 +424,6 @@ class RequestYpDetails(Base):
     scope_other: Mapped[str | None] = mapped_column(String, nullable=True)
     drafting_tracing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     drafting_design: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    deliver_cad_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     submission_destination_1: Mapped[str | None] = mapped_column(String, nullable=True)
     submission_destination_2: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -438,17 +437,9 @@ class RequestYpDetails(Base):
         nullable=True,
     )
 
-    schedule_flexibility: Mapped[ScheduleFlexibility | None] = mapped_column(
-        Enum(ScheduleFlexibility),
-        nullable=True,
-    )
-
-    schedule_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    paper_frame: Mapped[PaperFrame | None] = mapped_column(
-        Enum(PaperFrame),
-        nullable=True,
-    )
+    # Teks berpilihan (DD catatan struktural butir 20): label Inggris atau isian bebas.
+    schedule_flexibility: Mapped[str | None] = mapped_column(String, nullable=True)
+    paper_frame: Mapped[str | None] = mapped_column(String, nullable=True)
 
     finished_copies: Mapped[int | None] = mapped_column(Integer, nullable=True)
     plating_proviso: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -488,26 +479,10 @@ class RequestYsDetails(Base):
         nullable=False,
     )
 
-    delivery_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Identitas: 受付No, external reference.
+    receipt_no: Mapped[str | None] = mapped_column(String, nullable=True)
 
-
-
-# ===== Request Design Condition =====
-class RequestDesignCondition(Base):
-    __tablename__ = "request_design_conditions"
-
-    id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-    )
-
-    request_id: Mapped[str] = mapped_column(
-        ForeignKey("requests.id", ondelete="CASCADE", onupdate="CASCADE"),
-        nullable=False,
-        unique=True,
-    )
-
+    # Syarat desain blok 設計条件 (khusus YS sejak v0.9).
     # Field intake. Hanya kolom yang ditandai "default ->" memasok isian awal case (DD G8).
     material_text: Mapped[str | None] = mapped_column(String, nullable=True)
     material_id: Mapped[str | None] = mapped_column(          # default -> step_poles.material_id
@@ -522,10 +497,6 @@ class RequestDesignCondition(Base):
     foundation_width_x: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  # default, square saja
     foundation_width_y: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  # default, square saja
     embedment_depth: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)     # default
-    drawing_type: Mapped[DrawingType | None] = mapped_column(         # default -> drawing_cases.drawing_type
-        Enum(DrawingType),
-        nullable=True,
-    )
 
     # Referensi: apa adanya dari cover, tidak pernah memasok default.
     design_standard_text: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -534,11 +505,6 @@ class RequestDesignCondition(Base):
 
     # Catatan: tidak pernah dibaca sistem.
     opening_direction_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # Child
-    request: Mapped["Request"] = relationship(
-        back_populates="design_conditions",
-    )
 
 
 

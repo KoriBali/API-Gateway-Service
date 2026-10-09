@@ -23,7 +23,7 @@ from app.database.models.calculation_object import (
     FoundationColumnsMixin,
 )
 
-from app.database.models.calculation import PoleFamily, GroundPosition
+from app.database.models.calculation import PoleFamily, GroundPosition, PoleKind
 
 if TYPE_CHECKING:
     from app.database.models.identity import User
@@ -161,6 +161,11 @@ class DrawingCase(Base):
     embedment_length: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 5), 
         nullable=True
+    )
+    
+    pole_kind: Mapped[PoleKind] = mapped_column(
+        Enum(PoleKind),
+        nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(
