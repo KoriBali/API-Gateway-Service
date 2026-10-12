@@ -19,6 +19,7 @@ from app.database.models.intake import (
 )
 from app.database.models.calculation import Condition
 from app.database.models.master import PoleCategory, Region, DesignStandard, Material
+from app.modules.workflow.repository import RequestEventRepository
 from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
@@ -209,8 +210,12 @@ class RequestRepository:
             if actor_department_id is None:
                 return [], 0
             stmt = stmt.where(Request.responsible_department_id == actor_department_id)
+        elif role == "yoshimoto_reviewer":
+            # Lintas department, hanya request yang pernah di-submit (V7)
+            stmt = stmt.where(RequestEventRepository.ever_submitted_clause())
         else:
             stmt = stmt.where(Request.created_by_user_id == actor_id)
+
 
         # Filter opsional
         if brand_line is not None:
