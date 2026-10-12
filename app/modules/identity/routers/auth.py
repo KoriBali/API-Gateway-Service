@@ -49,7 +49,7 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     # token yang sudah revoked dipakai lagi
-    if rt.revoked:
+    if rt.is_revoked:
         await AuthRepository.revoke_all_for_user(db, rt.user_id)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token reuse detected")
 
@@ -77,7 +77,7 @@ async def logout(
     current: CurrentUser = Depends(get_current_user),
 ):
     rt = await AuthRepository.find_by_raw(db, payload.refresh_token)
-    if rt is not None and rt.user_id == current.id and not rt.revoked:
+    if rt is not None and rt.user_id == current.id and not rt.is_revoked:
         await AuthRepository.revoke(db, rt)
     # token tak dikenal/orang lain tetap 200 (tak membocorkan info)
     return success_response(data={"revoked": True}, message="Logged out")

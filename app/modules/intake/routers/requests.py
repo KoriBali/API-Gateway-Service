@@ -34,7 +34,7 @@ from app.modules.intake.schemas import (
 routerRequest = APIRouter(prefix="/api/requests", tags=["Requests"])
 
 # Semua role terautentikasi boleh menyentuh modul ini, scope sudah di setting
-_ANY_ROLE = require_roles("superadmin", "admin", "drafter")
+_ANY_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
 
 

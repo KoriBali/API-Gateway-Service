@@ -56,7 +56,7 @@ def hash_token(raw_token: str) -> str:
 
 # ===== JWT =====
 def _role_to_str(role) -> str:
-    # role bisa berupa Enum(Role) atau string
+    # role bisa berupa Enum(UserRole) atau string
     return role.value if hasattr(role, "value") else str(role)
 
 
@@ -140,7 +140,7 @@ def require_roles(*allowed_roles: str):
     """
     Dependency factory. Contoh:
         Depends(require_roles("superadmin"))
-        Depends(require_roles("superadmin", "admin"))
+        Depends(require_roles("superadmin", "admin_department"))
     Menolak dengan 403 bila role principal tidak termasuk allowed_roles.
     """
     async def guard(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:

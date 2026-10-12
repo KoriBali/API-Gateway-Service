@@ -4,7 +4,7 @@ from pydantic import EmailStr, Field
 
 from app.utils.base_schema import CamelBaseModel
 
-from app.database.models.identity import Role
+from app.database.models.identity import UserRole
 
 
 # ===== Input =====
@@ -25,7 +25,7 @@ class UserCreate(CamelBaseModel):
     email: EmailStr
     full_name: str = Field(min_length= 1, max_length= 120)
     password: str = Field(min_length= 8, max_length= 64)
-    role: Role = Role.drafter
+    role: UserRole = UserRole.drafter
     department_id: str | None = None
 
 
@@ -33,7 +33,7 @@ class UserCreate(CamelBaseModel):
 class UserUpdate(CamelBaseModel):
     full_name: str | None = Field(default= None, min_length= 1, max_length= 120)
     is_active: bool | None = None
-    role: Role | None = None
+    role: UserRole | None = None
     department_id: str | None = None
 
 
@@ -78,7 +78,7 @@ class UserRead(CamelBaseModel):
     username: str
     email: str
     full_name: str
-    role: Role
+    role: UserRole
     department_id: str | None = None
     is_active: bool
     is_verified: bool
