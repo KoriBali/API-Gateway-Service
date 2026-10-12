@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
 from app.modules.intake import permissions
+from app.modules.assignment import permissions as assignment_permissions
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.intake.request_no import RequestNoWarning, parse_request_no, tail_matches_brand
 from app.modules.intake.repository import ProjectRepository, RequestRepository
@@ -108,6 +109,7 @@ async def list_requests(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     status_filter: RequestStatus | None = Query(default=None, alias="status"),
+    has_active_worker: bool | None = Query(default=None, alias="hasActiveWorker"),
 ):
     rows, total = await RequestRepository.list_scoped(
         db,
@@ -125,6 +127,7 @@ async def list_requests(
         limit=limit,
         offset=offset,
         status=status_filter,
+        has_active_worker=has_active_worker,
     )
     items = [RequestRead.model_validate(r) for r in rows]
     return success_response(
@@ -200,7 +203,7 @@ async def get_request(
 
 
 
-# ===== Create / intake (semua role, self-assign) =====
+# ===== Create / intake (semua role kecuali reviewer, beserta assignment awal) =====
 @routerRequest.post("")
 async def create_request(
     payload: RequestCreate,
@@ -225,12 +228,28 @@ async def create_request(
     if not await RequestRepository.design_standard_exists(db, payload.conditions.design_standard_id):
         raise _unprocessable("conditions.designStandardId does not reference an existing design standard")
 
+    assignments = assignment_permissions.resolve_create_assignments(
+        actor,
+        payload.design_type,
+        [(a.assignee_user_id, a.work_type) for a in payload.assignments],
+    )
+    for assignee_user_id, work_type in assignments:
+        await assignment_permissions.ensure_assignable(
+            db,
+            department_id=actor.department_id,
+            design_type=payload.design_type,
+            assignee_user_id=assignee_user_id,
+            work_type=work_type,
+        )
+
     req = await RequestRepository.create(
         db,
         payload,
         created_by_user_id=actor.id,
         responsible_department_id=actor.department_id,
+        assignments=assignments,
     )
+
     return await _detail_response(db, req.id, "Request created", status.HTTP_201_CREATED)
 
 

@@ -18,6 +18,10 @@ Catatan desain:
   request_date, due_date, requesting_department_name terisi; request YP mengisi
   requesting_department_code; request yang memuat drawing mengisi region dan drawing_type.
 - request_no YP = 図番 utuh (mis. EPJ100001-1), request_no YS = 依頼No (mis. YSE-26-0001).
+- Setiap request lahir dengan assignment aktif (DD invariant intake 3), seperti endpoint
+  intake: pembuat (drafter) di-assign ke semua work type di design_type, kecuali spec
+  menyebut "assignments" sendiri. Assignment hanya dibuat bersama request baru; request
+  lama yang di-skip tidak ditambahi assignment.
 - Idempotent: project di-skip bila identitasnya (request_form, scope_code, pj_no)
   sudah ada; request di-skip bila (created_by_user_id, request_no) sudah ada.
 """
@@ -44,6 +48,8 @@ from app.database.models.calculation import Condition
 from app.database.models.calculation_object import FoundationType
 from app.database.models.drawing import DrawingType, SurfaceTreatmentOption, PlatingType, PaintingType
 from app.database.models.master import PoleCategory, DesignStandard, Material, Region
+from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
+from app.modules.assignment.permissions import WORK_TYPES_OF
 
 
 _TODAY = date.today()
@@ -65,7 +71,8 @@ PROJECTS = [
 # standar di kategori itu (lihat seed_master). project = indeks PROJECTS atau None
 # (request berkepala General Affairs, tanpa project). shared_details.region = kode di
 # master regions (diubah jadi region_id); ys_details.material = nama di master materials
-# (diubah jadi material_id).
+# (diubah jadi material_id). assignments = daftar (username, work type); bila tidak ada,
+# pembuat di-assign ke semua work type di design_type.
 REQUESTS = [
     # budi (drafter/YSG)
     {
@@ -117,6 +124,8 @@ REQUESTS = [
         "wind_speed": 34, "air_density": 1.22,
         "shared_details": {"region": "west_japan", "drawing_type": DrawingType.meeting},
         "yp_details": {"requesting_department_code": "E"},   # segmen lain kosong
+        # andi menghitung, budi (partner satu department) menggambar
+        "assignments": [("andi", WorkType.calculation), ("budi", WorkType.drawing)],
     },
     # dewi (drafter/YSC) -> department berbeda, menguji scope lintas-department
     {
@@ -292,6 +301,20 @@ async def _seed_requests(db, projects: list[DatabankProject]) -> int:
             wind_speed=spec["wind_speed"],
             air_density=spec["air_density"],
         ))
+        assignments = spec.get("assignments") or [
+            (spec["creator"], wt) for wt in WORK_TYPES_OF[spec["design_type"]]
+        ]
+        for username, work_type in assignments:
+            assignee = users.get(username)
+            if assignee is None or assignee.department_id != user.department_id:
+                raise ValueError(f"Assignee '{username}' tidak ada atau beda department dengan pembuat.")
+            db.add(RequestAssignment(
+                request_id=req.id,
+                assignee_user_id=assignee.id,
+                assigned_by_user_id=user.id,
+                work_type=work_type,
+                assignment_status=AssignmentStatus.active,
+            ))
         created += 1
     return created
 
