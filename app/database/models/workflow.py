@@ -8,6 +8,7 @@ import uuid
 import enum
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -30,6 +31,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 # Tipe bersama `designtype`: revision_rounds.work_scope berbagi tipe dengan requests.design_type.
 from app.database.models.intake import DesignType
+
+if TYPE_CHECKING:
+    from app.database.models.identity import User
 
 
 
@@ -394,6 +398,22 @@ class FileVersion(Base):
 class RequestAssignment(Base):
     """Per work type, tidak pernah per case. Terpisah dari kepemilikan case."""
     __tablename__ = "request_assignments"
+    __table_args__ = (
+        # Satu orang paling banyak satu assignment aktif per work type di satu request.
+        Index(
+            "uq_request_assignments_active_per_worker",
+            "request_id", "assignee_user_id", "work_type",
+            unique=True,
+            postgresql_where=text("assignment_status = 'active'"),
+        ),
+        # Kolom pelepasan terisi tepat saat status released.
+        CheckConstraint(
+            "(assignment_status = 'active' AND released_at IS NULL AND released_by_user_id IS NULL) OR "
+            "(assignment_status = 'released' AND released_at IS NOT NULL AND released_by_user_id IS NOT NULL)",
+            name="release_fields_match_status",
+        ),
+    )
+
 
     id: Mapped[str] = mapped_column(
         String,
@@ -432,6 +452,16 @@ class RequestAssignment(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    
+    released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    released_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True,
+    )
 
     # Parent
     work_hours: Mapped[list["WorkHour"]] = relationship(
@@ -440,6 +470,11 @@ class RequestAssignment(Base):
         passive_deletes=True,
     )
 
+    # Child
+    assignee: Mapped["User"] = relationship(
+        foreign_keys=[assignee_user_id],
+        lazy="raise",
+    )
 
 
 # ===== Work Hour =====

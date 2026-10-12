@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,7 @@ from app.database.models.intake import (
 from app.database.models.calculation import Condition
 from app.database.models.master import PoleCategory, Region, DesignStandard, Material
 from app.modules.workflow.repository import RequestEventRepository
+from app.modules.assignment.repository import AssignmentRepository
 from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
@@ -214,8 +215,11 @@ class RequestRepository:
             # Lintas department, hanya request yang pernah di-submit (V7)
             stmt = stmt.where(RequestEventRepository.ever_submitted_clause())
         else:
-            stmt = stmt.where(Request.created_by_user_id == actor_id)
-
+            # Pembuat, atau pernah di-assign (aktif maupun released). Sama dengan is_readable.
+            stmt = stmt.where(or_(
+                Request.created_by_user_id == actor_id,
+                AssignmentRepository.assigned_clause(actor_id),
+            ))
 
         # Filter opsional
         if brand_line is not None:
