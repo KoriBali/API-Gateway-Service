@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import CurrentUser
 from app.database.models.intake import Request
 from app.modules.workflow.repository import RequestEventRepository
+from app.modules.assignment.repository import AssignmentRepository
 
 
 
@@ -31,12 +32,14 @@ def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
 
 
 
-def can_read_request(actor: CurrentUser, request: Request, *, ever_submitted: bool = False) -> bool:
-    """Read-scoping request (dipakai router intake, calculation, workflow).
+def can_read_request(
+    actor: CurrentUser, request: Request, *, ever_submitted: bool = False, assigned: bool = False,
+) -> bool:
+    """Read-scoping request (dipakai router intake, calculation, workflow, assignment).
     superadmin: semua; admin_department: hanya departemen penanggung jawab-nya;
     yoshimoto_reviewer: request yang pernah di-submit, lintas department (V6, V7);
-    selain itu: hanya record miliknya.
-    ever_submitted hanya dibaca untuk yoshimoto_reviewer; pakai is_readable bila perlu menghitungnya."""
+    selain itu: record miliknya, atau request tempat ia pernah punya assignment.
+    ever_submitted dan assigned dihitung is_readable; pemanggil sinkron cukup memakai default."""
     if actor.role == "superadmin":
         return True
     if actor.role == "admin_department":
@@ -44,14 +47,20 @@ def can_read_request(actor: CurrentUser, request: Request, *, ever_submitted: bo
             request.responsible_department_id == actor.department_id
     if actor.role == "yoshimoto_reviewer":
         return ever_submitted
-    return request.created_by_user_id == actor.id
+    return request.created_by_user_id == actor.id or assigned
 
 
 
 async def is_readable(db: AsyncSession, actor: CurrentUser, request: Request) -> bool:
-    """can_read_request + query 'pernah di-submit' khusus yoshimoto_reviewer."""
+    """can_read_request + query yang hanya perlu untuk peran tertentu:
+    'pernah di-submit' untuk yoshimoto_reviewer, 'pernah di-assign' untuk pengerja yang bukan pembuat."""
     ever_submitted = (
         actor.role == "yoshimoto_reviewer"
         and await RequestEventRepository.has_submit(db, request.id)
     )
-    return can_read_request(actor, request, ever_submitted=ever_submitted)
+    assigned = (
+        actor.role in ("drafter", "drafter_checker")
+        and request.created_by_user_id != actor.id
+        and await AssignmentRepository.has_any(db, request.id, actor.id)
+    )
+    return can_read_request(actor, request, ever_submitted=ever_submitted, assigned=assigned)

@@ -12,6 +12,7 @@ from app.database.models.intake import (
     DesignOrigin,
 )
 from app.database.models.calculation_object import FoundationType
+from app.modules.assignment.schemas import AssignmentCreate
 from app.database.models.drawing import (
     DrawingType,
     SurfaceTreatmentOption,
@@ -178,6 +179,7 @@ class RequestCreate(CamelBaseModel):
     ys_details: YsDetailsWrite | None = None
     finish: FinishWrite | None = None
     conditions: ConditionsCreate
+    assignments: list[AssignmentCreate] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def _check_form(self):

@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,8 @@ from app.database.models.intake import (
 from app.database.models.calculation import Condition
 from app.database.models.master import PoleCategory, Region, DesignStandard, Material
 from app.modules.workflow.repository import RequestEventRepository
+from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
+from app.modules.assignment.repository import AssignmentRepository
 from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
@@ -197,6 +199,7 @@ class RequestRepository:
         due_from: date | None = None,
         due_to: date | None = None,
         status: RequestStatus | None = None,
+        has_active_worker: bool | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Request], int]:
@@ -214,8 +217,11 @@ class RequestRepository:
             # Lintas department, hanya request yang pernah di-submit (V7)
             stmt = stmt.where(RequestEventRepository.ever_submitted_clause())
         else:
-            stmt = stmt.where(Request.created_by_user_id == actor_id)
-
+            # Pembuat, atau pernah di-assign (aktif maupun released). Sama dengan is_readable.
+            stmt = stmt.where(or_(
+                Request.created_by_user_id == actor_id,
+                AssignmentRepository.assigned_clause(actor_id),
+            ))
 
         # Filter opsional
         if brand_line is not None:
@@ -236,6 +242,10 @@ class RequestRepository:
             stmt = stmt.where(Request.due_date <= due_to)
         if status is not None:
             stmt = stmt.where(Request.status == status)
+        if has_active_worker is not None:
+            # Penyaring request tanpa pengerja aktif (DD BAB 13), selalu dihitung dari data.
+            clause = AssignmentRepository.active_worker_clause()
+            stmt = stmt.where(clause if has_active_worker else ~clause)
 
         # Total
         total = await db.scalar(
@@ -255,6 +265,7 @@ class RequestRepository:
         *,
         created_by_user_id: str,
         responsible_department_id: str,
+        assignments: list[tuple[str, WorkType]],
     ) -> Request:
         """Intake dalam SATU transaksi (DD G12): request + tabel bersama + ekstensi form
         + finish + conditions. Semua baris anak lahir walau isiannya kosong."""
@@ -277,6 +288,14 @@ class RequestRepository:
             db.add(RequestYsDetails(request_id=req.id, brand_line=BrandLine.ys, **_dump(payload.ys_details)))
         db.add(RequestFinish(request_id=req.id, **_dump(payload.finish)))
         db.add(Condition(request_id=req.id, **payload.conditions.model_dump()))
+        for assignee_user_id, work_type in assignments:
+            db.add(RequestAssignment(
+                request_id=req.id,
+                assignee_user_id=assignee_user_id,
+                assigned_by_user_id=created_by_user_id,
+                work_type=work_type,
+                assignment_status=AssignmentStatus.active,
+            ))
 
         await db.commit()
         return req

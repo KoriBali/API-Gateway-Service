@@ -21,6 +21,9 @@ from app.modules.intake.routers import router as intakeRouter
 # Workflow request
 from app.modules.workflow.routers import router as workflowRouter
 
+# Assignment dan jam kerja
+from app.modules.assignment.routers import router as assignmentRouter
+
 # Master Data
 from app.modules.master.router import routerMaster
 
@@ -72,6 +75,9 @@ app.include_router(intakeRouter)
 
 # Workflow
 app.include_router(workflowRouter)
+
+# Assignment dan jam kerja
+app.include_router(assignmentRouter)
 
 # register router
 # app.include_router(routerInternal)

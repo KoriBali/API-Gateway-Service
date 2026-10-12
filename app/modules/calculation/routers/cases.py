@@ -54,7 +54,7 @@ async def get_calculation_case(
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
     req = await RequestRepository.get_by_id(db, request_id)
-    if req is None or not permissions.can_read_request(actor, req):
+    if req is None or not await permissions.is_readable(db, actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
     case = await CalculationCaseRepository.get_by_request(db, request_id)
