@@ -18,6 +18,9 @@ from app.core.database import engine, Base
 # Intake
 from app.modules.intake.routers import router as intakeRouter
 
+# Workflow request
+from app.modules.workflow.routers import router as workflowRouter
+
 # Master Data
 from app.modules.master.router import routerMaster
 
@@ -66,6 +69,9 @@ app.include_router(identityRouter)
 
 # Intake
 app.include_router(intakeRouter)
+
+# Workflow
+app.include_router(workflowRouter)
 
 # register router
 # app.include_router(routerInternal)
