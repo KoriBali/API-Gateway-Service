@@ -1,4 +1,10 @@
 # app/repositories/staging_repository.py
+# NOTE (review 2026-09-07): `StagingProject` sudah dihapus saat refactor
+# staging->database dan TIDAK ada di app.database.models. Import di bawah akan
+# ImportError saat module ini di-load. Aman untuk sekarang HANYA karena router
+# `internal` & `load_object` di-comment di app/main.py.
+# JANGAN re-enable kedua router itu sebelum nasib alur staging diputuskan
+# (lihat docs/design/save-flow-redesign-draft.md & modul load_object).
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone

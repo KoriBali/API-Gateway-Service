@@ -15,8 +15,17 @@ from app.modules.opening_part.router import routerOpeningPart
 from app.core.database import engine, Base
 # from app.database.models import StagingProject
 
+# Intake
+from app.modules.intake.routers import router as intakeRouter
+
 # Master Data
 from app.modules.master.router import routerMaster
+
+# Identity Data
+from app.modules.identity.routers import router as identityRouter
+
+# Calculation
+from app.modules.calculation.routers import router as calculationRouter
 
 # setup logging saat app start
 setup_logging()
@@ -43,8 +52,8 @@ app = FastAPI(
 # CORS 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # bisa diganti url agar lebih spesifik
-    allow_credentials=False,  # harus False kalau allow_origins="*"
+    allow_origins=settings.allowed_origins_list,  # daftar origin dari .env (per-environment)
+    allow_credentials=True,  # boleh True karena origin eksplisit (bukan "*")
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -52,11 +61,21 @@ app.add_middleware(
 # Master Data
 app.include_router(routerMaster)
 
+# Identity Data
+app.include_router(identityRouter)
+
+# Intake
+app.include_router(intakeRouter)
+
 # register router
 # app.include_router(routerInternal)
 
 # app.include_router(routerLoadObject)
 app.include_router(routerOpeningPart)
+
+# Calculation
+app.include_router(calculationRouter)
+
 
 
 """ Entry Point Start """

@@ -1,54 +1,49 @@
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from typing import Any
+
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+
 from app.utils.base_schema import snake_to_camel
 
-def to_camel_response(data: any) -> any:
 
-    if hasattr(data, "model_dump"):
-        data = data.model_dump()
+def _camelize_keys(obj: Any) -> Any:
+    """
+    Recursively convert dict keys ke camelCase.
 
-    if isinstance(data, dict):
+    jsonable_encoder(by_alias=True) hanya meng-camelCase-kan nama *field*
+    dari model Pydantic (lewat alias). Key dict biasa (mis. envelope manual
+    seperti {"external_objects": [...]}) tidak ikut berubah, sehingga output
+    jadi campur snake_case + camelCase. Fungsi ini menyeragamkan sisa key dict.
+
+    Idempoten: key yang sudah camelCase / satu kata tidak berubah.
+    """
+    if isinstance(obj, dict):
         return {
-            snake_to_camel(key): to_camel_response(value)
-            for key, value in data.items()
+            (snake_to_camel(k) if isinstance(k, str) else k): _camelize_keys(v)
+            for k, v in obj.items()
         }
-    if isinstance(data, list):
-        return [to_camel_response(item) for item in data]
-    return data
- 
+    if isinstance(obj, list):
+        return [_camelize_keys(item) for item in obj]
+    return obj
+
 
 def success_response(
-    data: Any, 
-    message: str | None = None, 
+    data: Any,
+    message: str | None = None,
     success : bool = True,
-    status_code: int = 200, 
+    status_code: int = 200,
     to_camel: bool = True  # Tambahkan flag ini
-):
-    
-    # 1. Penanganan untuk Pydantic Model
-    if isinstance(data, BaseModel) or hasattr(data, "model_dump"):
-        # Jika to_camel=True, by_alias=True akan memanggil fungsi snake_to_camel
-        # Jika to_camel=False, by_alias=False akan membiarkan attribute tetap snake_case
-        formatted_data = data.model_dump(by_alias=to_camel)
-        
-    # 2. Penanganan untuk Dictionary/List mentah (misal hasil DB mentah)
-    elif isinstance(data, (dict, list)):
-        if to_camel:
-            # Gunakan fungsi rekursif buatan Anda sebelumnya jika data bukan Pydantic
-            formatted_data = to_camel_response(data) 
-        else:
-            # biarkan snake_case(database needs)
-            formatted_data = data
-    else:
-        formatted_data = data
+) -> JSONResponse:
 
-    # Kembalikan response sesuai standar SOP Gateway
+    encoded = jsonable_encoder(data, by_alias=to_camel)
+    if to_camel:
+        encoded = _camelize_keys(encoded)
+
     return JSONResponse(
         status_code=status_code,
         content={
-            "success": success,  
-            "data": formatted_data,
+            "success": success,
+            "data": encoded,
             "message": message
         }
     )

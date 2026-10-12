@@ -18,6 +18,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.database.models.calculation import CalculationCase
     from app.database.models.drawing import DrawingCase
+    from app.database.models.intake import Request
 
 
 
@@ -26,29 +27,6 @@ class Role(str, enum.Enum):
     superadmin = "superadmin"
     admin = "admin"
     drafter = "drafter"
-
-
-class RequestType(str, enum.Enum):
-    generally = "generally"
-    special = "special"
-
-
-class DesignType(str, enum.Enum):
-    drawing = "drawing"
-    calculation = "calculation"
-    drawing_calculation = "drawing_calculation"
-
-
-class RequestCategory(str, enum.Enum):
-    new = "new"
-    revision = "revision"
-    modification = "modification"
-    replacement = "replacement"
-
-
-class PoleKind(str, enum.Enum):
-    standard = "standard"
-    custom = "custom"
 
 
 
@@ -62,9 +40,16 @@ class Department(Base):
         default=lambda: str(uuid.uuid4()),
     )
 
+    code: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        unique=True
+    )
+
     name: Mapped[str] = mapped_column(
         String,
         nullable=False,
+        unique=True
     )
 
     # Parent
@@ -138,6 +123,7 @@ class User(Base):
 
     is_verified: Mapped[bool] = mapped_column(
         Boolean,
+        default=True,
         nullable=False,
     )
 
@@ -172,19 +158,27 @@ class User(Base):
 
     calculation_cases: Mapped[list["CalculationCase"]] = relationship(
         back_populates="owner_user",
+        cascade="all, delete-orphan",    
         passive_deletes=True,
     )
 
     drawing_cases: Mapped[list["DrawingCase"]] = relationship(
         back_populates="owner_user",
+        cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
 
 
 
-# ===== Request =====
-class Request(Base):
-    __tablename__ = "requests"
+# ===== Refresh Token =====
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
 
     id: Mapped[str] = mapped_column(
         String,
@@ -192,16 +186,7 @@ class Request(Base):
         default=lambda: str(uuid.uuid4()),
     )
 
-    responsible_department_id: Mapped[str] = mapped_column(
-        ForeignKey(
-            "departments.id",
-            ondelete="CASCADE",
-            onupdate="CASCADE",
-        ),
-        nullable=False,
-    )
-
-    created_by_user_id: Mapped[str] = mapped_column(
+    user_id: Mapped[str] = mapped_column(
         ForeignKey(
             "users.id",
             ondelete="CASCADE",
@@ -210,63 +195,21 @@ class Request(Base):
         nullable=False,
     )
 
-    pole_category_id: Mapped[str] = mapped_column(
-        ForeignKey(
-            "pole_categories.id",
-            ondelete="RESTRICT",
-            onupdate="CASCADE",
-        ),
-        nullable=False,
-    )
-
-    request_no: Mapped[str] = mapped_column(
+    token_hash: Mapped[str] = mapped_column(
         String,
+        unique=True,
         nullable=False,
     )
 
-    receipt_no: Mapped[str] = mapped_column(
-        String,
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         nullable=False,
     )
 
-    pj_no: Mapped[str] = mapped_column(
-        String,
+    revoked: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
         nullable=False,
-    )
-
-    request_type: Mapped[RequestType] = mapped_column(
-        Enum(RequestType),
-        nullable=False,
-    )
-
-    design_type: Mapped[DesignType] = mapped_column(
-        Enum(DesignType),
-        nullable=False,
-    )
-
-    request_category: Mapped[RequestCategory] = mapped_column(
-        Enum(RequestCategory),
-        nullable=False,
-    )
-
-    pole_kind: Mapped[PoleKind | None] = mapped_column(
-        Enum(PoleKind),
-        nullable=True,
-    )
-
-    company_name: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
-    project_name: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-    )
-
-    due_date: Mapped[date | None] = mapped_column(
-        Date,
-        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -275,31 +218,8 @@ class Request(Base):
         nullable=False,
     )
 
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
-
     # Child
-    created_by_user: Mapped["User"] = relationship(
-        back_populates="requests",
+    user: Mapped["User"] = relationship(
+        back_populates="refresh_tokens",
     )
 
-    responsible_department: Mapped["Department"] = relationship(
-        back_populates="requests",
-    )
-
-    # Parent
-    calculation_cases: Mapped[list["CalculationCase"]] = relationship(
-        back_populates="request",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
-
-    drawing_cases: Mapped[list["DrawingCase"]] = relationship(
-        back_populates="request",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )

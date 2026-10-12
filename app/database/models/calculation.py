@@ -18,10 +18,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.database.models.identity import(
-        User,
-        Request,
-    )
+    from app.database.models.identity import User
+    from app.database.models.intake import Request
 
     from app.database.models.calculation_object import(
         DirectObject,
@@ -32,9 +30,9 @@ if TYPE_CHECKING:
     from app.database.models.calculation_object import(
         StepPole,
         OverheadWire,
-        OpeningPart,
-        BasePlate,
-        Foundation,
+        CalculationBasePlate,
+        CalculationOpening,
+        CalculationFoundation,
         Arm
     )
 
@@ -49,12 +47,6 @@ if TYPE_CHECKING:
 
 
 # ===== Enums =====
-class StatusCalculationCase(str, enum.Enum):
-    draft = "draft"
-    submitted = "submitted"
-    superseded = "superseded"
-
-
 class PoleFamily(str, enum.Enum):
     taper = "taper"
     straight = "straight"
@@ -65,6 +57,11 @@ class GroundPosition(str, enum.Enum):
     on_GL = "on_GL"
     upper_GL = "upper_GL"
     under_GL = "under_GL"
+    
+
+class PoleKind(str, enum.Enum):
+    standard = "standard"
+    custom = "custom"
 
 
 class StatusCalculationRun(str, enum.Enum):
@@ -93,12 +90,6 @@ class CalculationCase(Base):
         ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
-    supersedes_case_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"),
-        nullable=True
-    )
-
     pole_standard_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey('pole_standards.id', ondelete="RESTRICT", onupdate="CASCADE"),
@@ -115,11 +106,6 @@ class CalculationCase(Base):
         String,
         ForeignKey('pole_combinations.id', ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=True
-    )
-
-    status: Mapped[StatusCalculationCase] = mapped_column(
-        Enum(StatusCalculationCase),
-        default=StatusCalculationCase.draft
     )
 
     pole_family: Mapped[PoleFamily | None] = mapped_column(
@@ -151,6 +137,11 @@ class CalculationCase(Base):
         String,
         nullable=False
     )
+    
+    pole_kind: Mapped[PoleKind] = mapped_column(
+        Enum(PoleKind),
+        nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -165,23 +156,7 @@ class CalculationCase(Base):
         nullable=False,
     )
 
-    # Self
-    supersedes: Mapped["CalculationCase | None"] = relationship(
-        remote_side=[id],
-        back_populates="superseded_by"
-    )
-
-    superseded_by: Mapped[list["CalculationCase"]] = relationship(
-        back_populates="supersedes"
-    )
-
     # Parent
-    conditions: Mapped[list["Condition"]] = relationship(
-        back_populates="calculation_case",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
     calculation_runs: Mapped[list["CalculationRun"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
@@ -212,19 +187,19 @@ class CalculationCase(Base):
         passive_deletes=True
     )
 
-    base_plates: Mapped[list["BasePlate"]] = relationship(
+    calculation_base_plates: Mapped[list["CalculationBasePlate"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
-    opening_parts: Mapped[list["OpeningPart"]] = relationship(
+    calculation_openings: Mapped[list["CalculationOpening"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
-    foundations: Mapped[list["Foundation"]] = relationship(
+    calculation_foundations: Mapped[list["CalculationFoundation"]] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
@@ -268,9 +243,11 @@ class Condition(Base):
         default=lambda: str(uuid.uuid4())
     )
 
-    calculation_case_id: Mapped[str] = mapped_column(
+    request_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
+        ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        unique=True
     )
 
     design_standard_id: Mapped[str] = mapped_column(
@@ -278,9 +255,9 @@ class Condition(Base):
         ForeignKey('design_standards.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
 
-    wind_speed: Mapped[Decimal] = mapped_column(
+    wind_speed: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 5),
-        nullable=False
+        nullable=True
     )
 
     air_density: Mapped[Decimal] = mapped_column(
@@ -289,7 +266,7 @@ class Condition(Base):
     )
 
     # Child
-    calculation_case: Mapped["CalculationCase"] = relationship(
+    request: Mapped["Request"] = relationship(
         back_populates="conditions"
     )
 

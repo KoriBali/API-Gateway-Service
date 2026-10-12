@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker
 )
-from sqlalchemy import event
+from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings, build_async_db_url_and_connect_args
@@ -11,7 +11,21 @@ from app.core.config import settings, build_async_db_url_and_connect_args
 # DATABASE_URL = "sqlite+aiosqlite:///./gateway.db"
 
 # Supabase Conf
-_db_url, _connect_args = build_async_db_url_and_connect_args(settings.DATABASE_URL)
+_db_url, _connect_args = build_async_db_url_and_connect_args(
+    settings.DATABASE_URL,
+    ca_path=settings.DB_SSL_CA_PATH,
+    check_hostname=settings.DB_SSL_CHECK_HOSTNAME,
+    verify=settings.DB_SSL_VERIFY,
+)
+
+
+NAMING_CONVENTION = {
+    "ix":  "ix_%(column_0_label)s",
+    "uq":  "uq_%(table_name)s_%(column_0_name)s",
+    "ck":  "ck_%(table_name)s_%(constraint_name)s",
+    "fk":  "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk":  "pk_%(table_name)s",
+}
 
 
 # Async Engine
@@ -33,7 +47,8 @@ AsyncSessionLocal = async_sessionmaker(
 
 # Base ORM Model
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
 
 
 # Dependency Injection
