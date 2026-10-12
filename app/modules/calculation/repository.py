@@ -15,7 +15,8 @@ _CASE_SCALAR_FIELDS = (
     "lowest_height",
     "embedment_length",
     "overdesign_factor",
-    "pole_kind"
+    "pole_kind",
+    "case_label",
 )
 
 
@@ -46,10 +47,13 @@ class CalculationCaseRepository:
             # CREATE: title NOT NULL -> default bila FE belum mengirim.
             case = CalculationCase(
                 request_id=request_id,
+                # Pembuat case = owner pertamanya. created_by tidak pernah berganti
+                created_by_user_id=owner_user_id,
                 owner_user_id=owner_user_id,
                 title=data.get("title") or "Untitled draft",
                 pole_kind=data["pole_kind"],
             )
+
             db.add(case)
             await db.flush()  
 
