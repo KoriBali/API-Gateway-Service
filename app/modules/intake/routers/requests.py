@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
 from app.modules.intake import permissions
+from app.modules.workflow.repository import RequestEventRepository
 from app.modules.intake.request_no import RequestNoWarning, parse_request_no, tail_matches_brand
 from app.modules.intake.repository import ProjectRepository, RequestRepository
 from app.database.models.intake import (
@@ -36,6 +37,7 @@ routerRequest = APIRouter(prefix="/api/requests", tags=["Requests"])
 # Semua role terautentikasi boleh menyentuh modul ini, scope sudah di setting
 _ANY_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
+_READ_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter", "yoshimoto_reviewer")
 
 
 # ===== Helper =====
@@ -94,7 +96,7 @@ async def _detail_response(db: AsyncSession, request_id: str, message: str, stat
 @routerRequest.get("")
 async def list_requests(
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_ANY_ROLE),
+    actor: CurrentUser = Depends(_READ_ROLE),
     brand_line: BrandLine | None = Query(default=None, alias="brandLine"),
     project_id: str | None = Query(default=None, alias="projectId"),
     request_type: RequestType | None = Query(default=None, alias="requestType"),
@@ -186,10 +188,10 @@ async def check_request_no(
 async def get_request(
     request_id: str,
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_ANY_ROLE),
+    actor: CurrentUser = Depends(_READ_ROLE),
 ):
     req = await RequestRepository.get_detail(db, request_id)
-    if req is None or not permissions.can_read_request(actor, req):
+    if req is None or not await permissions.is_readable(db, actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     return success_response(
         data=RequestDetailRead.model_validate(req),
@@ -361,9 +363,9 @@ async def delete_request(
     req = await _load_managed(db, request_id, actor)
 
     # Request yang sudah menyeberang ke sisi Jepang tidak boleh hilang.
-    if req.status != RequestStatus.internal:
+    if req.status != RequestStatus.internal or await RequestEventRepository.has_submit(db, req.id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="Only internal requests can be deleted")
+                            detail="Only internal requests that were never submitted can be deleted")
 
     await RequestRepository.delete(db, req)
     return success_response(data={"deleted": True}, message="Request deleted")
