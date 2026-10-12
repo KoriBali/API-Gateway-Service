@@ -135,7 +135,7 @@ class DesignStandard(Base):
 
 # === Pole Standard Type ===
 class PoleStandardType(str, enum.Enum):
-    taper = "taper"
+    tapered = "tapered"
     straight = "straight"
 
 # === Pole Standard ===
@@ -212,8 +212,8 @@ class PoleStandard(Base):
 
 
 class PoleHeightGroundPosition(str, enum.Enum):
-    on_GL = "on_GL"
-    under_GL = "under_GL"
+    on_gl = "on_gl"
+    under_gl = "under_gl"
 
 # === Pole Standard Height ===
 class PoleStandardHeight(Base):
@@ -690,8 +690,8 @@ class PoleDiagram(Base):
     mounting: Mapped[PoleMounting] = mapped_column(Enum(PoleMounting), nullable=False)
 
     ground_position: Mapped[PoleHeightGroundPosition | None] = mapped_column(
-        Enum(PoleHeightGroundPosition),                 # reuse enum on_GL/under_GL yang sudah ada
-        nullable=True,                                  # NULL untuk mounting=embed (ground di-collapse)
+        Enum(PoleHeightGroundPosition),                 
+        nullable=True,
     )
 
     image_url: Mapped[str] = mapped_column(String, nullable=False)
