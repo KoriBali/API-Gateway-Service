@@ -30,7 +30,7 @@ from app.modules.master.schemas import (
 # Cara mengaktifkan RBAC nanti (produksi):
 #   1. uncomment import require_roles di atas
 #   2. uncomment _ANY_ROLE & argumen dependencies di bawah
-# _ANY_ROLE = require_roles("superadmin", "admin", "drafter")
+# _ANY_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 routerMaster = APIRouter(
     prefix="/api/master",
     tags=["Master Data"],

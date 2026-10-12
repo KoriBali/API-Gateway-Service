@@ -277,7 +277,7 @@ class OverheadWire(Base):
         nullable=False
     )
 
-    sagging_ration: Mapped[Decimal] = mapped_column(
+    sagging_ratio: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
@@ -307,7 +307,7 @@ class OverheadWire(Base):
 # === Opening Type ===
 class OpeningType(str, enum.Enum):
     box = "box"
-    r = "r"
+    rounded = "rounded"
 
 # === Opening Direction (only drawing) ===
 class OpeningDirection(str, enum.Enum):
@@ -346,7 +346,7 @@ class CalculationOpening(Base):
         nullable=True
     )
 
-    opening_suerface_height: Mapped[Decimal] = mapped_column(
+    opening_surface_height: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
@@ -400,7 +400,7 @@ class CalculationBasePlate(Base):
         nullable=False
     )
 
-    achor_bolt_diameter: Mapped[Decimal] = mapped_column(
+    anchor_bolt_diameter: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )

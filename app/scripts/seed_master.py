@@ -85,12 +85,12 @@ STRAIGHT_THICKNESS = {"40": [3.5, 4.5, 6.0], "50": [3.5, 4.5, 6.6], "60": [3.7, 
 # ===== Pole Standard = Taper =====
 # Height dibedakan per ground position (mengikuti konstanta frontend).
 TAPER_HEIGHTS_S = {
-    "on_GL": [8.0, 10.0, 12.0],
-    "under_GL": [8.3, 10.3, 12.3],
+    "on_gl": [8.0, 10.0, 12.0],
+    "under_gl": [8.3, 10.3, 12.3],
 }
 TAPER_HEIGHTS_A = {
-    "on_GL": [4.5, 5.0, 8.0, 10.0, 12.0],
-    "under_GL": [4.8, 5.3, 8.3, 10.3, 12.3],
+    "on_gl": [4.5, 5.0, 8.0, 10.0, 12.0],
+    "under_gl": [4.8, 5.3, 8.3, 10.3, 12.3],
 }
 
 # code -> (label untuk ditampilkan, set height).
@@ -162,27 +162,27 @@ COUPLING_CASES = [
 # ===== Pole Diagram ==== 
 POLE_DIAGRAMS = {
     "IS": {
-        "baseplate": {"on_GL": "/images/IS-Type-OnGL.svg", "under_GL": "/images/IS-Type-UnderGL.svg"},
+        "baseplate": {"on_gl": "/images/IS-Type-OnGL.svg", "under_gl": "/images/IS-Type-UnderGL.svg"},
         "embed": {None: "/images/IS-Type-Embed.svg"},
     },
     "IA": {
-        "baseplate": {"on_GL": "/images/IA-Type-OnGL.svg", "under_GL": "/images/IA-Type-UnderGL.svg"},
+        "baseplate": {"on_gl": "/images/IA-Type-OnGL.svg", "under_gl": "/images/IA-Type-UnderGL.svg"},
         "embed": {None: "/images/IA-Type-Embed.svg"},
     },
     "LS": {
-        "baseplate": {"on_GL": "/images/LS-Type-OnGL.svg", "under_GL": "/images/LS-Type-UnderGL.svg"},
+        "baseplate": {"on_gl": "/images/LS-Type-OnGL.svg", "under_gl": "/images/LS-Type-UnderGL.svg"},
         "embed": {None: "/images/LS-Type-Embed.svg"},
     },
     "LA": {
-        "baseplate": {"on_GL": "/images/LA-Type-OnGL.svg", "under_GL": "/images/LA-Type-UnderGL.svg"},
+        "baseplate": {"on_gl": "/images/LA-Type-OnGL.svg", "under_gl": "/images/LA-Type-UnderGL.svg"},
         "embed": {None: "/images/LA-Type-Embed.svg"},
     },
     "TS": {
-        "baseplate": {"on_GL": "/images/TS-Type-OnGL.svg", "under_GL": "/images/TS-Type-UnderGL.svg"},
+        "baseplate": {"on_gl": "/images/TS-Type-OnGL.svg", "under_gl": "/images/TS-Type-UnderGL.svg"},
         "embed": {None: "/images/TS-Type-Embed.svg"},
     },
     "TA": {
-        "baseplate": {"on_GL": "/images/TA-Type-OnGL.svg", "under_GL": "/images/TA-Type-UnderGL.svg"},
+        "baseplate": {"on_gl": "/images/TA-Type-OnGL.svg", "under_gl": "/images/TA-Type-UnderGL.svg"},
         "embed": {None: "/images/TA-Type-Embed.svg"},
     },
 }
@@ -448,7 +448,7 @@ async def _seed_taper_pole(db):
         res = await db.execute(
             select(PoleStandard).where(
                 PoleStandard.pole_category_id == category.id,
-                PoleStandard.type == PoleStandardType.taper,
+                PoleStandard.type == PoleStandardType.tapered,
                 PoleStandard.code == code,
             )
         )
@@ -459,7 +459,7 @@ async def _seed_taper_pole(db):
                 pole_category_id=category.id,
                 code=code,
                 name=config["label"],
-                type=PoleStandardType.taper,
+                type=PoleStandardType.tapered,
             )
             db.add(standard)
             await db.flush()

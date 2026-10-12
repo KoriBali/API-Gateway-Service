@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.database.models import User, Department
-from app.database.models.identity import Role
+from app.database.models.identity import UserRole
 
 
 DEPARTMENTS = [
@@ -24,13 +24,15 @@ DEPARTMENTS = [
 ]
 
 EMPLOYEES = [
-    # YSG: 2 drafter + 1 admin (uji isolasi antar-drafter & scope admin dalam 1 department)
+    # YSG: 2 drafter + 1 admin_department + 1 drafter_checker + 1 yoshimoto_reviewer
     {"username": "budi", "email": "budi@corp.id", "full_name": "Budi Santoso", "role": "drafter", "department_code": "YSG"},
     {"username": "andi", "email": "andi@corp.id", "full_name": "Andi Nugroho", "role": "drafter", "department_code": "YSG"},
-    {"username": "sari", "email": "sari@corp.id", "full_name": "Sari Dewi",    "role": "admin",   "department_code": "YSG"},
-    # YSC: 1 drafter + 1 admin (uji scope lintas-department)
+    {"username": "sari", "email": "sari@corp.id", "full_name": "Sari Dewi",    "role": "admin_department", "department_code": "YSG"},
+    {"username": "rina", "email": "rina@corp.id", "full_name": "Rina Kusuma",  "role": "drafter_checker", "department_code": "YSG"},
+    {"username": "kenji", "email": "kenji@corp.id", "full_name": "Kenji Sato",  "role": "yoshimoto_reviewer", "department_code": "YSG"},
+    # YSC: 1 drafter + 1 admin_department (uji scope lintas-department)
     {"username": "dewi", "email": "dewi@corp.id", "full_name": "Dewi Lestari", "role": "drafter", "department_code": "YSC"},
-    {"username": "citra", "email": "citra@corp.id", "full_name": "Citra Wijaya", "role": "admin",  "department_code": "YSC"},
+    {"username": "citra", "email": "citra@corp.id", "full_name": "Citra Wijaya", "role": "admin_department", "department_code": "YSC"},
     # YSF: 1 drafter
     {"username": "eko", "email": "eko@corp.id", "full_name": "Eko Prasetyo",   "role": "drafter", "department_code": "YSF"},
 ]
@@ -74,7 +76,7 @@ async def _seed_employees(db, dept_map: dict[str, str]) -> int:
             email=emp["email"],
             full_name=emp["full_name"],
             password_hash=hash_password(settings.SEED_DEFAULT_USER_PASSWORD),
-            role=Role(emp["role"]),
+            role=UserRole(emp["role"]),
             department_id=dept_id,      
             is_active=True,
             is_verified=True,
@@ -98,7 +100,7 @@ async def _seed_superadmin(db) -> str:
         email=email,
         full_name=settings.SEED_SUPERADMIN_FULL_NAME,
         password_hash=hash_password(settings.SEED_SUPERADMIN_PASSWORD),
-        role=Role.superadmin,
+        role=UserRole.superadmin,
         department_id=None,     
         is_active=True,
         is_verified=True,

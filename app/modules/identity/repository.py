@@ -150,7 +150,7 @@ class AuthRepository:
             user_id=user_id,
             token_hash=hash_token(raw_token),
             expires_at=expires_at,
-            revoked=False,
+            is_revoked=False,
         )
         db.add(rt)
         await db.commit()
@@ -165,15 +165,15 @@ class AuthRepository:
 
     @staticmethod
     async def revoke(db: AsyncSession, rt: RefreshToken) -> None:
-        rt.revoked = True
+        rt.is_revoked = True
         await db.commit()
 
     @staticmethod
     async def revoke_all_for_user(db: AsyncSession, user_id: str) -> int:
         stmt = (
             sa_update(RefreshToken)
-            .where(RefreshToken.user_id == user_id, RefreshToken.revoked == False)  # noqa: E712
-            .values(revoked=True)
+            .where(RefreshToken.user_id == user_id, RefreshToken.is_revoked == False) 
+            .values(is_revoked=True)
         )
         result = await db.execute(stmt)
         await db.commit()
@@ -183,7 +183,7 @@ class AuthRepository:
     async def rotate_refresh_token(
         db: AsyncSession, old_rt: RefreshToken, user_id: str, new_raw_token: str
     ) -> RefreshToken:
-        old_rt.revoked = True
+        old_rt.is_revoked = True
         expires_at = datetime.now(timezone.utc) + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
@@ -191,7 +191,7 @@ class AuthRepository:
             user_id=user_id,
             token_hash=hash_token(new_raw_token),
             expires_at=expires_at,
-            revoked=False,
+            is_revoked=False,
         )
         db.add(new_rt)
         await db.commit()

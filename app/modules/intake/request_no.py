@@ -1,10 +1,10 @@
-"""Uraian 図番 (zuban) YP saat intake. DD G11 dan invariant intake 9.
+"""Uraian 図番 (zuban) YP saat intake.
 
-Sejak DD v0.9, 図番 utuh disimpan di requests.request_no (satu kolom dengan
+図番 utuh disimpan di requests.request_no (satu kolom dengan
 依頼No YS). Hanya 図番 YP yang diurai; 依頼No YS tidak pernah diurai.
 
 Hasil uraian hanya USULAN untuk form. Tidak pernah menolak input, dan tidak pernah
-merangkai segmen kembali menjadi request_no (DD larangan 22).
+merangkai segmen kembali menjadi request_no.
 """
 import re
 
@@ -17,7 +17,7 @@ from app.modules.intake.schemas import RequestNoSegments
 _REQUEST_NO_YP = re.compile(r"^(?P<head>[A-Z]+)(?P<tail>[A-Z]{2})(?P<base>\d{6})(?:-(?P<seq>[0-9A-Z]+))?$")
 
 # Hanya tail yang mereknya sudah diketahui yang dicocokkan dengan brand_mark.
-# Tail lain (mis. JP) tidak dicocokkan sampai artinya diketahui (DD L6).
+# Tail lain (mis. JP) tidak dicocokkan sampai artinya diketahui.
 _TAIL_BRAND = {"PJ": BrandLine.yp, "YS": BrandLine.ys}
 
 

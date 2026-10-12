@@ -12,7 +12,8 @@ from sqlalchemy import (
     Boolean,
     Numeric,
     Integer,
-    UniqueConstraint
+    UniqueConstraint,
+    ForeignKeyConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -70,6 +71,15 @@ PLATING_DEFAULT_SPEC = {
 # === Drawing Case ===
 class DrawingCase(Base):
     __tablename__ = "drawing_cases"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["calculation_case_id", "request_id"],
+            ["calculation_cases.id", "calculation_cases.request_id"],
+            ondelete="SET NULL (calculation_case_id)",
+            onupdate="CASCADE",
+            name="fk_drawing_cases_calculation_case_id_calculation_cases",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         String,
@@ -82,14 +92,25 @@ class DrawingCase(Base):
         ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
+    created_by_user_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('users.id', ondelete="RESTRICT", onupdate="CASCADE")
+    )
+        
     owner_user_id: Mapped[str] = mapped_column(
         String,
         ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE")
     )
-
-    lighting_company_id: Mapped[str] = mapped_column(
+        
+    calculation_case_id: Mapped[str | None] = mapped_column(
         String,
-        ForeignKey('lighting_company_codes.id', ondelete="RESTRICT", onupdate="CASCADE")
+        nullable=True,
+    )
+        
+    lighting_company_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey('lighting_company_codes.id', ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True,
     )
 
     pole_standard_id: Mapped[str | None] = mapped_column(
@@ -102,43 +123,54 @@ class DrawingCase(Base):
         ForeignKey('pole_standard_heights.id', ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=True,
     )
+    
+    pole_combination_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey('pole_combinations.id', ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True,
+    )
 
     title: Mapped[str] = mapped_column(
         String,
         nullable=False
     )
 
-    drawing_type: Mapped[str] = mapped_column(
-        String,
+    drawing_type: Mapped[DrawingType] = mapped_column(
+        Enum(DrawingType),
         nullable=False
     )
 
-    drawing_number: Mapped[str] = mapped_column(
+    drawing_number: Mapped[str | None] = mapped_column(
         String,
-        nullable=False
+        nullable=True
     )
 
-    part_number: Mapped[str] = mapped_column(
+    part_number: Mapped[str | None] = mapped_column(
         String,
-        nullable=False
+        nullable=True
     )
 
-    designer_name: Mapped[str] = mapped_column(
+    designer_name: Mapped[str | None] = mapped_column(
         String,
-        nullable=False
+        nullable=True
     )
 
-    checked_by_name: Mapped[str] = mapped_column(
+    checked_by_name: Mapped[str | None] = mapped_column(
         String,
-        nullable=False
+        nullable=True
     )
 
-    approved_by_name: Mapped[str] = mapped_column(
+    approved_by_name: Mapped[str | None] = mapped_column(
         String,
-        nullable=False
+        nullable=True
     )
 
-    coupling: Mapped[bool] = mapped_column(
+    case_label: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+    has_coupling: Mapped[bool] = mapped_column(
         Boolean,
         default=False
     )
@@ -221,12 +253,18 @@ class DrawingCase(Base):
     )
 
     owner_user: Mapped["User"] = relationship(
+        back_populates="drawing_cases",
+        foreign_keys=[owner_user_id],
+    )
+
+    created_by_user: Mapped["User"] = relationship(
+        foreign_keys=[created_by_user_id],
+    )
+
+    lighting_company: Mapped["LightingCompanyCode | None"] = relationship(
         back_populates="drawing_cases"
     )
 
-    lighting_company: Mapped["LightingCompanyCode"] = relationship(
-        back_populates="drawing_cases"
-    )
 
 
 
@@ -245,6 +283,16 @@ class DrawingOpening(Base):
         Enum(OpeningDirection), nullable=False
     )
     opening_length: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    
+    opening_length: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    
+    opening_width: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    
+    box_width: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    
+    opening_surface_height: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    
+    box_thickness: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
 
     drawing_case: Mapped["DrawingCase"] = relationship(back_populates="drawing_openings")
 
@@ -260,7 +308,28 @@ class DrawingBasePlate(Base):
         String, ForeignKey('drawing_cases.id', ondelete="CASCADE", onupdate="CASCADE")
     )
     type: Mapped[BasePlateType] = mapped_column(Enum(BasePlateType), nullable=False)
+    
     base_plate_width: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    
+    base_plate_width: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    anchor_pitch: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    anchor_bolt_diameter: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    base_plate_thickness: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    rib_plate_height: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    rib_plate_length: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    rib_plate_thickness: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    rib_plate_scallop: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+    rib_plate_angle: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+
+    weld_leg_length: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
 
     drawing_case: Mapped["DrawingCase"] = relationship(back_populates="drawing_base_plates")
 
@@ -270,11 +339,19 @@ class DrawingFoundation(Base, FoundationColumnsMixin):
     __tablename__ = "drawing_foundations"
 
     id: Mapped[str] = mapped_column(
-        String, primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+        String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    
     drawing_case_id: Mapped[str] = mapped_column(
-        String, ForeignKey('drawing_cases.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
+        String, ForeignKey('drawing_cases.id', ondelete="CASCADE", onupdate="CASCADE"))
+    
+    n_value: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    
+    gamma_c: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    
+    gamma: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+
+    alpha: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+
     drawing_case: Mapped["DrawingCase"] = relationship(back_populates="drawing_foundations")
 
 

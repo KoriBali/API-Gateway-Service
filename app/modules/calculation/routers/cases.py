@@ -14,7 +14,7 @@ from app.modules.calculation.schemas import (
 
 routerCalculationCase = APIRouter(prefix="/api/requests", tags=["Calculation"])
 
-_ANY_ROLE = require_roles("superadmin", "admin", "drafter")
+_ANY_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
 
 # ===== Save Draft =====

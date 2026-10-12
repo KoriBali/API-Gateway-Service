@@ -23,7 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-# Tipe bersama (DD BAB 12): satu konsep satu tipe, dipakai ulang dari sisi case.
+# Tipe bersama: satu konsep satu tipe, dipakai ulang dari sisi case.
 from app.database.models.calculation_object import FoundationType
 from app.database.models.drawing import (
     DrawingType,
@@ -131,7 +131,7 @@ class DatabankProject(Base):
 
 # ===== Request =====
 class Request(Base):
-    """Inti intake saja (DD v0.9 catatan struktural butir 19). Field cover lain ada di
+    """Inti intake saja. Field cover lain ada di
     request_shared_details, request_yp_details, dan request_ys_details."""
     __tablename__ = "requests"
     __table_args__ = (
@@ -198,7 +198,7 @@ class Request(Base):
         nullable=False,
     )
 
-    # 図番 utuh (YP) atau 依頼No (YS). Nullable di DB, wajib di API (DD invariant intake 8).
+    # 図番 utuh (YP) atau 依頼No (YS). Nullable di DB, wajib di API.
     request_no: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
@@ -345,7 +345,7 @@ class RequestSharedDetails(Base):
     delivery_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     requester_pic_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # region_id dan drawing_type wajib di API bila design_type memuat drawing (DD invariant intake 11).
+    # region_id dan drawing_type wajib di API bila design_type memuat drawing
     region_id: Mapped[str | None] = mapped_column(
         ForeignKey("regions.id", ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=True,
@@ -355,8 +355,6 @@ class RequestSharedDetails(Base):
         nullable=True,
     )
 
-    # Teks berpilihan (DD catatan struktural butir 20): label Inggris atau isian bebas.
-    # Tidak pernah dibaca logika sistem (DD larangan 25).
     paper_size: Mapped[str | None] = mapped_column(String, nullable=True)
     # Nullable dengan sengaja: belum diisi berbeda dari 不要 (false).
     is_cad_data_requested: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -437,7 +435,7 @@ class RequestYpDetails(Base):
         nullable=True,
     )
 
-    # Teks berpilihan (DD catatan struktural butir 20): label Inggris atau isian bebas.
+    # Teks berpilihan: label Inggris atau isian bebas.
     schedule_flexibility: Mapped[str | None] = mapped_column(String, nullable=True)
     paper_frame: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -482,8 +480,6 @@ class RequestYsDetails(Base):
     # Identitas: 受付No, external reference.
     receipt_no: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # Syarat desain blok 設計条件 (khusus YS sejak v0.9).
-    # Field intake. Hanya kolom yang ditandai "default ->" memasok isian awal case (DD G8).
     material_text: Mapped[str | None] = mapped_column(String, nullable=True)
     material_id: Mapped[str | None] = mapped_column(          # default -> step_poles.material_id
         ForeignKey("materials.id", ondelete="RESTRICT", onupdate="CASCADE"),
@@ -530,7 +526,6 @@ class RequestFinish(Base):
         nullable=True,
     )
 
-    # TODO(intake-s2): kolom di bawah ini "sementara" di DD. Pindah ke tabel anak
     #   bila ternyata ada request yang meminta lebih dari satu cat / warna.
     plating_type: Mapped[PlatingType | None] = mapped_column(
         Enum(PlatingType),

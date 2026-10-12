@@ -1,5 +1,5 @@
 """
-File ini untuk inisiasi Data awal (seeding) Data Request (intake), bentuk DD v0.9.
+File ini untuk inisiasi Data awal (seeding) Data Request (intake)
 
 Prasyarat (jalankan lebih dulu):
     python -m app.scripts.seed_master     # pole_categories, design_standards, regions, materials
@@ -12,7 +12,7 @@ Catatan desain:
 - Data contoh fiktif untuk uji scope dan intake, bukan data pesanan nyata.
 - responsible_department_id SELALU mengikuti department si pembuat (created_by_user),
   sesuai aturan create_request di router (department dikunci ke pembuat).
-- Setiap request lahir lengkap seperti di endpoint intake (DD G12): request_shared_details,
+- Setiap request lahir lengkap seperti di endpoint intake: request_shared_details,
   ekstensi form sesuai brand_line, request_finish, dan conditions.
 - Setiap request mematuhi aturan form intake yang ditegakkan API: request_no, subject,
   request_date, due_date, requesting_department_name terisi; request YP mengisi

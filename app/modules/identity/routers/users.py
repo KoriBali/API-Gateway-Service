@@ -59,7 +59,7 @@ async def change_my_password(
 async def create_user(
     payload: UserCreate,
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     # ownership + batas role/department
     permissions.ensure_can_create_user(actor, payload.role, payload.department_id)
@@ -97,7 +97,7 @@ async def create_user(
 @routerUsers.get("")
 async def list_users(
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     dept_filter = None if actor.role == "superadmin" else actor.department_id
     rows = await UserRepository.list_users(db, department_id=dept_filter)
@@ -109,7 +109,7 @@ async def list_users(
 async def get_user(
     user_id: str,
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     user = await UserRepository.get_by_id(db, user_id)
     if user is None:
@@ -123,7 +123,7 @@ async def update_user(
     user_id: str,
     payload: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     user = await UserRepository.get_by_id(db, user_id)
     if user is None:
@@ -160,7 +160,7 @@ async def reset_user_password(
     user_id: str,
     payload: PasswordResetRequest,
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     user = await UserRepository.get_by_id(db, user_id)
     if user is None:

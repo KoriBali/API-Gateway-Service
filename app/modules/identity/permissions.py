@@ -19,11 +19,11 @@ def ensure_can_create_user(actor: CurrentUser, target_role, target_department_id
     # Check apakah current user dapat membuat user di department ini?
     if actor.role == "superadmin":
         return
-    if actor.role == "admin":
+    if actor.role == "admin_department":
         if _role_str(target_role) != "drafter":
-            raise _forbidden("Admin can only create drafter accounts")
+            raise _forbidden("Admin Department can only create drafter accounts")
         if actor.department_id is None or target_department_id != actor.department_id:
-            raise _forbidden("Admin can only create users in their own department")
+            raise _forbidden("Admin Department can only create users in their own department")
         return
     raise _forbidden()
 
@@ -33,7 +33,7 @@ def ensure_can_manage_user(actor: CurrentUser, target_user: User) -> None:
     # Check apakah current user dapat mereset/menonaktifkan target user?
     if actor.role == "superadmin":
         return
-    if actor.role == "admin":
+    if actor.role == "admin_department":
         if _role_str(target_user.role) != "drafter":
             raise _forbidden()
         if actor.department_id is None or target_user.department_id != actor.department_id:

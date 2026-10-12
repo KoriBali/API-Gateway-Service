@@ -31,3 +31,14 @@ from .master import (
     ExternalObject,
     ExternalObjectAvailability
 )
+from .workflow import (
+    RequestEvent,
+    RevisionRound,
+    RequestFile,
+    FileVersion,
+    RequestAssignment,
+    WorkHour,
+    NcChecklist,
+    NcChecklistItem,
+    NcChecklistItemMaster,
+)

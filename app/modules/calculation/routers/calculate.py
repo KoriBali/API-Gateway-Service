@@ -14,7 +14,7 @@ from app.modules.calculation.schemas import CalculateRequest
 
 routerCalculate = APIRouter(prefix="/api/calculate", tags=["Calculation"])
 
-_ANY_ROLE = require_roles("superadmin", "admin", "drafter")
+_ANY_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
 
 def _stub_result() -> EvaluationResult:

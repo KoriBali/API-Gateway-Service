@@ -204,8 +204,8 @@ class RequestRepository:
         # Scope per Role
         if role == "superadmin":
             pass
-        elif role == "admin":
-            # admin tanpa department tak dapat melihat data apapun
+        elif role == "admin_department":
+            # admin department tanpa department tak dapat melihat data apapun
             if actor_department_id is None:
                 return [], 0
             stmt = stmt.where(Request.responsible_department_id == actor_department_id)

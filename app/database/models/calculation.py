@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Numeric,
     Integer,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -48,15 +49,15 @@ if TYPE_CHECKING:
 
 # ===== Enums =====
 class PoleFamily(str, enum.Enum):
-    taper = "taper"
+    tapered = "tapered"
     straight = "straight"
 
 
 class GroundPosition(str, enum.Enum):
     embedment = "embedment"
-    on_GL = "on_GL"
-    upper_GL = "upper_GL"
-    under_GL = "under_GL"
+    on_gl = "on_gl"
+    upper_gl = "upper_gl"
+    under_gl = "under_gl"
     
 
 class PoleKind(str, enum.Enum):
@@ -73,21 +74,30 @@ class StatusCalculationRun(str, enum.Enum):
 # ===== Calculation Case =====
 class CalculationCase(Base):
     __tablename__ = "calculation_cases"
+    __table_args__ = (
+        # Untuk Foreign Key Composit
+        UniqueConstraint("id", "request_id", name="uq_calculation_cases_id_request_id"),
+    )
 
     id: Mapped[str] = mapped_column(
         String,
         primary_key=True,
         default=lambda: str(uuid.uuid4())
     )
+    
+    created_by_user_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('users.id', ondelete="RESTRICT", onupdate="CASCADE")
+    )
+    
+    owner_user_id: Mapped[str] = mapped_column(
+            String,
+            ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE")
+    )
 
     request_id: Mapped[str] = mapped_column(
         String,
         ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
-
-    owner_user_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('users.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
     pole_standard_id: Mapped[str | None] = mapped_column(
@@ -136,6 +146,11 @@ class CalculationCase(Base):
     title: Mapped[str] = mapped_column(
         String,
         nullable=False
+    )
+    
+    case_label: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
     )
     
     pole_kind: Mapped[PoleKind] = mapped_column(
@@ -217,7 +232,12 @@ class CalculationCase(Base):
     )
 
     owner_user: Mapped["User"] = relationship(
-        back_populates="calculation_cases"
+        back_populates="calculation_cases",
+        foreign_keys=[owner_user_id],
+    )
+
+    created_by_user: Mapped["User"] = relationship(
+        foreign_keys=[created_by_user_id],
     )
 
     pole_standard: Mapped["PoleStandard | None"] = relationship(
@@ -397,27 +417,27 @@ class Report(Base):
     )
 
     report_number: Mapped[str] = mapped_column(
-        Numeric(10, 5),
+        String,
         nullable=False
     )
 
     design_request_management_no: Mapped[str] = mapped_column(
-        Numeric(10, 5),
+        String,
         nullable=False
     )
 
     report_title_1: Mapped[str] = mapped_column(
-        Numeric(10, 5),
+        String,
         nullable=False
     )
 
     report_title_2: Mapped[str | None] = mapped_column(
-        Numeric(10, 5),
+        String,
         nullable=True
     )
 
     report_title_3: Mapped[str | None] = mapped_column(
-        Numeric(10, 5),
+        String,
         nullable=True
     )
 

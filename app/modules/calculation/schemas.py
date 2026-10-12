@@ -33,6 +33,7 @@ class CalculationCaseUpsert(CamelBaseModel):
     lowest_height: float | None = None
     embedment_length: float | None = None
     overdesign_factor: int | None = None
+    case_label: str | None = None
 
     # TODO(calc-contract): komponen belum difinalkan. Skeleton pass-through.
     #   Dipetakan konkret ke CalculationOpening/BasePlate/Foundation di iterasi lanjut.
@@ -51,8 +52,10 @@ class CalculationCaseUpsert(CamelBaseModel):
 class CalculationCaseRead(CamelBaseModel):
     id: str
     request_id: str
+    created_by_user_id: str
     owner_user_id: str
     title: str
+    case_label: str | None = None
     pole_kind: PoleKind
     pole_standard_id: str | None = None
     pole_standard_height_id: str | None = None

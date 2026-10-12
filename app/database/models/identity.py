@@ -23,9 +23,11 @@ if TYPE_CHECKING:
 
 
 # ===== Enums =====
-class Role(str, enum.Enum):
+class UserRole(str, enum.Enum):
     superadmin = "superadmin"
-    admin = "admin"
+    yoshimoto_reviewer = "yoshimoto_reviewer"
+    admin_department = "admin_department"
+    drafter_checker = "drafter_checker"
     drafter = "drafter"
 
 
@@ -87,9 +89,9 @@ class User(Base):
         nullable=True,
     )
 
-    role: Mapped[Role] = mapped_column(
-        Enum(Role),
-        default=Role.drafter,
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole),
+        default=UserRole.drafter,
         nullable=False,
     )
 
@@ -158,12 +160,14 @@ class User(Base):
 
     calculation_cases: Mapped[list["CalculationCase"]] = relationship(
         back_populates="owner_user",
+        foreign_keys="CalculationCase.owner_user_id",
         cascade="all, delete-orphan",    
         passive_deletes=True,
     )
 
     drawing_cases: Mapped[list["DrawingCase"]] = relationship(
         back_populates="owner_user",
+        foreign_keys="DrawingCase.owner_user_id",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
@@ -206,7 +210,7 @@ class RefreshToken(Base):
         nullable=False,
     )
 
-    revoked: Mapped[bool] = mapped_column(
+    is_revoked: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
         nullable=False,

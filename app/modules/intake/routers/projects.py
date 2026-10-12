@@ -11,7 +11,7 @@ from app.modules.intake.schemas import ProjectCreate, ProjectRead
 routerProject = APIRouter(prefix="/api/projects", tags=["Projects"])
 
 # Project = identitas penomoran DataBank, tidak punya department. Semua role boleh baca/buat.
-_ANY_ROLE = require_roles("superadmin", "admin", "drafter")
+_ANY_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
 
 

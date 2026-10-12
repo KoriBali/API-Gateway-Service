@@ -19,7 +19,7 @@ routerDepartment = APIRouter(prefix="/api/departments", tags=["Departments"])
 @routerDepartment.get("")
 async def list_departments(
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     rows = await DepartmentRepository.list_all(db)
     data = [DepartmentRead.model_validate(d) for d in rows]
@@ -30,7 +30,7 @@ async def list_departments(
 async def get_department(
     department_id: str,
     db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(require_roles("superadmin", "admin")),
+    actor: CurrentUser = Depends(require_roles("superadmin", "admin_department")),
 ):
     dept = await DepartmentRepository.get_by_id(db, department_id)
     if dept is None:
