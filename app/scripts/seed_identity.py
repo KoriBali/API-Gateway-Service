@@ -24,18 +24,20 @@ DEPARTMENTS = [
 ]
 
 EMPLOYEES = [
-    # YSG: 2 drafter + 1 admin_department + 1 drafter_checker + 1 yoshimoto_reviewer
+    # YSG: 2 drafter + 1 admin_department + 1 drafter_checker
     {"username": "budi", "email": "budi@corp.id", "full_name": "Budi Santoso", "role": "drafter", "department_code": "YSG"},
     {"username": "andi", "email": "andi@corp.id", "full_name": "Andi Nugroho", "role": "drafter", "department_code": "YSG"},
     {"username": "sari", "email": "sari@corp.id", "full_name": "Sari Dewi",    "role": "admin_department", "department_code": "YSG"},
     {"username": "rina", "email": "rina@corp.id", "full_name": "Rina Kusuma",  "role": "drafter_checker", "department_code": "YSG"},
-    {"username": "kenji", "email": "kenji@corp.id", "full_name": "Kenji Sato",  "role": "yoshimoto_reviewer", "department_code": "YSG"},
     # YSC: 1 drafter + 1 admin_department (uji scope lintas-department)
     {"username": "dewi", "email": "dewi@corp.id", "full_name": "Dewi Lestari", "role": "drafter", "department_code": "YSC"},
     {"username": "citra", "email": "citra@corp.id", "full_name": "Citra Wijaya", "role": "admin_department", "department_code": "YSC"},
     # YSF: 1 drafter
     {"username": "eko", "email": "eko@corp.id", "full_name": "Eko Prasetyo",   "role": "drafter", "department_code": "YSF"},
+    # Pihak Yoshimoto: tidak terikat department (V6)
+    {"username": "kenji", "email": "kenji@corp.id", "full_name": "Kenji Sato",  "role": "yoshimoto_reviewer", "department_code": None},
 ]
+
 
 
 async def _seed_departments(db) -> dict[str, str]:
@@ -64,8 +66,10 @@ async def _seed_employees(db, dept_map: dict[str, str]) -> int:
         if existing.scalar_one_or_none() is not None:
             continue
 
-        dept_id = dept_map.get(emp["department_code"])
-        if dept_id is None:
+        dept_id = None
+        if emp["department_code"] is not None:
+            dept_id = dept_map.get(emp["department_code"])
+        if emp["department_code"] is not None and dept_id is None:
             raise ValueError(
                 f"Department code '{emp['department_code']}' untuk user '{emp['username']}' "
                 f"tidak ada di DEPARTMENTS. Perbaiki data seed."

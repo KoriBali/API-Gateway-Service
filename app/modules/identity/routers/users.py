@@ -11,6 +11,7 @@ from app.core.security import (
     verify_password,
 )
 from app.utils.response import success_response
+from app.database.models.identity import UserRole
 from app.modules.identity import permissions
 from app.modules.identity.repository import UserRepository, AuthRepository, DepartmentRepository
 from app.modules.identity.schemas import (
@@ -23,6 +24,14 @@ from app.modules.identity.schemas import (
 
 routerUsers = APIRouter(prefix="/api/users", tags=["Users"])
 
+
+def _ensure_reviewer_without_department(role, department_id: str | None) -> None:
+    """yoshimoto_reviewer tidak terikat department (V6)."""
+    if role == UserRole.yoshimoto_reviewer and department_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="yoshimoto_reviewer must not belong to a department (send departmentId: null)",
+        )
 
 
 # ===== Self User Endpoint =====
@@ -63,6 +72,7 @@ async def create_user(
 ):
     # ownership + batas role/department
     permissions.ensure_can_create_user(actor, payload.role, payload.department_id)
+    _ensure_reviewer_without_department(payload.role, payload.department_id)
 
     # Gunakan find_identity_conflicts yang ada di Repository untuk detect conflict
     conflicts = await UserRepository.find_identity_conflicts(
@@ -135,8 +145,17 @@ async def update_user(
     
     role_changed = "role" in data and data["role"] != user.role
     department_changed = "department_id" in data and data["department_id"] != user.department_id
+    
     if role_changed or department_changed:
-        permissions.ensure_can_change_role_or_department(actor)
+        permissions.ensure_can_change_role_or_department(
+            actor, data.get("role") if role_changed else None, department_changed
+        )
+    # Diperiksa pada keadaan SESUDAH perubahan.
+    _ensure_reviewer_without_department(
+        data.get("role", user.role),
+        data["department_id"] if "department_id" in data else user.department_id,
+    )
+
 
     if "department_id" in data and data["department_id"] is not None \
             and not await DepartmentRepository.exists(db, data["department_id"]):
