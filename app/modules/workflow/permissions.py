@@ -4,8 +4,8 @@ from app.database.models.intake import DesignType, Request, RequestStatus
 from app.database.models.workflow import EventType
 
 
-# Status asal yang sah untuk tiap peristiwa tingkat request (V8, DD BAB 13
-# "Pengisian status request oleh sistem"). Gerbang submit menyusul di plan checklist.
+# Status asal yang sah untuk tiap peristiwa tingkat request
+# "Pengisian status request oleh sistem"). Syarat isi gerbang submit dinilai di workflow/gate.py.
 ALLOWED_FROM: dict[EventType, tuple[RequestStatus, ...]] = {
     EventType.submit: (RequestStatus.internal, RequestStatus.prevention_check),
     EventType.feedback: (RequestStatus.submitted,),

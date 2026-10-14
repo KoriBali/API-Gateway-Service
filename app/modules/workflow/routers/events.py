@@ -8,6 +8,7 @@ from app.modules.intake import permissions as intake_permissions
 from app.modules.intake.repository import RequestRepository
 from app.modules.workflow import permissions
 from app.modules.workflow.repository import RequestEventRepository
+from app.modules.workflow import gate
 from app.database.models.workflow import EventType, RevisionOrigin
 from app.modules.workflow.schemas import (
     CancelCreate,
@@ -15,6 +16,7 @@ from app.modules.workflow.schemas import (
     RequestEventRead,
     RequestEventResult,
     RevisionRoundRead,
+    SubmitGateRead
 )
 
 routerRequestEvent = APIRouter(prefix="/api/requests", tags=["Request Workflow"])
@@ -23,8 +25,13 @@ routerRequestEvent = APIRouter(prefix="/api/requests", tags=["Request Workflow"]
 _READ_ROLE = require_roles(
     "superadmin", "admin_department", "drafter_checker", "drafter", "yoshimoto_reviewer"
 )
+
 # Membuka gerbang submit hanya admin_department.
 _ADMIN_DEPARTMENT = require_roles("admin_department")
+
+# Tampilan gerbang: pihak Koribali. yoshimoto_reviewer tidak melihat pekerjaan di dalam department.
+_KORIBALI_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
+
 # Empat aksi pihak Yoshimoto (V6, V8).
 _REVIEWER = require_roles("yoshimoto_reviewer")
 
@@ -99,6 +106,32 @@ async def list_revision_rounds(
 
 
 
+def _gate_read(state: gate.GateState) -> SubmitGateRead:
+    return SubmitGateRead(
+        can_submit=state.can_submit,
+        prevention_check_ready=state.prevention_check_ready,
+        revision_round_id=state.revision_round_id,
+        cycle_started_at=state.cycle_started_at,
+        checklist_id=state.checklist_id,
+        pending_items=state.pending_items,
+        missing_work_types=state.missing_work_types,
+        unchecked_cases=[vars(c) for c in state.unchecked_cases],
+    )
+
+
+@routerRequestEvent.get("/{request_id}/submit-gate")
+async def get_submit_gate(
+    request_id: str,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_KORIBALI_ROLE),
+):
+    """Keterangan gerbang untuk tampilan: apa yang masih menahan submit."""
+    req = await _load_readable(db, request_id, actor)
+    state = await gate.evaluate(db, req)
+    return success_response(data=_gate_read(state), message="Submit gate retrieved")
+
+
+
 # ===== Aksi admin_department =====
 @routerRequestEvent.post("/{request_id}/submit")
 async def submit_request(
@@ -109,7 +142,18 @@ async def submit_request(
     # admin_department hanya bisa membaca request departemennya, jadi is_readable
     # sekaligus menjaga batas department.
     req = await _load_for_event(db, request_id, actor, EventType.submit)
+    # Satu-satunya pintu yang dikunci (DD BAB 2). Dinilai dari data, di bawah kunci request.
+    state = await gate.evaluate(db, req)
+    if not state.can_submit:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "The submit gate is closed",
+                "gate": _gate_read(state).model_dump(by_alias=True, mode="json"),
+            },
+        )
     event, _ = await RequestEventRepository.record(
+
         db, req,
         actor_id=actor.id,
         event_type=EventType.submit,

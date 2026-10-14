@@ -23,6 +23,9 @@ from app.modules.workflow.repository import RequestEventRepository
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.case.repository import CaseRepository
+from app.modules.assignment.permissions import WORK_TYPES_OF
+from app.modules.checklist.repository import ChecklistRepository
+from app.modules.workflow.gate import PRE_SUBMIT_STATUSES, apply_prevention_status, current_checklist
 from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
@@ -313,8 +316,19 @@ class RequestRepository:
 
     @staticmethod
     async def update(db: AsyncSession, req: Request, payload: RequestUpdate) -> Request:
-        _apply(req, payload.model_dump(exclude_unset=True), _REQUEST_EDITABLE)
+        data = payload.model_dump(exclude_unset=True)
+        _apply(req, data, _REQUEST_EDITABLE)
+        if "design_type" in data and req.status in PRE_SUBMIT_STATUSES:
+            # designType mengubah syarat 2 prevention_check, dan checklist siklus berjalan
+            # ikut melebar. Pemanggil wajib sudah mengunci req.
+            revision_round_id, _ = await RequestEventRepository.current_cycle(db, req.id)
+            checklist = await current_checklist(db, req.id, revision_round_id)
+            if checklist is not None:
+                await ChecklistRepository.add_missing_work_types(db, checklist, WORK_TYPES_OF[req.design_type])
+            await db.flush()
+            await apply_prevention_status(db, req)
         await db.commit()
+
         await db.refresh(req)
         return req
     

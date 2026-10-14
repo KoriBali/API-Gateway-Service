@@ -9,6 +9,8 @@ from app.utils.response import success_response
 from app.modules.intake import permissions
 from app.modules.assignment import permissions as assignment_permissions
 from app.modules.workflow.repository import RequestEventRepository
+from app.modules.workflow.gate import PRE_SUBMIT_STATUSES, current_checklist
+from app.modules.checklist.repository import ChecklistRepository, MasterItemRepository
 from app.modules.intake.request_no import RequestNoWarning, parse_request_no, tail_matches_brand
 from app.modules.intake.repository import ProjectRepository, RequestRepository
 from app.database.models.intake import (
@@ -74,9 +76,35 @@ def _ensure_drawing_fields(design_type, region_id, drawing_type) -> None:
         )
 
 
-async def _load_managed(db: AsyncSession, request_id: str, actor: CurrentUser):
-    """Ambil request untuk diubah: 404 bila tidak ada, 403 bila tidak berhak."""
-    req = await RequestRepository.get_by_id(db, request_id)
+async def _ensure_checklist_can_widen(db: AsyncSession, req, design_type: DesignType) -> None:
+    """designType yang melebar menyalin item work type baru ke checklist siklus berjalan.
+    Tanpa item master aktif untuk work type itu, checklist akan lolos gerbang tanpa memeriksanya."""
+    if req.status not in PRE_SUBMIT_STATUSES:
+        return
+    revision_round_id, _ = await RequestEventRepository.current_cycle(db, req.id)
+    checklist = await current_checklist(db, req.id, revision_round_id)
+    if checklist is None:
+        return
+    added = await ChecklistRepository.missing_work_types(
+        db, checklist, assignment_permissions.WORK_TYPES_OF[design_type],
+    )
+    missing = await MasterItemRepository.work_types_without_active(db, added)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No active checklist master items for workType "
+                   + ", ".join(f"'{wt.value}'" for wt in missing),
+        )
+
+
+async def _load_managed(db: AsyncSession, request_id: str, actor: CurrentUser, *, for_update: bool = False):
+    """Ambil request untuk diubah: 404 bila tidak ada, 403 bila tidak berhak.
+    for_update mengunci baris request sampai commit (perubahan yang menghitung ulang status)."""
+    if for_update:
+        req = await RequestEventRepository.get_for_update(db, request_id)
+    else:
+        req = await RequestRepository.get_by_id(db, request_id)
+
     if req is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
@@ -264,9 +292,9 @@ async def update_request(
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
-    req = await _load_managed(db, request_id, actor)
-
     data = payload.model_dump(exclude_unset=True)
+    req = await _load_managed(db, request_id, actor, for_update="design_type" in data)
+
     if data.get("project_id") is not None and data["project_id"] != req.project_id:
         await _ensure_project_matches(db, data["project_id"], req.brand_line)
     if "pole_category_id" in data and data["pole_category_id"] != req.pole_category_id:
@@ -279,6 +307,7 @@ async def update_request(
             shared.region_id if shared is not None else None,
             shared.drawing_type if shared is not None else None,
         )
+        await _ensure_checklist_can_widen(db, req, data["design_type"])
 
     await RequestRepository.update(db, req, payload)
     return await _detail_response(db, request_id, "Request updated")
@@ -384,9 +413,9 @@ async def delete_request(
     req = await _load_managed(db, request_id, actor)
 
     # Request yang sudah menyeberang ke sisi Jepang tidak boleh hilang.
-    if req.status != RequestStatus.internal or await RequestEventRepository.has_submit(db, req.id):
+    if req.status not in PRE_SUBMIT_STATUSES or await RequestEventRepository.has_submit(db, req.id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="Only internal requests that were never submitted can be deleted")
+                            detail="Only requests that were never submitted can be deleted")
 
     await RequestRepository.delete(db, req)
     return success_response(data={"deleted": True}, message="Request deleted")
