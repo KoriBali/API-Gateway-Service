@@ -72,7 +72,8 @@ async def create_calculation_case(
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_WORKER_ROLE),
 ):
-    req = await case_permissions.load_readable_request(db, request_id, actor)
+    # Kunci request: case baru ikut menentukan status prevention_check.
+    req = await case_permissions.load_readable_request(db, request_id, actor, for_update=True)
     await case_permissions.ensure_can_create(db, actor, req, WorkType.calculation)
 
     data = payload.model_dump(exclude_unset=True)
@@ -85,7 +86,7 @@ async def create_calculation_case(
         )
 
     case = await CalculationCaseRepository.create(
-        db, request_id=req.id, owner_user_id=actor.id, data=data,
+        db, req, owner_user_id=actor.id, data=data,
     )
     return success_response(
         data=CalculationCaseRead.model_validate(case),
@@ -135,5 +136,5 @@ async def delete_calculation_case(
             status_code=status.HTTP_409_CONFLICT,
             detail="A case that has been checked cannot be deleted",
         )
-    await CalculationCaseRepository.delete(db, case)
+    await CalculationCaseRepository.delete(db, req, case)
     return success_response(data={"deleted": True}, message="Calculation case deleted")

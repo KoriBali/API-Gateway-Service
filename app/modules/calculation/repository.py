@@ -1,5 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.database.models.intake import Request
+from app.modules.workflow.gate import apply_prevention_status
 
 from app.database.models.calculation import CalculationCase
 
@@ -41,12 +43,12 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def create(
-        db: AsyncSession, *, request_id: str, owner_user_id: str, data: dict,
+        db: AsyncSession, req: Request, *, owner_user_id: str, data: dict,
     ) -> CalculationCase:
         """Pembuat case = owner pertamanya. created_by_user_id tidak pernah berganti
         data sudah memuat title hasil isian awal G5."""
         case = CalculationCase(
-            request_id=request_id,
+            request_id=req.id,
             created_by_user_id=owner_user_id,
             owner_user_id=owner_user_id,
         )
@@ -57,7 +59,11 @@ class CalculationCaseRepository:
         #   yang sama, setelah field domain difinalkan. Terapkan aturan "lengkap-atau-lewati"
         #   karena kolomnya banyak yang NOT NULL.
         db.add(case)
+        await db.flush()
+        # Case baru belum diperiksa: status bisa turun dari prevention_check
+        await apply_prevention_status(db, req)
         await db.commit()
+
         await db.refresh(case)
         return case
 
@@ -72,8 +78,11 @@ class CalculationCaseRepository:
         return case
 
     @staticmethod
-    async def delete(db: AsyncSession, case: CalculationCase) -> None:
+    async def delete(db: AsyncSession, req: Request, case: CalculationCase) -> None:
         """Anak case ikut terhapus (ON DELETE CASCADE). Drawing case yang mengacu case ini
         kehilangan acuannya (SET NULL). Peristiwa case tetap tersimpan"""
         await db.delete(case)
+        await db.flush()
+        # Case yang belum diperiksa hilang: syarat prevention_check bisa berubah.
+        await apply_prevention_status(db, req)
         await db.commit()

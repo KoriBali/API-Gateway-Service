@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +67,27 @@ class RequestEventRepository:
             .where(RevisionRound.request_id == request_id)
         )
         return (last_number or 0) + 1
+    
+    @staticmethod
+    async def current_cycle(db: AsyncSession, request_id: str) -> tuple[str | None, datetime | None]:
+        """Siklus submit berjalan: (putaran asal Jepang terbaru, waktu feedback terakhir).
+        Keduanya kosong sebelum feedback pertama. Putaran internal tidak pernah ikut."""
+        round_id = await db.scalar(
+            select(RevisionRound.id)
+            .where(
+                RevisionRound.request_id == request_id,
+                RevisionRound.origin == RevisionOrigin.japan_correction,
+            )
+            .order_by(RevisionRound.round_number.desc())
+            .limit(1)
+        )
+        started_at = await db.scalar(
+            select(func.max(RequestEvent.occurred_at)).where(
+                RequestEvent.request_id == request_id,
+                RequestEvent.event_type == EventType.feedback,
+            )
+        )
+        return round_id, started_at
         
     @staticmethod
     async def get_for_update(db: AsyncSession, request_id: str) -> Request | None:

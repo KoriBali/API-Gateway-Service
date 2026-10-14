@@ -5,9 +5,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from app.database.models.calculation import CalculationCase
-from app.database.models.drawing import DrawingCase
-from app.database.models.intake import DesignType, Request, RequestStatus
+from app.database.models.intake import Request, RequestStatus
 from app.database.models.workflow import (
     AssignmentStatus,
     CheckResult,
@@ -19,16 +17,8 @@ from app.database.models.workflow import (
     WorkType,
 )
 from app.modules.workflow.repository import RequestEventRepository
-
-CASE_MODEL = {
-    WorkType.calculation: CalculationCase,
-    WorkType.drawing: DrawingCase
-}
-
-ROUND_SCOPE = {
-    WorkType.calculation: DesignType.calculation,
-    WorkType.drawing: DesignType.drawing
-}
+from app.modules.workflow.gate import apply_prevention_status
+from app.modules.case.tables import CASE_MODEL, ROUND_SCOPE
 
 
 
@@ -101,12 +91,7 @@ class CaseRepository:
     @staticmethod
     async def cycle_start(db: AsyncSession, request_id: str) -> datetime | None:
         """Batas awal submit berjalan feedback terakhir, atau kosong"""
-        return await db.scalar(
-            select(func.max(RequestEvent.occurred_at)).where(
-                RequestEvent.request_id == request_id,
-                RequestEvent.event_type == EventType.feedback
-            )
-        )
+        return (await RequestEventRepository.current_cycle(db, request_id))[1]
         
     @staticmethod
     async def active_assignments(db: AsyncSession, request_id: str) -> set[tuple[str, WorkType]]:
@@ -228,6 +213,13 @@ class CaseRepository:
             
         if new_owner_user_id is not None:
             case.owner_user_id = new_owner_user_id
+
+        if event_type == EventType.check:
+            # Check bisa melengkapi syarat prevention_check, di transaksi yang sama.
+            await db.flush()
+            await apply_prevention_status(db, req)
+
+
             
         await db.commit()
         await db.refresh(event)
