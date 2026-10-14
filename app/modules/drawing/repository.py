@@ -1,5 +1,8 @@
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.database.models.intake import Request
+from app.modules.workflow.gate import apply_prevention_status
+
 
 from app.database.models.calculation import CalculationCase
 from app.database.models.drawing import DrawingCase
@@ -47,11 +50,11 @@ class DrawingCaseRepository:
 
     @staticmethod
     async def create(
-        db: AsyncSession, *, request_id: str, owner_user_id: str, data: dict,
+        db: AsyncSession, req: Request, *, owner_user_id: str, data: dict,
     ) -> DrawingCase:
         """Pembuat case = owner pertamanya. data sudah memuat title (G5) dan drawing_type (G8)."""
         case = DrawingCase(
-            request_id=request_id,
+            request_id=req.id,
             created_by_user_id=owner_user_id,
             owner_user_id=owner_user_id,
         )
@@ -59,7 +62,11 @@ class DrawingCaseRepository:
             if field in data:
                 setattr(case, field, data[field])
         db.add(case)
+        await db.flush()
+        # Case baru belum diperiksa: status bisa turun dari prevention_check.
+        await apply_prevention_status(db, req)
         await db.commit()
+
         await db.refresh(case)
         return case
 
@@ -73,7 +80,11 @@ class DrawingCaseRepository:
         return case
 
     @staticmethod
-    async def delete(db: AsyncSession, case: DrawingCase) -> None:
+    async def delete(db: AsyncSession, req: Request, case: DrawingCase) -> None:
         """Anak case ikut terhapus (ON DELETE CASCADE). Peristiwa case tetap tersimpan"""
         await db.delete(case)
+        await db.flush()
+        # Case yang belum diperiksa hilang: syarat prevention_check bisa berubah.
+        await apply_prevention_status(db, req)
         await db.commit()
+

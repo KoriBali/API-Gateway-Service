@@ -39,6 +39,9 @@ from app.modules.drawing.routers import router as drawingRouter
 # Case: ringkasan, peristiwa tingkat case, antrean pemeriksaan
 from app.modules.case.routers import router as caseRouter
 
+# NC Prevention Checklist: daftar induk dan checklist per siklus submit
+from app.modules.checklist.routers import router as checklistRouter
+
 # setup logging saat app start
 setup_logging()
 
@@ -99,6 +102,9 @@ app.include_router(drawingRouter)
 
 # Case
 app.include_router(caseRouter)
+
+# NC Prevention Checklist
+app.include_router(checklistRouter)
 
 
 

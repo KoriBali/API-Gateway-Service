@@ -78,7 +78,8 @@ async def create_drawing_case(
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_WORKER_ROLE),
 ):
-    req = await case_permissions.load_readable_request(db, request_id, actor)
+    # Kunci request: case baru ikut menentukan status prevention_check.
+    req = await case_permissions.load_readable_request(db, request_id, actor, for_update=True)
     await case_permissions.ensure_can_create(db, actor, req, WorkType.drawing)
 
     data = payload.model_dump(exclude_unset=True)
@@ -94,7 +95,7 @@ async def create_drawing_case(
             raise _unprocessable("drawingType is required because the request has no sharedDetails.drawingType")
     await _ensure_calculation_ref(db, req.id, data)
 
-    case = await DrawingCaseRepository.create(db, request_id=req.id, owner_user_id=actor.id, data=data)
+    case = await DrawingCaseRepository.create(db, req, owner_user_id=actor.id, data=data)
     return success_response(
         data=DrawingCaseRead.model_validate(case),
         status_code=status.HTTP_201_CREATED,
@@ -142,5 +143,5 @@ async def delete_drawing_case(
             status_code=status.HTTP_409_CONFLICT,
             detail="A case that has been checked cannot be deleted",
         )
-    await DrawingCaseRepository.delete(db, case)
+    await DrawingCaseRepository.delete(db, req, case)
     return success_response(data={"deleted": True}, message="Drawing case deleted")

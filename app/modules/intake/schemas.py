@@ -22,7 +22,7 @@ from app.database.models.drawing import (
 
 
 # design_type yang memuat pekerjaan gambar. Request seperti ini wajib mengisi
-# sharedDetails.regionId dan sharedDetails.drawingType (DD invariant intake 11).
+# sharedDetails.regionId dan sharedDetails.drawingType.
 DRAWING_DESIGN_TYPES = frozenset({DesignType.drawing, DesignType.drawing_calculation})
 
 
@@ -64,7 +64,7 @@ class SharedDetailsWrite(CamelBaseModel):
     cad_format: str | None = Field(default=None, max_length=50)
 
 
-# requesting_department_code nullable di DB, tetapi wajib di form intake YP (DD invariant intake 12).
+# requesting_department_code nullable di DB, tetapi wajib di form intake YP.
 _YP_NOT_NULL = (
     "requesting_department_code",
     "calc_strength", "calc_design",
@@ -148,7 +148,7 @@ class ConditionsUpdate(CamelBaseModel):
 
 
 # ===== Request =====
-# request_no, subject, due_date nullable di DB tetapi wajib di form intake (DD invariant intake 8).
+# request_no, subject, due_date nullable di DB tetapi wajib di form intake.
 _REQUEST_NOT_NULL = (
     "pole_category_id", "request_no", "pj_no", "request_type", "design_type",
     "request_classification", "subject", "request_date", "due_date",

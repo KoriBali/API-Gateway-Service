@@ -23,6 +23,9 @@ from app.modules.workflow.repository import RequestEventRepository
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.case.repository import CaseRepository
+from app.modules.assignment.permissions import WORK_TYPES_OF
+from app.modules.checklist.repository import ChecklistRepository
+from app.modules.workflow.gate import PRE_SUBMIT_STATUSES, apply_prevention_status, current_checklist
 from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
@@ -250,11 +253,11 @@ class RequestRepository:
         if status is not None:
             stmt = stmt.where(Request.status == status)
         if has_active_worker is not None:
-            # Penyaring request tanpa pengerja aktif (DD BAB 13), selalu dihitung dari data.
+            # Penyaring request tanpa pengerja aktif, selalu dihitung dari data.
             clause = AssignmentRepository.active_worker_clause()
             stmt = stmt.where(clause if has_active_worker else ~clause)
         if has_case_without_active_owner is not None:
-            # Penyaring case tanpa owner aktif (DD BAB 13): case perlu dialihkan.
+            # Penyaring case tanpa owner aktif: case perlu dialihkan.
             clause = CaseRepository.without_active_owner_clause()
             stmt = stmt.where(clause if has_case_without_active_owner else ~clause)
 
@@ -278,7 +281,7 @@ class RequestRepository:
         responsible_department_id: str,
         assignments: list[tuple[str, WorkType]],
     ) -> Request:
-        """Intake dalam SATU transaksi (DD G12): request + tabel bersama + ekstensi form
+        """Intake dalam SATU transaksi: request + tabel bersama + ekstensi form
         + finish + conditions. Semua baris anak lahir walau isiannya kosong."""
         req = Request(
             brand_line=payload.brand_line,
@@ -313,8 +316,19 @@ class RequestRepository:
 
     @staticmethod
     async def update(db: AsyncSession, req: Request, payload: RequestUpdate) -> Request:
-        _apply(req, payload.model_dump(exclude_unset=True), _REQUEST_EDITABLE)
+        data = payload.model_dump(exclude_unset=True)
+        _apply(req, data, _REQUEST_EDITABLE)
+        if "design_type" in data and req.status in PRE_SUBMIT_STATUSES:
+            # designType mengubah syarat 2 prevention_check, dan checklist siklus berjalan
+            # ikut melebar. Pemanggil wajib sudah mengunci req.
+            revision_round_id, _ = await RequestEventRepository.current_cycle(db, req.id)
+            checklist = await current_checklist(db, req.id, revision_round_id)
+            if checklist is not None:
+                await ChecklistRepository.add_missing_work_types(db, checklist, WORK_TYPES_OF[req.design_type])
+            await db.flush()
+            await apply_prevention_status(db, req)
         await db.commit()
+
         await db.refresh(req)
         return req
     

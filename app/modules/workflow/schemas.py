@@ -61,3 +61,25 @@ class RequestEventResult(CamelBaseModel):
     status: RequestStatus
     event: RequestEventRead
     revision_round: RevisionRoundRead | None = None
+    
+
+
+# ===== Gerbang submit =====
+class UncheckedCaseRead(CamelBaseModel):
+    work_type: WorkType
+    case_id: str
+    title: str
+
+
+
+class SubmitGateRead(CamelBaseModel):
+    """Keadaan gerbang submit siklus berjalan (DD BAB 13), beserta keterangan yang menahannya."""
+    can_submit: bool
+    # Syarat 1 sampai 3 terpenuhi. Sama dengan rumus status prevention_check.
+    prevention_check_ready: bool
+    revision_round_id: str | None = None
+    cycle_started_at: datetime | None = None
+    checklist_id: str | None = None
+    pending_items: int
+    missing_work_types: list[WorkType]
+    unchecked_cases: list[UncheckedCaseRead]

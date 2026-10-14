@@ -8,6 +8,7 @@ from app.modules.assignment.permissions import WORK_TYPES_OF
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.intake import permissions as intake_permissions
 from app.modules.intake.repository import RequestRepository
+from app.modules.workflow.repository import RequestEventRepository
 
 
 
@@ -24,9 +25,16 @@ def case_not_found() -> HTTPException:
 
 
 
-async def load_readable_request(db: AsyncSession, request_id: str, actor: CurrentUser) -> Request:
-    """404 bila request tidak ada atau tidak boleh dibaca actor."""
-    req = await RequestRepository.get_by_id(db, request_id)
+async def load_readable_request(
+    db: AsyncSession, request_id: str, actor: CurrentUser, *, for_update: bool = False,
+) -> Request:
+    """404 bila request tidak ada atau tidak boleh dibaca actor. for_update mengunci baris request
+    sampai commit, untuk aksi yang ikut menghitung ulang status prevention_check."""
+    if for_update:
+        req = await RequestEventRepository.get_for_update(db, request_id)
+    else:
+        req = await RequestRepository.get_by_id(db, request_id)
+
     if req is None or not await intake_permissions.is_readable(db, actor, req):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     return req

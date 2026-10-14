@@ -18,7 +18,7 @@ Catatan desain:
   request_date, due_date, requesting_department_name terisi; request YP mengisi
   requesting_department_code; request yang memuat drawing mengisi region dan drawing_type.
 - request_no YP = 図番 utuh (mis. EPJ100001-1), request_no YS = 依頼No (mis. YSE-26-0001).
-- Setiap request lahir dengan assignment aktif (DD invariant intake 3), seperti endpoint
+- Setiap request lahir dengan assignment aktif, seperti endpoint
   intake: pembuat (drafter) di-assign ke semua work type di design_type, kecuali spec
   menyebut "assignments" sendiri. Assignment hanya dibuat bersama request baru; request
   lama yang di-skip tidak ditambahi assignment.

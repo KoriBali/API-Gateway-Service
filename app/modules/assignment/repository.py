@@ -36,7 +36,7 @@ class AssignmentRepository:
 
     @staticmethod
     def active_worker_clause():
-        """Kondisi SQL 'request ini punya minimal satu assignment aktif' (DD BAB 13 penyaring)."""
+        """Kondisi SQL 'request ini punya minimal satu assignment aktif'"""
         return exists().where(
             RequestAssignment.request_id == Request.id,
             RequestAssignment.assignment_status == AssignmentStatus.active,
