@@ -622,6 +622,13 @@ class NcChecklistItem(Base):
         Text,
         nullable=True,
     )
+    
+    sort_order: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
 
     # Child
     nc_checklist: Mapped["NcChecklist"] = relationship(

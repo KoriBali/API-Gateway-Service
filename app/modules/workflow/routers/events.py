@@ -23,7 +23,7 @@ routerRequestEvent = APIRouter(prefix="/api/requests", tags=["Request Workflow"]
 _READ_ROLE = require_roles(
     "superadmin", "admin_department", "drafter_checker", "drafter", "yoshimoto_reviewer"
 )
-# Membuka gerbang submit hanya admin_department (DD BAB 13 "Aturan izin").
+# Membuka gerbang submit hanya admin_department.
 _ADMIN_DEPARTMENT = require_roles("admin_department")
 # Empat aksi pihak Yoshimoto (V6, V8).
 _REVIEWER = require_roles("yoshimoto_reviewer")

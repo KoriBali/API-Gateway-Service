@@ -149,7 +149,7 @@ async def check_request_no(
 ):
     """Usulan segmen 図番 + peringatan intake YP. Tidak pernah menolak dan tidak menulis apa pun.
 
-    Dipanggil form intake YP saja (DD invariant intake 9). Pencarian kembar tetap
+    Dipanggil form intake YP saja. Pencarian kembar tetap
     memeriksa seluruh requests.request_no, karena kolom itu milik kedua form.
     """
     warnings: list[str] = []

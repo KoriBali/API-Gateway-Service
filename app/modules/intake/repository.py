@@ -250,11 +250,11 @@ class RequestRepository:
         if status is not None:
             stmt = stmt.where(Request.status == status)
         if has_active_worker is not None:
-            # Penyaring request tanpa pengerja aktif (DD BAB 13), selalu dihitung dari data.
+            # Penyaring request tanpa pengerja aktif, selalu dihitung dari data.
             clause = AssignmentRepository.active_worker_clause()
             stmt = stmt.where(clause if has_active_worker else ~clause)
         if has_case_without_active_owner is not None:
-            # Penyaring case tanpa owner aktif (DD BAB 13): case perlu dialihkan.
+            # Penyaring case tanpa owner aktif: case perlu dialihkan.
             clause = CaseRepository.without_active_owner_clause()
             stmt = stmt.where(clause if has_case_without_active_owner else ~clause)
 
@@ -278,7 +278,7 @@ class RequestRepository:
         responsible_department_id: str,
         assignments: list[tuple[str, WorkType]],
     ) -> Request:
-        """Intake dalam SATU transaksi (DD G12): request + tabel bersama + ekstensi form
+        """Intake dalam SATU transaksi: request + tabel bersama + ekstensi form
         + finish + conditions. Semua baris anak lahir walau isiannya kosong."""
         req = Request(
             brand_line=payload.brand_line,
