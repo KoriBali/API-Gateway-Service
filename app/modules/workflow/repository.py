@@ -32,23 +32,41 @@ class RequestEventRepository:
         return bool(await db.scalar(stmt))
 
     @staticmethod
-    async def list_events(db: AsyncSession, request_id: str) -> list[RequestEvent]:
+    async def list_events(
+        db: AsyncSession, request_id: str, *, request_level_only: bool = False
+    ) -> list[RequestEvent]:
+        """request_level_only: buang peristiwa tingkat case (case_id terisi)"""
         stmt = (
             select(RequestEvent)
             .where(RequestEvent.request_id == request_id)
             .order_by(RequestEvent.occurred_at, RequestEvent.id)
         )
+        if request_level_only:
+            stmt = stmt.where(RequestEvent.case_id.is_(None))
         return list((await db.execute(stmt)).scalars().all())
 
     @staticmethod
-    async def list_rounds(db: AsyncSession, request_id: str) -> list[RevisionRound]:
+    async def list_rounds(
+        db: AsyncSession, request_id: str, *, origin: RevisionOrigin | None = None
+    ) -> list[RevisionRound]:
         stmt = (
             select(RevisionRound)
             .where(RevisionRound.request_id == request_id)
             .order_by(RevisionRound.round_number)
         )
+        if origin is not None:
+            stmt = stmt.where(RevisionRound.origin == origin)
         return list((await db.execute(stmt)).scalars().all())
-
+    
+    @staticmethod
+    async def next_round_number(db: AsyncSession, request_id: str) -> int:
+        """Nomor putaran berikutnya. beruturan per request, mencakup putaran internal dan jepang"""
+        last_number = await db.scalar(
+            select(func.max(RevisionRound.round_number))
+            .where(RevisionRound.request_id == request_id)
+        )
+        return (last_number or 0) + 1
+        
     @staticmethod
     async def get_for_update(db: AsyncSession, request_id: str) -> Request | None:
         """Ambil request sambil mengunci barisnya sampai commit.
@@ -81,17 +99,14 @@ class RequestEventRepository:
         revision_round = None
         if event_type == EventType.feedback:
             # Nomor putaran berurutan per request, mencakup putaran internal dan Jepang.
-            last_number = await db.scalar(
-                select(func.max(RevisionRound.round_number))
-                .where(RevisionRound.request_id == req.id)
-            )
             revision_round = RevisionRound(
                 request_id=req.id,
-                round_number=(last_number or 0) + 1,
+                round_number=await RequestEventRepository.next_round_number(db, req.id),
                 work_scope=work_scope,
                 origin=RevisionOrigin.japan_correction,
                 trigger_note=feedback_note,
             )
+
             db.add(revision_round)
 
         req.status = new_status

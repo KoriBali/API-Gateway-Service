@@ -8,7 +8,7 @@ from app.modules.intake import permissions as intake_permissions
 from app.modules.intake.repository import RequestRepository
 from app.modules.workflow import permissions
 from app.modules.workflow.repository import RequestEventRepository
-from app.database.models.workflow import EventType
+from app.database.models.workflow import EventType, RevisionOrigin
 from app.modules.workflow.schemas import (
     CancelCreate,
     FeedbackCreate,
@@ -72,7 +72,9 @@ async def list_request_events(
     actor: CurrentUser = Depends(_READ_ROLE),
 ):
     await _load_readable(db, request_id, actor)
-    rows = await RequestEventRepository.list_events(db, request_id)
+    rows = await RequestEventRepository.list_events(
+        db, request_id, request_level_only=actor.role == "yoshimoto_reviewer"
+    )
     return success_response(
         data=[RequestEventRead.model_validate(e) for e in rows],
         message="Request events retrieved",
@@ -86,7 +88,10 @@ async def list_revision_rounds(
     actor: CurrentUser = Depends(_READ_ROLE),
 ):
     await _load_readable(db, request_id, actor)
-    rows = await RequestEventRepository.list_rounds(db, request_id)
+    rows = await RequestEventRepository.list_rounds(
+        db, request_id,
+        origin=RevisionOrigin.japan_correction if actor.role == "yoshimoto_reviewer" else None
+    )
     return success_response(
         data=[RevisionRoundRead.model_validate(r) for r in rows],
         message="Revision rounds retrieved",
