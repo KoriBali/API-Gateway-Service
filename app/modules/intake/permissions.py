@@ -35,10 +35,11 @@ def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
 def can_read_request(
     actor: CurrentUser, request: Request, *, ever_submitted: bool = False, assigned: bool = False,
 ) -> bool:
-    """Read-scoping request (dipakai router intake, calculation, workflow, assignment).
+    """Read-scoping request (dipakai router intake, calculation, drawing, case, workflow, assignment).
     superadmin: semua; admin_department: hanya departemen penanggung jawab-nya;
-    yoshimoto_reviewer: request yang pernah di-submit, lintas department (V6, V7);
-    selain itu: record miliknya, atau request tempat ia pernah punya assignment.
+    yoshimoto_reviewer: request yang pernah di-submit, lintas department;
+    drafter_checker: seluruh request departemennya, karena pemeriksaan tidak memerlukan
+    assignment; selain itu: record miliknya, atau request tempat ia pernah punya assignment.
     ever_submitted dan assigned dihitung is_readable; pemanggil sinkron cukup memakai default."""
     if actor.role == "superadmin":
         return True
@@ -47,7 +48,11 @@ def can_read_request(
             request.responsible_department_id == actor.department_id
     if actor.role == "yoshimoto_reviewer":
         return ever_submitted
+    if actor.role == "drafter_checker" and actor.department_id is not None \
+            and request.responsible_department_id == actor.department_id:
+        return True
     return request.created_by_user_id == actor.id or assigned
+
 
 
 

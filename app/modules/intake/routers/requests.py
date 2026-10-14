@@ -110,6 +110,7 @@ async def list_requests(
     offset: int = Query(default=0, ge=0),
     status_filter: RequestStatus | None = Query(default=None, alias="status"),
     has_active_worker: bool | None = Query(default=None, alias="hasActiveWorker"),
+    has_case_without_active_owner: bool | None = Query(default=None, alias="hasCaseWithoutActiveOwner"),
 ):
     rows, total = await RequestRepository.list_scoped(
         db,
@@ -128,6 +129,7 @@ async def list_requests(
         offset=offset,
         status=status_filter,
         has_active_worker=has_active_worker,
+        has_case_without_active_owner=has_case_without_active_owner,
     )
     items = [RequestRead.model_validate(r) for r in rows]
     return success_response(

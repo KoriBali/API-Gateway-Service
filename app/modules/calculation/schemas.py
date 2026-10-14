@@ -1,4 +1,7 @@
-from pydantic import ConfigDict, model_validator
+from typing import Annotated
+
+from pydantic import ConfigDict, StringConstraints, model_validator
+
 
 from app.utils.base_schema import CamelBaseModel, snake_to_camel
 
@@ -21,10 +24,14 @@ class CalculateRequest(CamelBaseModel):
 
 
 
-# ===== Save Draft =====
-class CalculationCaseUpsert(CamelBaseModel):
-    title: str | None = None
-    pole_kind: PoleKind | None = None
+# ===== Calculation Case =====
+# Judul case. Kosong saat create = diisi dari requests.subject
+CaseTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+
+
+class CalculationCaseFields(CamelBaseModel):
+    """Field skalar case yang diisi owner. Dipakai bersama Create dan Update."""
+    title: CaseTitle | None = None
     pole_standard_id: str | None = None
     pole_standard_height_id: str | None = None
     pole_combination_id: str | None = None
@@ -40,15 +47,26 @@ class CalculationCaseUpsert(CamelBaseModel):
     openings: list[dict] | None = None
     baseplates: list[dict] | None = None
     foundations: list[dict] | None = None
-    
+
+
+class CalculationCaseCreate(CalculationCaseFields):
+    # Dipilih drafter saat case dibuat, tanpa nilai bawaan
+    pole_kind: PoleKind
+
+
+class CalculationCaseUpdate(CalculationCaseFields):
+    pole_kind: PoleKind | None = None
+
     @model_validator(mode="after")
-    def _pole_kind_not_null(self):
-        if "pole_kind" in self.model_fields_set and self.pole_kind is None:
-            raise ValueError("poleKind cannot be null")
+    def _not_null(self):
+        # Kolom NOT NULL: tidak dikirim boleh, dikirim null ditolak.
+        for field in ("title", "pole_kind"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{snake_to_camel(field)} cannot be null")
         return self
 
 
-# ===== Save Draft =====
+
 class CalculationCaseRead(CamelBaseModel):
     id: str
     request_id: str

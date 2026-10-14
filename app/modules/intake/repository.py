@@ -22,6 +22,7 @@ from app.database.models.master import PoleCategory, Region, DesignStandard, Mat
 from app.modules.workflow.repository import RequestEventRepository
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.repository import AssignmentRepository
+from app.modules.case.repository import CaseRepository
 from app.modules.intake.schemas import (
     ProjectCreate,
     RequestCreate,
@@ -200,6 +201,7 @@ class RequestRepository:
         due_to: date | None = None,
         status: RequestStatus | None = None,
         has_active_worker: bool | None = None,
+        has_case_without_active_owner: bool | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Request], int]:
@@ -217,11 +219,16 @@ class RequestRepository:
             # Lintas department, hanya request yang pernah di-submit (V7)
             stmt = stmt.where(RequestEventRepository.ever_submitted_clause())
         else:
-            # Pembuat, atau pernah di-assign (aktif maupun released). Sama dengan is_readable.
-            stmt = stmt.where(or_(
+            # Pembuat, atau pernah di-assign (aktif maupun released). drafter_checker juga
+            # seluruh request departemennya. Sama dengan is_readable.
+            scope = [
                 Request.created_by_user_id == actor_id,
                 AssignmentRepository.assigned_clause(actor_id),
-            ))
+            ]
+            if role == "drafter_checker" and actor_department_id is not None:
+                scope.append(Request.responsible_department_id == actor_department_id)
+            stmt = stmt.where(or_(*scope))
+
 
         # Filter opsional
         if brand_line is not None:
@@ -246,6 +253,10 @@ class RequestRepository:
             # Penyaring request tanpa pengerja aktif (DD BAB 13), selalu dihitung dari data.
             clause = AssignmentRepository.active_worker_clause()
             stmt = stmt.where(clause if has_active_worker else ~clause)
+        if has_case_without_active_owner is not None:
+            # Penyaring case tanpa owner aktif (DD BAB 13): case perlu dialihkan.
+            clause = CaseRepository.without_active_owner_clause()
+            stmt = stmt.where(clause if has_case_without_active_owner else ~clause)
 
         # Total
         total = await db.scalar(
