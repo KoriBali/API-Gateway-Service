@@ -36,6 +36,9 @@ from app.modules.calculation.routers import router as calculationRouter
 # Drawing
 from app.modules.drawing.routers import router as drawingRouter
 
+# Case: ringkasan, peristiwa tingkat case, antrean pemeriksaan
+from app.modules.case.routers import router as caseRouter
+
 # setup logging saat app start
 setup_logging()
 
@@ -93,6 +96,9 @@ app.include_router(calculationRouter)
 
 # Drawing
 app.include_router(drawingRouter)
+
+# Case
+app.include_router(caseRouter)
 
 
 
