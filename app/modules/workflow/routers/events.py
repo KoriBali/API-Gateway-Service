@@ -142,7 +142,7 @@ async def submit_request(
     # admin_department hanya bisa membaca request departemennya, jadi is_readable
     # sekaligus menjaga batas department.
     req = await _load_for_event(db, request_id, actor, EventType.submit)
-    # Satu-satunya pintu yang dikunci (DD BAB 2). Dinilai dari data, di bawah kunci request.
+    # Satu-satunya pintu yang dikunci. Dinilai dari data, di bawah kunci request.
     state = await gate.evaluate(db, req)
     if not state.can_submit:
         raise HTTPException(

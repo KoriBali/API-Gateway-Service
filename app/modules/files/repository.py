@@ -6,12 +6,15 @@ from sqlalchemy.orm import selectinload
 
 from app.database.models.intake import Request
 from app.database.models.workflow import (
+    DeliverableSubtype,
     EventType,
     FileRole,
     FileVersion,
+    LifecycleStatus,
     RefKind,
     RequestEvent,
     RequestFile,
+    RevisionRound,
     WorkType,
 )
 from app.modules.case.tables import CASE_FILE_FK
@@ -106,7 +109,27 @@ class FileRepository:
             .where(RequestFile.request_id == request_id, FileVersion.storage_ref.is_not(None))
         )
         return [*own.all(), *versioned.all()]
+    
+    @staticmethod
+    async def storage_refs_for_case(db: AsyncSession, work_type: WorkType, case_id: str) -> list[str]:
+        """Objek storage deliverable sebuah case, dibaca sebelum case dihapus."""
+        rows = await db.scalars(
+            select(FileVersion.storage_ref)
+            .join(RequestFile, RequestFile.id == FileVersion.request_file_id)
+            .where(CASE_FILE_FK[work_type] == case_id, FileVersion.storage_ref.is_not(None))
+        )
+        return list(rows.all())
 
+    @staticmethod
+    async def latest_round_id(db: AsyncSession, request_id: str) -> str | None:
+        """Putaran revisi terbaru dari asal mana pun: putaran yang melahirkan versi baru
+        Kosong sebelum putaran pertama."""
+        return await db.scalar(
+            select(RevisionRound.id)
+            .where(RevisionRound.request_id == request_id)
+            .order_by(RevisionRound.round_number.desc())
+            .limit(1)
+        )
 
     # ===== Tulis =====
     @staticmethod
@@ -134,3 +157,61 @@ class FileRepository:
         db.add(row)
         await db.commit()
         return await FileRepository.get_in_request(db, request_id, row.id, refresh=True)
+
+    @staticmethod
+    async def create_versioned(
+        db: AsyncSession,
+        *,
+        request_id: str,
+        uploader_id: str,
+        file_role: FileRole,
+        file_name: str,
+        storage_ref: str,
+        calculation_case_id: str | None = None,
+        drawing_case_id: str | None = None,
+        deliverable_subtype: DeliverableSubtype | None = None,
+    ) -> RequestFile:
+        """Satu transaksi: identitas berkas dan versi pertamanya. Lokasi fisik dicatat di versi,
+        request_files.storage_ref dibiarkan kosong (invariant berkas 5)."""
+        row = RequestFile(
+            request_id=request_id,
+            uploaded_by_user_id=uploader_id,
+            file_role=file_role,
+            calculation_case_id=calculation_case_id,
+            drawing_case_id=drawing_case_id,
+            deliverable_subtype=deliverable_subtype,
+            file_name=file_name,
+        )
+        db.add(row)
+        await db.flush()
+        db.add(FileVersion(
+            request_file_id=row.id,
+            revision_round_id=await FileRepository.latest_round_id(db, request_id),
+            version_no=1,
+            lifecycle_status=LifecycleStatus.active,
+            storage_ref=storage_ref,
+            uploaded_by_user_id=uploader_id,
+        ))
+        await db.commit()
+        return await FileRepository.get_in_request(db, request_id, row.id, refresh=True)
+
+    @staticmethod
+    async def add_version(
+        db: AsyncSession, f: RequestFile, previous: FileVersion, *, uploader_id: str, storage_ref: str,
+    ) -> RequestFile:
+        """Satu transaksi: versi sebelumnya menjadi obsolete, versi baru aktif dan menunjuknya.
+        Pemanggil wajib sudah mengunci request dan memastikan previous masih aktif."""
+        previous.lifecycle_status = LifecycleStatus.obsolete
+        # Flush dulu: unique partial index hanya mengizinkan satu versi aktif per berkas.
+        await db.flush()
+        db.add(FileVersion(
+            request_file_id=f.id,
+            revision_round_id=await FileRepository.latest_round_id(db, f.request_id),
+            version_no=max(v.version_no for v in f.versions) + 1,
+            lifecycle_status=LifecycleStatus.active,
+            previous_version_id=previous.id,
+            storage_ref=storage_ref,
+            uploaded_by_user_id=uploader_id,
+        ))
+        await db.commit()
+        return await FileRepository.get_in_request(db, f.request_id, f.id, refresh=True)

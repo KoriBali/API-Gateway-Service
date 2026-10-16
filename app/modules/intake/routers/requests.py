@@ -70,7 +70,7 @@ async def _ensure_material_exists(db: AsyncSession, material_id: str | None) -> 
 
 
 def _ensure_drawing_fields(design_type, region_id, drawing_type) -> None:
-    """DD invariant intake 11, diperiksa pada keadaan SESUDAH perubahan."""
+    """diperiksa pada keadaan SESUDAH perubahan."""
     if design_type in DRAWING_DESIGN_TYPES and (region_id is None or drawing_type is None):
         raise _unprocessable(
             "sharedDetails.regionId and sharedDetails.drawingType are required "

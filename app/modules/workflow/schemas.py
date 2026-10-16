@@ -73,7 +73,7 @@ class UncheckedCaseRead(CamelBaseModel):
 
 
 class SubmitGateRead(CamelBaseModel):
-    """Keadaan gerbang submit siklus berjalan (DD BAB 13), beserta keterangan yang menahannya."""
+    """Keadaan gerbang submit siklus berjalan, beserta keterangan yang menahannya."""
     can_submit: bool
     # Syarat 1 sampai 3 terpenuhi. Sama dengan rumus status prevention_check.
     prevention_check_ready: bool

@@ -9,6 +9,8 @@ from app.modules.intake.repository import RequestRepository
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.case import permissions as case_permissions
 from app.modules.case.repository import CaseRepository
+from app.modules.files.repository import FileRepository
+from app.modules.files import storage
 from app.modules.drawing.repository import DrawingCaseRepository
 from app.modules.drawing.schemas import DrawingCaseCreate, DrawingCaseRead, DrawingCaseUpdate
 from app.database.models.workflow import WorkType
@@ -143,5 +145,8 @@ async def delete_drawing_case(
             status_code=status.HTTP_409_CONFLICT,
             detail="A case that has been checked cannot be deleted",
         )
+    # Deliverable case ikut terhapus (CASCADE), objek storage-nya dibersihkan sesudah commit.
+    storage_refs = await FileRepository.storage_refs_for_case(db, WorkType.drawing, case.id)
     await DrawingCaseRepository.delete(db, req, case)
+    await storage.discard(storage_refs)
     return success_response(data={"deleted": True}, message="Drawing case deleted")
