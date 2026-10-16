@@ -86,6 +86,14 @@ class FileRepository:
         return set(rows.all())
 
     @staticmethod
+    async def events_in_request(db: AsyncSession, request_id: str, event_ids: list[str]) -> list[RequestEvent]:
+        rows = await db.scalars(
+            select(RequestEvent).where(RequestEvent.id.in_(event_ids), RequestEvent.request_id == request_id)
+        )
+        return list(rows.all())
+
+
+    @staticmethod
     def cover_clause():
         """Kondisi SQL 'request ini punya berkas reference jenis request_cover'.
         Berkorelasi ke Request.id, dipakai di WHERE query daftar request (invariant intake 6)."""
@@ -215,3 +223,31 @@ class FileRepository:
         ))
         await db.commit()
         return await FileRepository.get_in_request(db, f.request_id, f.id, refresh=True)
+    
+    @staticmethod
+    async def create_check_results(
+        db: AsyncSession,
+        *,
+        request_id: str,
+        uploader_id: str,
+        check_event_ids: list[str],
+        file_name: str,
+        storage_ref: str,
+    ) -> list[RequestFile]:
+        """Satu berkas hasil pemeriksaan yang mencakup beberapa case: satu baris per peristiwa
+        check, semuanya menunjuk objek yang sama. Penunjuk case
+        dibiarkan kosong; case-nya terbaca dari peristiwa yang ditempeli."""
+        rows = [
+            RequestFile(
+                request_id=request_id,
+                uploaded_by_user_id=uploader_id,
+                file_role=FileRole.check_result,
+                request_event_id=event_id,
+                file_name=file_name,
+                storage_ref=storage_ref,
+            )
+            for event_id in check_event_ids
+        ]
+        db.add_all(rows)
+        await db.commit()
+        return [await FileRepository.get_in_request(db, request_id, row.id, refresh=True) for row in rows]

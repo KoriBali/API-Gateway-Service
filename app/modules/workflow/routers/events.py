@@ -116,6 +116,8 @@ def _gate_read(state: gate.GateState) -> SubmitGateRead:
         pending_items=state.pending_items,
         missing_work_types=state.missing_work_types,
         unchecked_cases=[vars(c) for c in state.unchecked_cases],
+        cases_without_check_result=[vars(c) for c in state.cases_without_check_result],
+        cases_without_deliverable=[vars(c) for c in state.cases_without_deliverable],
     )
 
 

@@ -83,3 +83,7 @@ class SubmitGateRead(CamelBaseModel):
     pending_items: int
     missing_work_types: list[WorkType]
     unchecked_cases: list[UncheckedCaseRead]
+    # Syarat 4: case manual yang check-nya di siklus ini belum membawa berkas hasil pemeriksaan.
+    cases_without_check_result: list[UncheckedCaseRead]
+    # Keterangan saja, tidak menahan submit.
+    cases_without_deliverable: list[UncheckedCaseRead]

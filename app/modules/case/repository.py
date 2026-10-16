@@ -10,15 +10,19 @@ from app.database.models.workflow import (
     AssignmentStatus,
     CheckResult,
     EventType,
+    FileRole,
+    FileVersion,
+    LifecycleStatus,
     RequestAssignment,
     RequestEvent,
+    RequestFile,
     RevisionOrigin,
     RevisionRound,
     WorkType,
 )
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.workflow.gate import apply_prevention_status
-from app.modules.case.tables import CASE_MODEL, ROUND_SCOPE
+from app.modules.case.tables import CASE_FILE_FK, CASE_MODEL, ROUND_SCOPE
 
 
 
@@ -34,6 +38,17 @@ class CheckState:
         if self.ready_event is None:
             return False
         return self.check_event is None or self.check_event.occurred_at < self.ready_event.occurred_at
+    
+    
+@dataclass
+class DeliverableState:
+    """Deliverable satu case: ada tidaknya versi aktif, dan waktu unggah versi terbaru."""
+    has_active: bool = False
+    last_uploaded_at: datetime | None = None
+
+    def newer_than(self, moment: datetime | None) -> bool:
+        """Ada versi yang lahir sesudah moment (siap dicek atau diperiksa terakhir)."""
+        return moment is not None and self.last_uploaded_at is not None and self.last_uploaded_at > moment
     
 
 
@@ -82,6 +97,34 @@ class CaseRepository:
                 state.ready_event = event
             else:
                 state.check_event = event
+        return states
+    
+    @staticmethod
+    async def deliverable_states(
+        db: AsyncSession, request_ids: list[str],
+    ) -> dict[tuple[WorkType, str], DeliverableState]:
+        """Keadaan deliverable tiap case di request-request ini, kunci (work_type, case_id).
+        Sumber keterangan "ada versi baru sesudah siap dicek atau sesudah diperiksa"""
+        states: dict[tuple[WorkType, str], DeliverableState] = {}
+        if not request_ids:
+            return states
+        for work_type, column in CASE_FILE_FK.items():
+            stmt = (
+                select(
+                    column,
+                    func.bool_or(FileVersion.lifecycle_status == LifecycleStatus.active),
+                    func.max(FileVersion.uploaded_at),
+                )
+                .join(FileVersion, FileVersion.request_file_id == RequestFile.id)
+                .where(
+                    RequestFile.request_id.in_(request_ids),
+                    RequestFile.file_role == FileRole.deliverable,
+                    column.is_not(None),
+                )
+                .group_by(column)
+            )
+            for case_id, has_active, last_uploaded_at in (await db.execute(stmt)).all():
+                states[(work_type, case_id)] = DeliverableState(bool(has_active), last_uploaded_at)
         return states
         
     @staticmethod

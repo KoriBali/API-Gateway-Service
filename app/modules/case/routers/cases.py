@@ -8,7 +8,7 @@ from app.modules.intake import permissions as intake_permissions
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.workflow.schemas import RequestEventRead, RequestEventResult, RevisionRoundRead
 from app.modules.case import permissions
-from app.modules.case.repository import CaseRepository
+from app.modules.case.repository import CaseRepository, DeliverableState
 from app.modules.case.schemas import CaseSummaryRead, CheckCreate, OwnershipTransferCreate
 from app.database.models.workflow import EventType, WorkType
 
@@ -64,12 +64,14 @@ async def list_cases(
     states = await CaseRepository.check_states(db, request_id)
     active = await CaseRepository.active_assignments(db, request_id)
     cycle_start = await CaseRepository.cycle_start(db, request_id)
+    deliverables = await CaseRepository.deliverable_states(db, [request_id])
 
     items = []
     for work_type, case in cases:
         state = states.get((work_type, case.id))
         ready = state.ready_event if state else None
         check = state.check_event if state else None
+        deliverable = deliverables.get((work_type, case.id), DeliverableState())
         items.append(CaseSummaryRead(
             id=case.id,
             work_type=work_type,
@@ -82,11 +84,17 @@ async def list_cases(
             owner_has_active_assignment=(case.owner_user_id, work_type) in active,
             ready_for_check_at=ready.occurred_at if ready else None,
             ready_for_check_by_user_id=ready.actor_user_id if ready else None,
+            
             last_check_at=check.occurred_at if check else None,
             last_check_result=check.check_result if check else None,
             last_checked_by_user_id=check.actor_user_id if check else None,
             in_check_queue=bool(state and state.in_check_queue),
             checked_in_current_cycle=check is not None and (cycle_start is None or check.occurred_at > cycle_start),
+            has_active_deliverable=deliverable.has_active,
+            last_deliverable_uploaded_at=deliverable.last_uploaded_at,
+            new_version_after_ready_for_check=deliverable.newer_than(ready.occurred_at if ready else None),
+            new_version_after_check=deliverable.newer_than(check.occurred_at if check else None),
+
             created_at=case.created_at,
             updated_at=case.updated_at,
         ))

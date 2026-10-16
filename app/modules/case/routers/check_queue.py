@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
-from app.modules.case.repository import CaseRepository
+from app.modules.case.repository import CaseRepository, DeliverableState
 from app.modules.case.schemas import CheckQueueItemRead
 
 routerCheckQueue = APIRouter(prefix="/api/check-queue", tags=["Case Workflow"])
@@ -31,6 +31,7 @@ async def list_check_queue(
             limit=limit,
             offset=offset,
         )
+    deliverables = await CaseRepository.deliverable_states(db, list({req.id for _, req, _ in rows}))
     items = [
         CheckQueueItemRead(
             request_id=req.id,
@@ -44,6 +45,9 @@ async def list_check_queue(
             owner=case.owner_user,
             ready_for_check_at=event.occurred_at,
             ready_for_check_by_user_id=event.actor_user_id,
+            new_version_after_ready_for_check=deliverables.get(
+                (event.work_type, case.id), DeliverableState()
+            ).newer_than(event.occurred_at),
         )
         for event, req, case in rows
     ]
