@@ -13,6 +13,8 @@ from app.modules.workflow.gate import PRE_SUBMIT_STATUSES, current_checklist
 from app.modules.checklist.repository import ChecklistRepository, MasterItemRepository
 from app.modules.intake.request_no import RequestNoWarning, parse_request_no, tail_matches_brand
 from app.modules.intake.repository import ProjectRepository, RequestRepository
+from app.modules.files.repository import FileRepository
+from app.modules.files import storage
 from app.database.models.intake import (
     BrandLine,
     RequestStatus,
@@ -139,6 +141,7 @@ async def list_requests(
     status_filter: RequestStatus | None = Query(default=None, alias="status"),
     has_active_worker: bool | None = Query(default=None, alias="hasActiveWorker"),
     has_case_without_active_owner: bool | None = Query(default=None, alias="hasCaseWithoutActiveOwner"),
+    has_cover: bool | None = Query(default=None, alias="hasCover"),
 ):
     rows, total = await RequestRepository.list_scoped(
         db,
@@ -158,6 +161,7 @@ async def list_requests(
         status=status_filter,
         has_active_worker=has_active_worker,
         has_case_without_active_owner=has_case_without_active_owner,
+        has_cover=has_cover,
     )
     items = [RequestRead.model_validate(r) for r in rows]
     return success_response(
@@ -417,5 +421,8 @@ async def delete_request(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="Only requests that were never submitted can be deleted")
 
+    # Baris berkas ikut terhapus (CASCADE), objek storage-nya dibersihkan sesudah commit.
+    storage_refs = await FileRepository.storage_refs_for_request(db, req.id)
     await RequestRepository.delete(db, req)
+    await storage.discard(storage_refs)
     return success_response(data={"deleted": True}, message="Request deleted")

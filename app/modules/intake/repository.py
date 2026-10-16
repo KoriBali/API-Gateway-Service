@@ -23,6 +23,7 @@ from app.modules.workflow.repository import RequestEventRepository
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.case.repository import CaseRepository
+from app.modules.files.repository import FileRepository
 from app.modules.assignment.permissions import WORK_TYPES_OF
 from app.modules.checklist.repository import ChecklistRepository
 from app.modules.workflow.gate import PRE_SUBMIT_STATUSES, apply_prevention_status, current_checklist
@@ -205,6 +206,7 @@ class RequestRepository:
         status: RequestStatus | None = None,
         has_active_worker: bool | None = None,
         has_case_without_active_owner: bool | None = None,
+        has_cover: bool | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Request], int]:
@@ -260,6 +262,11 @@ class RequestRepository:
             # Penyaring case tanpa owner aktif: case perlu dialihkan.
             clause = CaseRepository.without_active_owner_clause()
             stmt = stmt.where(clause if has_case_without_active_owner else ~clause)
+        if has_cover is not None:
+            # Penjaga invariant intake: request tanpa berkas cover (reference request_cover).
+            clause = FileRepository.cover_clause()
+            stmt = stmt.where(clause if has_cover else ~clause)
+
 
         # Total
         total = await db.scalar(
