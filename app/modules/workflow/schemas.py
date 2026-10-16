@@ -73,7 +73,7 @@ class UncheckedCaseRead(CamelBaseModel):
 
 
 class SubmitGateRead(CamelBaseModel):
-    """Keadaan gerbang submit siklus berjalan (DD BAB 13), beserta keterangan yang menahannya."""
+    """Keadaan gerbang submit siklus berjalan, beserta keterangan yang menahannya."""
     can_submit: bool
     # Syarat 1 sampai 3 terpenuhi. Sama dengan rumus status prevention_check.
     prevention_check_ready: bool
@@ -83,3 +83,7 @@ class SubmitGateRead(CamelBaseModel):
     pending_items: int
     missing_work_types: list[WorkType]
     unchecked_cases: list[UncheckedCaseRead]
+    # Syarat 4: case manual yang check-nya di siklus ini belum membawa berkas hasil pemeriksaan.
+    cases_without_check_result: list[UncheckedCaseRead]
+    # Keterangan saja, tidak menahan submit.
+    cases_without_deliverable: list[UncheckedCaseRead]

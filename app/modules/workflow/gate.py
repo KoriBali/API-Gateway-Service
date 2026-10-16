@@ -8,18 +8,23 @@ from datetime import datetime
 
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.database.models.intake import Request, RequestStatus
 from app.database.models.workflow import (
     ChecklistItemStatus,
     EventType,
+    FileRole,
+    FileVersion,
+    LifecycleStatus,
     NcChecklist,
     NcChecklistItem,
     RequestEvent,
+    RequestFile,
     WorkType,
 )
 from app.modules.assignment.permissions import WORK_TYPES_OF
-from app.modules.case.tables import CASE_MODEL
+from app.modules.case.tables import CASE_FILE_FK, CASE_MODEL
 from app.modules.workflow.repository import RequestEventRepository
 
 # Status yang diisi sistem dari rumus prevention_check. Status lain hanya berubah lewat peristiwa.
@@ -44,6 +49,10 @@ class GateState:
     pending_items: int
     missing_work_types: list[WorkType] = field(default_factory=list)
     unchecked_cases: list[UncheckedCase] = field(default_factory=list)
+    # Syarat 4: case manual yang check-nya di siklus ini belum ditempeli berkas check_result.
+    cases_without_check_result: list[UncheckedCase] = field(default_factory=list)
+    # Keterangan saja: case tanpa versi aktif deliverable. Tetap wajib diperiksa (syarat 3).
+    cases_without_deliverable: list[UncheckedCase] = field(default_factory=list)
 
     @property
     def prevention_check_ready(self) -> bool:
@@ -53,11 +62,13 @@ class GateState:
 
     @property
     def can_submit(self) -> bool:
-        """Gerbang submit: syarat prevention_check ditambah tidak ada item pending.
-        Syarat 4 (berkas check_result untuk case manual) menyusul plan file management:
-        sebelum itu belum ada deliverable, jadi belum ada case manual."""
-        return self.prevention_check_ready and self.pending_items == 0
-
+        """Gerbang submit: syarat prevention_check, tidak ada item pending (syarat 1), dan setiap
+        case manual punya check di siklus ini yang ditempeli berkas check_result (syarat 4)."""
+        return (
+            self.prevention_check_ready
+            and self.pending_items == 0
+            and not self.cases_without_check_result
+        )
 
 
 async def current_checklist(db: AsyncSession, request_id: str, revision_round_id: str | None) -> NcChecklist | None:
@@ -101,18 +112,53 @@ async def evaluate(db: AsyncSession, req: Request) -> GateState:
         )
         if started_at is not None:
             checked = checked.where(RequestEvent.occurred_at > started_at)
+
+        # Case manual: minimal satu versi aktif deliverable berupa file unggahan. Dibaca saat
+        # gerbang dinilai, bukan dari kolom penanda.
+        active_deliverable = (
+            select(RequestFile.id)
+            .join(FileVersion, FileVersion.request_file_id == RequestFile.id)
+            .where(
+                CASE_FILE_FK[work_type] == model.id,
+                RequestFile.file_role == FileRole.deliverable,
+                FileVersion.lifecycle_status == LifecycleStatus.active,
+            )
+        )
+        has_deliverable = active_deliverable.exists()
+        is_manual = active_deliverable.where(FileVersion.storage_ref.is_not(None)).exists()
+
+        # Syarat 4: check di siklus ini yang ditempeli berkas check_result.
+        check_event = aliased(RequestEvent)
+        checked_with_result = exists().where(
+            check_event.request_id == req.id,
+            check_event.case_id == model.id,
+            check_event.work_type == work_type,
+            check_event.event_type == EventType.check,
+            exists().where(
+                RequestFile.request_event_id == check_event.id,
+                RequestFile.file_role == FileRole.check_result,
+            ),
+        )
+        if started_at is not None:
+            checked_with_result = checked_with_result.where(check_event.occurred_at > started_at)
+
         rows = (await db.execute(
-            select(model.id, model.title, checked)
+            select(model.id, model.title, checked, has_deliverable, is_manual, checked_with_result)
             .where(model.request_id == req.id)
             .order_by(model.created_at, model.id)
         )).all()
         # Syarat 2: keberadaan minimal satu case, bukan perbandingan jumlah (larangan 1).
         if not rows and work_type in WORK_TYPES_OF[req.design_type]:
             state.missing_work_types.append(work_type)
-        state.unchecked_cases += [
-            UncheckedCase(work_type=work_type, case_id=case_id, title=title)
-            for case_id, title, is_checked in rows if not is_checked
-        ]
+        for case_id, title, is_checked, deliverable, manual, with_result in rows:
+            case = UncheckedCase(work_type=work_type, case_id=case_id, title=title)
+            if not is_checked:
+                state.unchecked_cases.append(case)
+            if manual and not with_result:
+                state.cases_without_check_result.append(case)
+            if not deliverable:
+                state.cases_without_deliverable.append(case)
+
     return state
 
 

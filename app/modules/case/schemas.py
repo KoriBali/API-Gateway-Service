@@ -19,8 +19,8 @@ OptionalText = Annotated[str, StringConstraints(strip_whitespace=True, max_lengt
 class CheckCreate(CamelBaseModel):
     check_result: CheckResult
     # Catatan temuan, disimpan di request_events.payload dan revision_rounds.trigger_note.
-    # Wajib untuk has_findings: berkas hasil pemeriksaan baru ada di plan file management,
-    # jadi tanpa catatan ini temuan tidak tercatat di mana pun
+    # Wajib untuk has_findings. Berkas (hasil pemeriksaan, lampiran temuan) dilampirkan sesudah
+    # peristiwa tercatat, jadi saat check dikirim belum ada berkas yang memuat temuannya
     note: OptionalText | None = None
 
     @model_validator(mode="after")
@@ -59,6 +59,12 @@ class CaseSummaryRead(CamelBaseModel):
     in_check_queue: bool
     # Sudah punya check sesudah feedback terakhir 
     checked_in_current_cycle: bool
+    
+    has_active_deliverable: bool
+    last_deliverable_uploaded_at: datetime | None = None
+    new_version_after_ready_for_check: bool
+    new_version_after_check: bool
+
     created_at: datetime
     updated_at: datetime
 
@@ -76,3 +82,5 @@ class CheckQueueItemRead(CamelBaseModel):
     owner: AssigneeRead
     ready_for_check_at: datetime
     ready_for_check_by_user_id: str
+    # Ada versi deliverable yang lahir sesudah tanda siap dicek ini.
+    new_version_after_ready_for_check: bool

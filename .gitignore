@@ -48,3 +48,6 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+# Berkas backend storage local
+var/

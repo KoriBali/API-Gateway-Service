@@ -1,3 +1,6 @@
+from typing import Literal
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import ssl
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -55,6 +58,29 @@ class Settings(BaseSettings):
     # ===== CORS =====
     # Daftar origin dipisah koma. Default dev;
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    
+    # ===== File storage =====
+    # supabase = bucket Supabase Storage (cloud). local = folder di disk, untuk dev dan skrip regresi.
+    STORAGE_BACKEND: Literal["local", "supabase"] = "local"
+    SUPABASE_URL: str = ""
+    # Service role key (legacy JWT) atau secret key (sb_secret_...). Hanya di server.
+    SUPABASE_SERVICE_KEY: str = ""
+    STORAGE_BUCKET: str = "request-files"
+    # Backend local: folder penyimpanan (relatif ke root project) dan alamat gateway
+    # yang dipakai untuk membentuk URL unduh bertanda tangan.
+    STORAGE_LOCAL_DIR: str = "var/storage"
+    STORAGE_LOCAL_BASE_URL: str = "http://localhost:9000"
+    # Batas satu berkas, sama dengan batas default bucket Supabase (50 MB).
+    FILE_MAX_BYTES: int = 50 * 1024 * 1024
+    # Umur URL unduh, dalam detik.
+    FILE_DOWNLOAD_URL_SECONDS: int = 300
+
+    @model_validator(mode="after")
+    def _storage_credentials(self):
+        # Gagal saat start, bukan saat unggahan pertama.
+        if self.STORAGE_BACKEND == "supabase" and not (self.SUPABASE_URL and self.SUPABASE_SERVICE_KEY):
+            raise ValueError("STORAGE_BACKEND=supabase requires SUPABASE_URL and SUPABASE_SERVICE_KEY")
+        return self
 
     @property
     def allowed_origins_list(self) -> list[str]:

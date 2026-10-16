@@ -8,6 +8,8 @@ from app.modules.intake import permissions as intake_permissions
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.case import permissions as case_permissions
 from app.modules.case.repository import CaseRepository
+from app.modules.files.repository import FileRepository
+from app.modules.files import storage
 from app.modules.calculation.repository import CalculationCaseRepository
 from app.modules.calculation.schemas import (
     CalculationCaseCreate,
@@ -136,5 +138,8 @@ async def delete_calculation_case(
             status_code=status.HTTP_409_CONFLICT,
             detail="A case that has been checked cannot be deleted",
         )
+    # Deliverable case ikut terhapus (CASCADE), objek storage-nya dibersihkan sesudah commit.
+    storage_refs = await FileRepository.storage_refs_for_case(db, WorkType.calculation, case.id)
     await CalculationCaseRepository.delete(db, req, case)
+    await storage.discard(storage_refs)
     return success_response(data={"deleted": True}, message="Calculation case deleted")

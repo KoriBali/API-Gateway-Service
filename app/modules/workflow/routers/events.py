@@ -116,6 +116,8 @@ def _gate_read(state: gate.GateState) -> SubmitGateRead:
         pending_items=state.pending_items,
         missing_work_types=state.missing_work_types,
         unchecked_cases=[vars(c) for c in state.unchecked_cases],
+        cases_without_check_result=[vars(c) for c in state.cases_without_check_result],
+        cases_without_deliverable=[vars(c) for c in state.cases_without_deliverable],
     )
 
 
@@ -142,7 +144,7 @@ async def submit_request(
     # admin_department hanya bisa membaca request departemennya, jadi is_readable
     # sekaligus menjaga batas department.
     req = await _load_for_event(db, request_id, actor, EventType.submit)
-    # Satu-satunya pintu yang dikunci (DD BAB 2). Dinilai dari data, di bawah kunci request.
+    # Satu-satunya pintu yang dikunci. Dinilai dari data, di bawah kunci request.
     state = await gate.evaluate(db, req)
     if not state.can_submit:
         raise HTTPException(
