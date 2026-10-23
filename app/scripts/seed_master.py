@@ -52,7 +52,7 @@ DESIGN_STANDARDS = {
         {"name": "Tower Standard"},
         {"name": "Haiden"},
     ],
-    "lighting-pole": [
+    "lighting": [
         {
             "name": "JIL",
             "defaultWindSpeed": 60,
@@ -93,15 +93,24 @@ TAPER_HEIGHTS_A = {
     "under_gl": [4800, 5300, 8300, 10300, 12300],
 }
 
+
+def _offset_heights(heights, delta):
+    return {gp: [h + delta for h in values] for gp, values in heights.items()}
+
+
+# Type-L dan Type-T: height = seri dasar + 100 mm (on_gl maupun under_gl).
+TAPER_HEIGHTS_S_PLUS_100 = _offset_heights(TAPER_HEIGHTS_S, 100)
+TAPER_HEIGHTS_A_PLUS_100 = _offset_heights(TAPER_HEIGHTS_A, 100)
+
 # code -> (label untuk ditampilkan, set height).
 # CATATAN: TA sengaja memakai seri S (sesuai HEIGHT_OPTIONS_BY_STANDARD di frontend).
 TAPER_POLES = {
     "IS": {"label": "Type-I (IS)", "heights": TAPER_HEIGHTS_S},
     "IA": {"label": "Type-I (IA)", "heights": TAPER_HEIGHTS_A},
-    "LS": {"label": "Type-L (LS)", "heights": TAPER_HEIGHTS_S},
-    "LA": {"label": "Type-L (LA)", "heights": TAPER_HEIGHTS_A},
-    "TS": {"label": "Type-T (TS)", "heights": TAPER_HEIGHTS_S},
-    "TA": {"label": "Type-T (TA)", "heights": TAPER_HEIGHTS_S},
+    "LS": {"label": "Type-L (LS)", "heights": TAPER_HEIGHTS_S_PLUS_100},
+    "LA": {"label": "Type-L (LA)", "heights": TAPER_HEIGHTS_A_PLUS_100},
+    "TS": {"label": "Type-T (TS)", "heights": TAPER_HEIGHTS_S_PLUS_100},
+    "TA": {"label": "Type-T (TA)", "heights": TAPER_HEIGHTS_S_PLUS_100},
 }
 
 
@@ -324,17 +333,17 @@ async def _seed_design_standards(db):
 # Pole Standard = Straight
 async def _seed_straight_pole(db):
 
-    # Check category "lighting-pole" 
+    # Check category "lighting" 
     res = await db.execute(
         select(PoleCategory).where(
-            PoleCategory.name == "lighting-pole"
+            PoleCategory.name == "lighting"
         )
     )
 
     category = res.scalar_one_or_none()
 
     if category is None:
-        category = PoleCategory(name="lighting-pole")
+        category = PoleCategory(name="lighting")
         db.add(category)
         await db.flush()
 
@@ -431,14 +440,14 @@ async def _seed_straight_pole(db):
 # Pole Standard = Taper
 async def _seed_taper_pole(db):
 
-    # Pastikan category "lighting-pole" ada (dipakai bersama straight)
+    # Pastikan category "lighting" ada (dipakai bersama straight)
     res = await db.execute(
-        select(PoleCategory).where(PoleCategory.name == "lighting-pole")
+        select(PoleCategory).where(PoleCategory.name == "lighting")
     )
     category = res.scalar_one_or_none()
 
     if category is None:
-        category = PoleCategory(name="lighting-pole")
+        category = PoleCategory(name="lighting")
         db.add(category)
         await db.flush()
 

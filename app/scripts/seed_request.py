@@ -80,7 +80,7 @@ REQUESTS = [
     # budi (drafter/YSG)
     {
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
-        "pole_category": "lighting-pole", "design_standard": "JIL",
+        "pole_category": "lighting", "design_standard": "JIL",
         "request_no": "EPJ100001-1", "pj_no": "100001",
         "request_type": RequestType.general, "design_type": DesignType.drawing,
         "request_classification": RequestClassification.new,
@@ -135,7 +135,7 @@ REQUESTS = [
     # dewi (drafter/YSC) -> department berbeda, menguji scope lintas-department
     {
         "creator": "dewi", "project": 2, "brand_line": BrandLine.ys,
-        "pole_category": "lighting-pole", "design_standard": "JIL",
+        "pole_category": "lighting", "design_standard": "JIL",
         "request_no": "YSE-26-0001", "pj_no": "20001",
         "request_type": RequestType.general, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.new,
