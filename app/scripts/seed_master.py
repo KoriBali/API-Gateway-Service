@@ -85,12 +85,12 @@ STRAIGHT_THICKNESS = {"40": [3.5, 4.5, 6.0], "50": [3.5, 4.5, 6.6], "60": [3.7, 
 # ===== Pole Standard = Taper =====
 # Height dibedakan per ground position (mengikuti konstanta frontend).
 TAPER_HEIGHTS_S = {
-    "on_gl": [8.0, 10.0, 12.0],
-    "under_gl": [8.3, 10.3, 12.3],
+    "on_gl": [8000, 10000, 12000],
+    "under_gl": [8300, 10300, 12300],
 }
 TAPER_HEIGHTS_A = {
-    "on_gl": [4.5, 5.0, 8.0, 10.0, 12.0],
-    "under_gl": [4.8, 5.3, 8.3, 10.3, 12.3],
+    "on_gl": [4500, 5000, 8000, 10000, 12000],
+    "under_gl": [4800, 5300, 8300, 10300, 12300],
 }
 
 # code -> (label untuk ditampilkan, set height).

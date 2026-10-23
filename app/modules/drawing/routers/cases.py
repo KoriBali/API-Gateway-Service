@@ -83,18 +83,21 @@ async def create_drawing_case(
     # Kunci request: case baru ikut menentukan status prevention_check.
     req = await case_permissions.load_readable_request(db, request_id, actor, for_update=True)
     await case_permissions.ensure_can_create(db, actor, req, WorkType.drawing)
+    conditions = await RequestRepository.get_conditions(db, WorkType.drawing, req.id)
+    if conditions is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Drawing conditions must be defined before creating a drawing case",
+        )
 
     data = payload.model_dump(exclude_unset=True)
     # Isian awal satu arah, hanya saat create: judul dari subject (G5),
-    # tipe drawing dari request_shared_details (G8).
+    # tipe drawing dari drawing conditions (G8), bukan dari referensi sharedDetails.
     data["title"] = payload.title or req.subject
     if not data["title"]:
         raise _unprocessable("title is required because the request has no subject")
     if payload.drawing_type is None:
-        shared = await RequestRepository.get_shared_details(db, req.id)
-        data["drawing_type"] = shared.drawing_type if shared else None
-        if data["drawing_type"] is None:
-            raise _unprocessable("drawingType is required because the request has no sharedDetails.drawingType")
+        data["drawing_type"] = conditions.drawing_type
     await _ensure_calculation_ref(db, req.id, data)
 
     case = await DrawingCaseRepository.create(db, req, owner_user_id=actor.id, data=data)

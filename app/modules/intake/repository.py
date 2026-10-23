@@ -17,7 +17,8 @@ from app.database.models.intake import (
     RequestYsDetails,
     RequestFinish,
 )
-from app.database.models.calculation import Condition
+from app.database.models.calculation import CalculationCondition
+from app.database.models.drawing import DrawingCondition
 from app.database.models.master import PoleCategory, Region, DesignStandard, Material
 from app.modules.workflow.repository import RequestEventRepository
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
@@ -35,8 +36,12 @@ from app.modules.intake.schemas import (
     YpDetailsWrite,
     YsDetailsWrite,
     FinishWrite,
-    ConditionsUpdate,
+    CalculationConditionsCreate,
+    CalculationConditionsUpdate,
+    DrawingConditionsCreate,
+    DrawingConditionsUpdate,
 )
+
 
 
 _REQUEST_EDITABLE = (
@@ -49,7 +54,15 @@ _SHARED_EDITABLE = tuple(SharedDetailsWrite.model_fields)
 _YP_EDITABLE = tuple(YpDetailsWrite.model_fields)
 _YS_EDITABLE = tuple(YsDetailsWrite.model_fields)
 _FINISH_EDITABLE = tuple(FinishWrite.model_fields)
-_CONDITIONS_EDITABLE = ("design_standard_id", "wind_speed", "air_density")
+# Tabel conditions per work type
+CONDITION_MODEL = {
+    WorkType.calculation: CalculationCondition,
+    WorkType.drawing: DrawingCondition,
+}
+_CONDITION_EDITABLE = {
+    WorkType.calculation: ("design_standard_id", "wind_speed", "air_density"),
+    WorkType.drawing: ("region_id", "drawing_type")
+}
 
 
 def _apply(row, data: dict, fields: tuple[str, ...]) -> None:
@@ -137,7 +150,7 @@ class RequestRepository:
 
     @staticmethod
     async def get_detail(db: AsyncSession, request_id: str) -> Request | None:
-        """Request + tabel bersama + ekstensi form + finish + conditions."""
+        """Request + tabel bersama + ekstensi form + finish + kondisi kedua work type"""
         result = await db.execute(
             select(Request)
             .where(Request.id == request_id)
@@ -146,7 +159,8 @@ class RequestRepository:
                 selectinload(Request.yp_details),
                 selectinload(Request.ys_details),
                 selectinload(Request.finish),
-                selectinload(Request.conditions),
+                selectinload(Request.calculation_conditions),
+                selectinload(Request.drawing_conditions),
             )
             .execution_options(populate_existing=True)
         )
@@ -288,8 +302,8 @@ class RequestRepository:
         responsible_department_id: str,
         assignments: list[tuple[str, WorkType]],
     ) -> Request:
-        """Intake dalam SATU transaksi: request + tabel bersama + ekstensi form
-        + finish + conditions. Semua baris anak lahir walau isiannya kosong."""
+        """Intake dalam SATU transaksi: request + tabel shared + ekstensi form
+        + finish. Semua baris anak lahir walau isiannya kosong"""
         req = Request(
             brand_line=payload.brand_line,
             responsible_department_id=responsible_department_id,
@@ -308,7 +322,6 @@ class RequestRepository:
         else:
             db.add(RequestYsDetails(request_id=req.id, brand_line=BrandLine.ys, **_dump(payload.ys_details)))
         db.add(RequestFinish(request_id=req.id, **_dump(payload.finish)))
-        db.add(Condition(request_id=req.id, **payload.conditions.model_dump()))
         for assignee_user_id, work_type in assignments:
             db.add(RequestAssignment(
                 request_id=req.id,
@@ -382,13 +395,27 @@ class RequestRepository:
         await db.commit()
 
     @staticmethod
-    async def update_conditions(db: AsyncSession, cond: Condition, payload: ConditionsUpdate) -> None:
-        _apply(cond, payload.model_dump(exclude_unset=True), _CONDITIONS_EDITABLE)
+    async def get_conditions(
+        db: AsyncSession, work_type: WorkType, request_id: str,
+    ) -> CalculationCondition | DrawingCondition | None:
+        model = CONDITION_MODEL[work_type]
+        return await db.scalar(select(model).where(model.request_id == request_id))
+
+    @staticmethod
+    async def create_conditions(
+        db: AsyncSession, work_type: WorkType, req: Request,
+        payload: CalculationConditionsCreate | DrawingConditionsCreate,
+    ) -> None:
+        db.add(CONDITION_MODEL[work_type](request_id=req.id, **payload.model_dump()))
         await db.commit()
 
     @staticmethod
-    async def get_conditions(db: AsyncSession, request_id: str) -> Condition | None:
-        return await db.scalar(select(Condition).where(Condition.request_id == request_id))
+    async def update_conditions(
+        db: AsyncSession, work_type: WorkType, row: CalculationCondition | DrawingCondition,
+        payload: CalculationConditionsUpdate | DrawingConditionsUpdate,
+    ) -> None:
+        _apply(row, payload.model_dump(exclude_unset=True), _CONDITION_EDITABLE[work_type])
+        await db.commit()
 
     @staticmethod
     async def delete(db: AsyncSession, req: Request) -> None:
