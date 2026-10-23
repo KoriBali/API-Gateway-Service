@@ -34,8 +34,8 @@ from app.database.models.drawing import (
 
 if TYPE_CHECKING:
     from app.database.models.identity import Department, User
-    from app.database.models.calculation import CalculationCase, Condition
-    from app.database.models.drawing import DrawingCase
+    from app.database.models.calculation import CalculationCase, CalculationCondition
+    from app.database.models.drawing import DrawingCase, DrawingCondition
 
 
 
@@ -272,11 +272,18 @@ class Request(Base):
     )
 
     # Parent
-    conditions: Mapped["Condition | None"] = relationship(
+    calculation_conditions: Mapped["CalculationCondition | None"] = relationship(
         back_populates="request",
         uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    
+    drawing_conditions: Mapped["DrawingCondition | None"] = relationship(
+            back_populates="request",
+            uselist=False,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
     )
 
     shared_details: Mapped["RequestSharedDetails | None"] = relationship(
@@ -345,12 +352,8 @@ class RequestSharedDetails(Base):
     delivery_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     requester_pic_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # region_id dan drawing_type wajib di API bila design_type memuat drawing
-    region_id: Mapped[str | None] = mapped_column(
-        ForeignKey("regions.id", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=True,
-    )
-    drawing_type: Mapped[DrawingType | None] = mapped_column(         # default -> drawing_cases.drawing_type
+    # Referensi dari cover, Actual Value ada di drawing_conditions
+    drawing_type: Mapped[DrawingType | None] = mapped_column(         
         Enum(DrawingType),
         nullable=True,
     )
@@ -496,6 +499,7 @@ class RequestYsDetails(Base):
 
     # Referensi: apa adanya dari cover, tidak pernah memasok default.
     design_standard_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    wind_speed_text: Mapped[str | None] = mapped_column(String, nullable=True)
     opening_height: Mapped[str | None] = mapped_column(String, nullable=True)
     concrete_strength: Mapped[str | None] = mapped_column(String, nullable=True)
 

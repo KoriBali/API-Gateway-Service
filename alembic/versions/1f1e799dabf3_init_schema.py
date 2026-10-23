@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: cc9f268fb463
+Revision ID: 1f1e799dabf3
 Revises: 
-Create Date: 2026-10-12 11:33:18.421745
+Create Date: 2026-10-23 09:15:10.952397
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'cc9f268fb463'
+revision: str = '1f1e799dabf3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -284,16 +284,26 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_requests')),
     sa.UniqueConstraint('id', 'brand_line', name='uq_requests_id_brand_line')
     )
-    op.create_table('conditions',
+    op.create_table('calculation_conditions',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('request_id', sa.String(), nullable=False),
     sa.Column('design_standard_id', sa.String(), nullable=False),
     sa.Column('wind_speed', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('air_density', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.ForeignKeyConstraint(['design_standard_id'], ['design_standards.id'], name=op.f('fk_conditions_design_standard_id_design_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_conditions_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_conditions')),
-    sa.UniqueConstraint('request_id', name=op.f('uq_conditions_request_id'))
+    sa.ForeignKeyConstraint(['design_standard_id'], ['design_standards.id'], name=op.f('fk_calculation_conditions_design_standard_id_design_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_calculation_conditions_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_conditions')),
+    sa.UniqueConstraint('request_id', name=op.f('uq_calculation_conditions_request_id'))
+    )
+    op.create_table('drawing_conditions',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('request_id', sa.String(), nullable=False),
+    sa.Column('region_id', sa.String(), nullable=False),
+    sa.Column('drawing_type', sa.Enum('approval', 'manufacturer', 'order', 'meeting', name='drawingtype'), nullable=False),
+    sa.ForeignKeyConstraint(['region_id'], ['regions.id'], name=op.f('fk_drawing_conditions_region_id_regions'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_drawing_conditions_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_drawing_conditions')),
+    sa.UniqueConstraint('request_id', name=op.f('uq_drawing_conditions_request_id'))
     )
     op.create_table('pole_combinations',
     sa.Column('id', sa.String(), nullable=False),
@@ -311,11 +321,16 @@ def upgrade() -> None:
     sa.Column('work_type', sa.Enum('calculation', 'drawing', name='worktype'), nullable=False),
     sa.Column('assignment_status', sa.Enum('active', 'released', name='assignmentstatus'), nullable=False),
     sa.Column('assigned_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('released_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('released_by_user_id', sa.String(), nullable=True),
+    sa.CheckConstraint("(assignment_status = 'active' AND released_at IS NULL AND released_by_user_id IS NULL) OR (assignment_status = 'released' AND released_at IS NOT NULL AND released_by_user_id IS NOT NULL)", name=op.f('ck_request_assignments_release_fields_match_status')),
     sa.ForeignKeyConstraint(['assigned_by_user_id'], ['users.id'], name=op.f('fk_request_assignments_assigned_by_user_id_users'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['assignee_user_id'], ['users.id'], name=op.f('fk_request_assignments_assignee_user_id_users'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['released_by_user_id'], ['users.id'], name=op.f('fk_request_assignments_released_by_user_id_users'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_request_assignments_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_request_assignments'))
     )
+    op.create_index('uq_request_assignments_active_per_worker', 'request_assignments', ['request_id', 'assignee_user_id', 'work_type'], unique=True, postgresql_where=sa.text("assignment_status = 'active'"))
     op.create_table('request_finish',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('request_id', sa.String(), nullable=False),
@@ -336,12 +351,10 @@ def upgrade() -> None:
     sa.Column('scheduled_delivery_date', sa.String(), nullable=True),
     sa.Column('delivery_quantity', sa.Integer(), nullable=True),
     sa.Column('requester_pic_name', sa.String(), nullable=True),
-    sa.Column('region_id', sa.String(), nullable=True),
     sa.Column('drawing_type', sa.Enum('approval', 'manufacturer', 'order', 'meeting', name='drawingtype'), nullable=True),
     sa.Column('paper_size', sa.String(), nullable=True),
     sa.Column('is_cad_data_requested', sa.Boolean(), nullable=True),
     sa.Column('cad_format', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['region_id'], ['regions.id'], name=op.f('fk_request_shared_details_region_id_regions'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_request_shared_details_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_request_shared_details')),
     sa.UniqueConstraint('request_id', name=op.f('uq_request_shared_details_request_id'))
@@ -389,6 +402,7 @@ def upgrade() -> None:
     sa.Column('foundation_width_y', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('embedment_depth', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('design_standard_text', sa.String(), nullable=True),
+    sa.Column('wind_speed_text', sa.String(), nullable=True),
     sa.Column('opening_height', sa.String(), nullable=True),
     sa.Column('concrete_strength', sa.String(), nullable=True),
     sa.Column('opening_direction_note', sa.Text(), nullable=True),
@@ -601,6 +615,7 @@ def upgrade() -> None:
     sa.Column('finish_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('duration_minutes', sa.Integer(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('sort_order', sa.Integer(), server_default='0', nullable=False),
     sa.ForeignKeyConstraint(['nc_checklist_id'], ['nc_checklists.id'], name=op.f('fk_nc_checklist_items_nc_checklist_id_nc_checklists'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['reviewed_by'], ['users.id'], name=op.f('fk_nc_checklist_items_reviewed_by_users'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['source_master_id'], ['nc_checklist_item_masters.id'], name=op.f('fk_nc_checklist_items_source_master_id_nc_checklist_item_masters'), onupdate='CASCADE', ondelete='SET NULL'),
@@ -911,9 +926,11 @@ def downgrade() -> None:
     op.drop_table('request_yp_details')
     op.drop_table('request_shared_details')
     op.drop_table('request_finish')
+    op.drop_index('uq_request_assignments_active_per_worker', table_name='request_assignments', postgresql_where=sa.text("assignment_status = 'active'"))
     op.drop_table('request_assignments')
     op.drop_table('pole_combinations')
-    op.drop_table('conditions')
+    op.drop_table('drawing_conditions')
+    op.drop_table('calculation_conditions')
     op.drop_table('requests')
     op.drop_table('refresh_tokens')
     op.drop_table('pole_standard_heights')

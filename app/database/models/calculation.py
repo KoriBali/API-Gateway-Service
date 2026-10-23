@@ -253,9 +253,10 @@ class CalculationCase(Base):
     )
 
 
-# ===== Condition =====
-class Condition(Base):
-    __tablename__ = "conditions"
+# ===== Calculation Condition =====
+class CalculationCondition(Base):
+    """Actual Calculation Condition, satu per request yang memuat calculation. tidak berbarengan dengan intake request"""
+    __tablename__ = "calculation_conditions"
 
     id: Mapped[str] = mapped_column(
         String,
@@ -287,7 +288,7 @@ class Condition(Base):
 
     # Child
     request: Mapped["Request"] = relationship(
-        back_populates="conditions"
+        back_populates="calculation_conditions"
     )
 
 
