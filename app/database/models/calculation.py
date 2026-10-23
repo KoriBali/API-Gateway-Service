@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 
 # ===== Enums =====
 class PoleFamily(str, enum.Enum):
-    tapered = "tapered"
+    taper = "taper"
     straight = "straight"
 
 

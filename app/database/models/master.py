@@ -135,7 +135,7 @@ class DesignStandard(Base):
 
 # === Pole Standard Type ===
 class PoleStandardType(str, enum.Enum):
-    tapered = "tapered"
+    taper = "taper"
     straight = "straight"
 
 # === Pole Standard ===

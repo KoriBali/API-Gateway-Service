@@ -457,7 +457,7 @@ async def _seed_taper_pole(db):
         res = await db.execute(
             select(PoleStandard).where(
                 PoleStandard.pole_category_id == category.id,
-                PoleStandard.type == PoleStandardType.tapered,
+                PoleStandard.type == PoleStandardType.taper,
                 PoleStandard.code == code,
             )
         )
@@ -468,7 +468,7 @@ async def _seed_taper_pole(db):
                 pole_category_id=category.id,
                 code=code,
                 name=config["label"],
-                type=PoleStandardType.tapered,
+                type=PoleStandardType.taper,
             )
             db.add(standard)
             await db.flush()
