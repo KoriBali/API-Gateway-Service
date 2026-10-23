@@ -24,7 +24,7 @@ class DrawingCaseFields(CamelBaseModel):
 class DrawingCaseCreate(DrawingCaseFields):
     # Dipilih drafter saat case dibuat, tanpa nilai bawaan
     pole_kind: PoleKind
-    # Kosong = diisi dari request_shared_details.drawing_type
+    # Kosong = diisi dari drawing_conditions.drawing_type
     drawing_type: DrawingType | None = None
 
 

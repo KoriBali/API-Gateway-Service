@@ -68,6 +68,44 @@ PLATING_DEFAULT_SPEC = {
 }
 
 
+
+# === Drawing Condition ===
+class DrawingCondition(Base):
+    """Actual Drawing Condition, satu per request yang memuat drawing. tidak berbarengan dengan intake request"""
+    __tablename__ = "drawing_conditions"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+    
+    request_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('requests.id', ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        unique=True
+    )
+    
+    # utility: dibaca logika ketersedian object coupling
+    region_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('regions.id', ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False    
+    )
+    
+    drawing_type: Mapped[DrawingType] = mapped_column(
+        Enum(DrawingType),
+        nullable=False
+    )
+    
+    # Child
+    request: Mapped["Request"] = relationship(
+        back_populates="drawing_conditions"
+    )
+    
+    
+
 # === Drawing Case ===
 class DrawingCase(Base):
     __tablename__ = "drawing_cases"

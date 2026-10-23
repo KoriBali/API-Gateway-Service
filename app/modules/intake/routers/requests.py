@@ -15,6 +15,7 @@ from app.modules.intake.request_no import RequestNoWarning, parse_request_no, ta
 from app.modules.intake.repository import ProjectRepository, RequestRepository
 from app.modules.files.repository import FileRepository
 from app.modules.files import storage
+from app.database.models.workflow import WorkType
 from app.database.models.intake import (
     BrandLine,
     RequestStatus,
@@ -23,7 +24,6 @@ from app.database.models.intake import (
     RequestClassification,
 )
 from app.modules.intake.schemas import (
-    DRAWING_DESIGN_TYPES,
     RequestCreate,
     RequestUpdate,
     RequestRead,
@@ -32,7 +32,10 @@ from app.modules.intake.schemas import (
     YpDetailsWrite,
     YsDetailsWrite,
     FinishWrite,
-    ConditionsUpdate,
+    CalculationConditionsCreate,
+    CalculationConditionsUpdate,
+    DrawingConditionsCreate,
+    DrawingConditionsUpdate,
     RequestNoCheckRead,
     RequestNoDuplicate,
 )
@@ -61,21 +64,12 @@ async def _ensure_project_matches(db: AsyncSession, project_id: str, brand_line:
 
 async def _ensure_region_exists(db: AsyncSession, region_id: str | None) -> None:
     if region_id is not None and not await RequestRepository.region_exists(db, region_id):
-        raise _unprocessable("sharedDetails.regionId does not reference an existing region")
+        raise _unprocessable("regionId does not reference an existing region")
 
 
 async def _ensure_material_exists(db: AsyncSession, material_id: str | None) -> None:
     if material_id is not None and not await RequestRepository.material_exists(db, material_id):
         raise _unprocessable("ysDetails.materialId does not reference an existing material")
-
-
-def _ensure_drawing_fields(design_type, region_id, drawing_type) -> None:
-    """diperiksa pada keadaan SESUDAH perubahan."""
-    if design_type in DRAWING_DESIGN_TYPES and (region_id is None or drawing_type is None):
-        raise _unprocessable(
-            "sharedDetails.regionId and sharedDetails.drawingType are required "
-            "when designType includes drawing"
-        )
 
 
 async def _ensure_checklist_can_widen(db: AsyncSession, req, design_type: DesignType) -> None:
@@ -111,6 +105,47 @@ async def _load_managed(db: AsyncSession, request_id: str, actor: CurrentUser, *
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     permissions.ensure_can_manage_request(actor, req)
     return req
+
+
+async def _load_for_conditions(
+    db: AsyncSession, request_id: str, actor: CurrentUser, work_type: WorkType, *, for_update: bool = False,
+):
+    """Ambil request untuk define atau ubah kondisi satu work type: 404 bila tidak ada,
+    403 bila tidak berhak, 409 bila work type itu bukan bagian designType sekarang."""
+    if for_update:
+        req = await RequestEventRepository.get_for_update(db, request_id)
+    else:
+        req = await RequestRepository.get_by_id(db, request_id)
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+    await permissions.ensure_can_edit_conditions(db, actor, req, work_type)
+    if work_type not in assignment_permissions.WORK_TYPES_OF[req.design_type]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"workType '{work_type.value}' is not part of the request designType '{req.design_type.value}'",
+        )
+    return req
+
+
+async def _ensure_conditions_absent(db: AsyncSession, work_type: WorkType, req) -> None:
+    if await RequestRepository.get_conditions(db, work_type, req.id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{work_type.value.capitalize()} conditions are already defined for this request; "
+                   "use PATCH to change them",
+        )
+
+
+async def _load_conditions(db: AsyncSession, work_type: WorkType, req):
+    row = await RequestRepository.get_conditions(db, work_type, req.id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{work_type.value.capitalize()} conditions have not been defined for this request; "
+                   "use POST to define them",
+        )
+    return row
+
 
 
 async def _detail_response(db: AsyncSession, request_id: str, message: str, status_code: int = 200):
@@ -255,12 +290,8 @@ async def create_request(
         await _ensure_project_matches(db, payload.project_id, payload.brand_line)
     if not await RequestRepository.pole_category_exists(db, payload.pole_category_id):
         raise _unprocessable("poleCategoryId does not reference an existing pole category")
-    if payload.shared_details is not None:
-        await _ensure_region_exists(db, payload.shared_details.region_id)
     if payload.ys_details is not None:
         await _ensure_material_exists(db, payload.ys_details.material_id)
-    if not await RequestRepository.design_standard_exists(db, payload.conditions.design_standard_id):
-        raise _unprocessable("conditions.designStandardId does not reference an existing design standard")
 
     assignments = assignment_permissions.resolve_create_assignments(
         actor,
@@ -305,20 +336,16 @@ async def update_request(
         if not await RequestRepository.pole_category_exists(db, data["pole_category_id"]):
             raise _unprocessable("poleCategoryId does not reference an existing pole category")
     if "design_type" in data:
-        shared = await RequestRepository.get_shared_details(db, req.id)
-        _ensure_drawing_fields(
-            data["design_type"],
-            shared.region_id if shared is not None else None,
-            shared.drawing_type if shared is not None else None,
-        )
+        # Kondisi work type yang baru masuk didefinisikan sesudahnya; case-nya menunggu (409).
         await _ensure_checklist_can_widen(db, req, data["design_type"])
+
 
     await RequestRepository.update(db, req, payload)
     return await _detail_response(db, request_id, "Request updated")
 
 
 
-# ===== Update tabel bersama, ekstensi form, finish, conditions =====
+# ===== Update tabel shared, ekstensi form, finish =====
 @routerRequest.patch("/{request_id}/shared-details")
 async def update_shared_details(
     request_id: str,
@@ -327,18 +354,8 @@ async def update_shared_details(
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
     req = await _load_managed(db, request_id, actor)
-    data = payload.model_dump(exclude_unset=True)
-    await _ensure_region_exists(db, data.get("region_id"))
-
-    # Keadaan sesudah PATCH = nilai yang dikirim, atau nilai lama bila tidak dikirim.
-    shared = await RequestRepository.get_shared_details(db, req.id)
-    _ensure_drawing_fields(
-        req.design_type,
-        data.get("region_id", shared.region_id if shared is not None else None),
-        data.get("drawing_type", shared.drawing_type if shared is not None else None),
-    )
-
     await RequestRepository.update_shared_details(db, req, payload)
+
     return await _detail_response(db, request_id, "Shared details updated")
 
 
@@ -385,25 +402,68 @@ async def update_finish(
     return await _detail_response(db, request_id, "Finish updated")
 
 
-@routerRequest.patch("/{request_id}/conditions")
-async def update_conditions(
+# ===== Conditions per work type: didefinisikan sesudah request dibuat, sebelum case =====
+# Define mengunci request: dua define bersamaan menjadi satu 201 dan satu 409, bukan 500 dari unique.
+@routerRequest.post("/{request_id}/calculation-conditions")
+async def define_calculation_conditions(
     request_id: str,
-    payload: ConditionsUpdate,
+    payload: CalculationConditionsCreate,
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_ANY_ROLE),
 ):
-    req = await _load_managed(db, request_id, actor)
-    cond = await RequestRepository.get_conditions(db, req.id)
-    if cond is None:
-        # Baris conditions lahir bersama request; tidak ada berarti data rusak.
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Conditions not found for this request")
+    req = await _load_for_conditions(db, request_id, actor, WorkType.calculation, for_update=True)
+    await _ensure_conditions_absent(db, WorkType.calculation, req)
+    if not await RequestRepository.design_standard_exists(db, payload.design_standard_id):
+        raise _unprocessable("designStandardId does not reference an existing design standard")
+    await RequestRepository.create_conditions(db, WorkType.calculation, req, payload)
+    return await _detail_response(db, request_id, "Calculation conditions defined", status.HTTP_201_CREATED)
+
+
+@routerRequest.patch("/{request_id}/calculation-conditions")
+async def update_calculation_conditions(
+    request_id: str,
+    payload: CalculationConditionsUpdate,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_ANY_ROLE),
+):
+    req = await _load_for_conditions(db, request_id, actor, WorkType.calculation)
+    row = await _load_conditions(db, WorkType.calculation, req)
     data = payload.model_dump(exclude_unset=True)
-    if "design_standard_id" in data and data["design_standard_id"] != cond.design_standard_id:
+    if "design_standard_id" in data and data["design_standard_id"] != row.design_standard_id:
         if not await RequestRepository.design_standard_exists(db, data["design_standard_id"]):
             raise _unprocessable("designStandardId does not reference an existing design standard")
-    await RequestRepository.update_conditions(db, cond, payload)
-    return await _detail_response(db, request_id, "Conditions updated")
+    await RequestRepository.update_conditions(db, WorkType.calculation, row, payload)
+    return await _detail_response(db, request_id, "Calculation conditions updated")
+
+
+@routerRequest.post("/{request_id}/drawing-conditions")
+async def define_drawing_conditions(
+    request_id: str,
+    payload: DrawingConditionsCreate,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_ANY_ROLE),
+):
+    req = await _load_for_conditions(db, request_id, actor, WorkType.drawing, for_update=True)
+    await _ensure_conditions_absent(db, WorkType.drawing, req)
+    await _ensure_region_exists(db, payload.region_id)
+    await RequestRepository.create_conditions(db, WorkType.drawing, req, payload)
+    return await _detail_response(db, request_id, "Drawing conditions defined", status.HTTP_201_CREATED)
+
+
+@routerRequest.patch("/{request_id}/drawing-conditions")
+async def update_drawing_conditions(
+    request_id: str,
+    payload: DrawingConditionsUpdate,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_ANY_ROLE),
+):
+    req = await _load_for_conditions(db, request_id, actor, WorkType.drawing)
+    row = await _load_conditions(db, WorkType.drawing, req)
+    data = payload.model_dump(exclude_unset=True)
+    if "region_id" in data and data["region_id"] != row.region_id:
+        await _ensure_region_exists(db, data["region_id"])
+    await RequestRepository.update_conditions(db, WorkType.drawing, row, payload)
+    return await _detail_response(db, request_id, "Drawing conditions updated")
 
 
 

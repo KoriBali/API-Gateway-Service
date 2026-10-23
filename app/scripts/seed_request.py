@@ -13,10 +13,13 @@ Catatan desain:
 - responsible_department_id SELALU mengikuti department si pembuat (created_by_user),
   sesuai aturan create_request di router (department dikunci ke pembuat).
 - Setiap request lahir lengkap seperti di endpoint intake: request_shared_details,
-  ekstensi form sesuai brand_line, request_finish, dan conditions.
+  ekstensi form sesuai brand_line, dan request_finish. Kondisi ikut dibuat, setara
+  langkah define sesudah create: calculation_conditions bila design_type memuat
+  calculation, drawing_conditions bila memuat drawing. Data contoh langsung bisa
+  dipakai membuat case.
 - Setiap request mematuhi aturan form intake yang ditegakkan API: request_no, subject,
   request_date, due_date, requesting_department_name terisi; request YP mengisi
-  requesting_department_code; request yang memuat drawing mengisi region dan drawing_type.
+  requesting_department_code.
 - request_no YP = 図番 utuh (mis. EPJ100001-1), request_no YS = 依頼No (mis. YSE-26-0001).
 - Setiap request lahir dengan assignment aktif, seperti endpoint
   intake: pembuat (drafter) di-assign ke semua work type di design_type, kecuali spec
@@ -44,9 +47,9 @@ from app.database.models.intake import (
     RequestYsDetails,
     RequestFinish,
 )
-from app.database.models.calculation import Condition
+from app.database.models.calculation import CalculationCondition
 from app.database.models.calculation_object import FoundationType
-from app.database.models.drawing import DrawingType, SurfaceTreatmentOption, PlatingType, PaintingType
+from app.database.models.drawing import DrawingCondition, DrawingType, SurfaceTreatmentOption, PlatingType, PaintingType
 from app.database.models.master import PoleCategory, DesignStandard, Material, Region
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.permissions import WORK_TYPES_OF
@@ -69,7 +72,7 @@ PROJECTS = [
 
 # creator = username pembuat; pole_category = nama kategori; design_standard = nama
 # standar di kategori itu (lihat seed_master). project = indeks PROJECTS atau None
-# (request berkepala General Affairs, tanpa project). shared_details.region = kode di
+# (request berkepala General Affairs, tanpa project). drawing_conditions.region = kode di
 # master regions (diubah jadi region_id); ys_details.material = nama di master materials
 # (diubah jadi material_id). assignments = daftar (username, work type); bila tidak ada,
 # pembuat di-assign ke semua work type di design_type.
@@ -86,10 +89,11 @@ REQUESTS = [
         "wind_speed": 60, "air_density": 1.23,
         "shared_details": {
             "scheduled_delivery_date": "3/末", "delivery_quantity": 2,
-            "requester_pic_name": "Sample PIC", "region": "east_japan",
+            "requester_pic_name": "Sample PIC",
             "drawing_type": DrawingType.approval, "paper_size": "A3",
             "is_cad_data_requested": True, "cad_format": "DXF",
         },
+        "drawing_conditions": {"region": "east_japan", "drawing_type": DrawingType.approval},
         "yp_details": {
             "requesting_department_code": "E", "tail_code": "PJ", "record_no": "1",
             "brand_mark": BrandLine.yp, "drafting_design": True,
@@ -122,7 +126,8 @@ REQUESTS = [
         "subject": "Sample signboard reuse", "due_in_days": 7,
         "requesting_department_name": "Sample East Office",
         "wind_speed": 34, "air_density": 1.22,
-        "shared_details": {"region": "west_japan", "drawing_type": DrawingType.meeting},
+        "shared_details": {"drawing_type": DrawingType.meeting},
+        "drawing_conditions": {"region": "west_japan", "drawing_type": DrawingType.meeting},
         "yp_details": {"requesting_department_code": "E"},   # segmen lain kosong
         # andi menghitung, budi (partner satu department) menggambar
         "assignments": [("andi", WorkType.calculation), ("budi", WorkType.drawing)],
@@ -146,7 +151,7 @@ REQUESTS = [
             "material_text": "STK400", "material": "STK400",
             "foundation_type": FoundationType.square,
             "foundation_width_x": 800, "foundation_width_y": 800, "embedment_depth": 1500,
-            "design_standard_text": "未定", "opening_height": "GL+750",
+            "design_standard_text": "未定", "wind_speed_text": "40m/s", "opening_height": "GL+750",
             "concrete_strength": "Fc24", "opening_direction_note": "A",
         },
         "finish": {
@@ -216,15 +221,14 @@ async def _design_standard_id(db, category_name: str, standard_name: str) -> tup
     return row[0], row[1]
 
 
-async def _shared_details(db, spec: dict) -> dict:
+async def _drawing_conditions(db, spec: dict) -> dict:
     """Salin dict spec, lalu ganti kode region menjadi region_id."""
     data = dict(spec)
-    region_code = data.pop("region", None)
-    if region_code is not None:
-        region_id = await db.scalar(select(Region.id).where(Region.code == region_code))
-        if region_id is None:
-            raise ValueError(f"Region '{region_code}' tidak ada. Jalankan seed_master dulu.")
-        data["region_id"] = region_id
+    region_code = data.pop("region")
+    region_id = await db.scalar(select(Region.id).where(Region.code == region_code))
+    if region_id is None:
+        raise ValueError(f"Region '{region_code}' tidak ada. Jalankan seed_master dulu.")
+    data["region_id"] = region_id
     return data
 
 
@@ -285,9 +289,7 @@ async def _seed_requests(db, projects: list[DatabankProject]) -> int:
         db.add(req)
         await db.flush()  # butuh req.id untuk baris anak
 
-        db.add(RequestSharedDetails(
-            request_id=req.id, **await _shared_details(db, spec.get("shared_details", {})),
-        ))
+        db.add(RequestSharedDetails(request_id=req.id, **spec.get("shared_details", {})))
         if spec["brand_line"] == BrandLine.yp:
             db.add(RequestYpDetails(request_id=req.id, brand_line=BrandLine.yp, **spec["yp_details"]))
         else:
@@ -295,15 +297,19 @@ async def _seed_requests(db, projects: list[DatabankProject]) -> int:
                 request_id=req.id, brand_line=BrandLine.ys, **await _ys_details(db, spec.get("ys_details", {})),
             ))
         db.add(RequestFinish(request_id=req.id, **spec.get("finish", {})))
-        db.add(Condition(
-            request_id=req.id,
-            design_standard_id=design_standard_id,
-            wind_speed=spec["wind_speed"],
-            air_density=spec["air_density"],
-        ))
-        assignments = spec.get("assignments") or [
-            (spec["creator"], wt) for wt in WORK_TYPES_OF[spec["design_type"]]
-        ]
+        work_types = WORK_TYPES_OF[spec["design_type"]]
+        if WorkType.calculation in work_types:
+            db.add(CalculationCondition(
+                request_id=req.id,
+                design_standard_id=design_standard_id,
+                wind_speed=spec["wind_speed"],
+                air_density=spec["air_density"],
+            ))
+        if WorkType.drawing in work_types:
+            db.add(DrawingCondition(
+                request_id=req.id, **await _drawing_conditions(db, spec["drawing_conditions"]),
+            ))
+        assignments = spec.get("assignments") or [(spec["creator"], wt) for wt in work_types]
         for username, work_type in assignments:
             assignee = users.get(username)
             if assignee is None or assignee.department_id != user.department_id:
