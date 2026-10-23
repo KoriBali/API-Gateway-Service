@@ -38,6 +38,7 @@ from app.modules.intake.schemas import (
     DrawingConditionsUpdate,
     RequestNoCheckRead,
     RequestNoDuplicate,
+    DUE_BEFORE_REQUEST_DATE,
 )
 
 routerRequest = APIRouter(prefix="/api/requests", tags=["Requests"])
@@ -53,13 +54,17 @@ def _unprocessable(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
 
 
-async def _ensure_project_matches(db: AsyncSession, project_id: str, brand_line: BrandLine) -> None:
-    """Project wajib ada dan berform sama dengan request (juga dijaga FK komposit di DB)."""
+async def _ensure_project_matches(
+    db: AsyncSession, project_id: str, brand_line: BrandLine, pj_no: str
+) -> None:
+    """Project wajib ada, berform sama (juga dijaga FK komposit di DB), dan ber-pjNo sama dengan request."""
     project = await ProjectRepository.get_by_id(db, project_id)
     if project is None:
         raise _unprocessable("projectId does not reference an existing project")
     if project.request_form != brand_line:
         raise _unprocessable("projectId references a project with a different request form")
+    if project.pj_no != pj_no:
+        raise _unprocessable("pjNo must match the pjNo of the referenced project")
 
 
 async def _ensure_region_exists(db: AsyncSession, region_id: str | None) -> None:
@@ -287,7 +292,7 @@ async def create_request(
         )
 
     if payload.project_id is not None:
-        await _ensure_project_matches(db, payload.project_id, payload.brand_line)
+        await _ensure_project_matches(db, payload.project_id, payload.brand_line, payload.pj_no)
     if not await RequestRepository.pole_category_exists(db, payload.pole_category_id):
         raise _unprocessable("poleCategoryId does not reference an existing pole category")
     if payload.ys_details is not None:
@@ -330,8 +335,13 @@ async def update_request(
     data = payload.model_dump(exclude_unset=True)
     req = await _load_managed(db, request_id, actor, for_update="design_type" in data)
 
-    if data.get("project_id") is not None and data["project_id"] != req.project_id:
-        await _ensure_project_matches(db, data["project_id"], req.brand_line)
+    # Pasangan project dan pjNo dicek dalam bentuk akhirnya: gabungan payload dan nilai tersimpan.
+    project_id = data.get("project_id", req.project_id)
+    if project_id is not None and {"project_id", "pj_no"} & data.keys():
+        await _ensure_project_matches(db, project_id, req.brand_line, data.get("pj_no", req.pj_no))
+    due_date = data.get("due_date", req.due_date)
+    if due_date is not None and due_date < data.get("request_date", req.request_date):
+        raise _unprocessable(DUE_BEFORE_REQUEST_DATE)
     if "pole_category_id" in data and data["pole_category_id"] != req.pole_category_id:
         if not await RequestRepository.pole_category_exists(db, data["pole_category_id"]):
             raise _unprocessable("poleCategoryId does not reference an existing pole category")

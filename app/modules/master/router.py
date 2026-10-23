@@ -10,6 +10,7 @@ from app.modules.master.schemas import (
     MaterialSchema,
     ObjectTypeSchema,
     CodeLabelSchema,
+    PoleCategorySchema,
     DesignStandardSchema,
     PoleStandardSchema,
     RegionSchema,
@@ -106,6 +107,16 @@ async def ping():
 # =====================
 # Relational Database
 # =====================
+
+
+# ===== Pole Categories =====
+# Sumber pilihan poleCategoryId di form intake; name dipakai filter ?category= di bawah.
+@routerMaster.get("/pole-categories")
+async def get_pole_categories(db: AsyncSession = Depends(get_db)):
+    rows = await MasterRepository.list_pole_categories(db)
+    data = [PoleCategorySchema.model_validate(row) for row in rows]
+    return success_response(data=data, message="Pole Categories retrieved")
+
 
 
 # ===== Design Standards =====
