@@ -90,6 +90,15 @@ class MasterRepository:
 # =====================
 # Relational Database
 # =====================
+    # Pole Categories
+    @staticmethod
+    async def list_pole_categories(db:AsyncSession):
+        # Pole Category is_active = true
+        stmt = select(PoleCategory).where(PoleCategory.is_active == True).order_by(PoleCategory.name)
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
+
     # Design Standards
     @staticmethod
     async def list_design_standards(db:AsyncSession, category:str | None = None):
