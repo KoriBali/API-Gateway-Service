@@ -21,10 +21,6 @@ from app.database.models.drawing import (
 )
 
 
-# design_type yang memuat pekerjaan gambar. Request seperti ini wajib mengisi
-# sharedDetails.regionId dan sharedDetails.drawingType.
-DRAWING_DESIGN_TYPES = frozenset({DesignType.drawing, DesignType.drawing_calculation})
-
 
 def _reject_null(model: CamelBaseModel, fields: tuple[str, ...]):
     """Tolak `null` eksplisit untuk kolom wajib (422, bukan 500 dari DB)."""
@@ -51,17 +47,29 @@ class ProjectCreate(CamelBaseModel):
 
 
 
-# ===== Tabel tambahan, finish, conditions (dipakai create dan patch) =====
+# ===== Tabel tambahan, finish (dipakai create dan patch) =====
 class SharedDetailsWrite(CamelBaseModel):
     scheduled_delivery_date: str | None = Field(default=None, max_length=100)
     delivery_quantity: int | None = Field(default=None, ge=0)
     requester_pic_name: str | None = Field(default=None, max_length=120)
-    region_id: str | None = Field(default=None, min_length=1)
+    # Referensi dari cover. Nilai aktualnya di drawing conditions.
     drawing_type: DrawingType | None = None
     # Teks berpilihan: label Inggris dari form (None, A1, ..., DXF, DWG) atau isian bebas.
     paper_size: str | None = Field(default=None, max_length=50)
     is_cad_data_requested: bool | None = None
     cad_format: str | None = Field(default=None, max_length=50)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_region(cls, data):
+        # Field tak dikenal biasanya diabaikan diam-diam. regionId ditolak eksplisit,
+        # supaya client lama tidak mengira region tersimpan di sini.
+        if isinstance(data, dict) and ({"regionId", "region_id"} & data.keys()):
+            raise ValueError(
+                "regionId is no longer part of sharedDetails; "
+                "define it with POST /api/requests/{id}/drawing-conditions"
+            )
+        return data
 
 
 # requesting_department_code nullable di DB, tetapi wajib di form intake YP.
@@ -114,6 +122,7 @@ class YsDetailsWrite(CamelBaseModel):
     embedment_depth: float | None = Field(default=None, gt=0)
     # Referensi
     design_standard_text: str | None = Field(default=None, max_length=200)
+    wind_speed_text: str | None = Field(default=None, max_length=200)
     opening_height: str | None = Field(default=None, max_length=100)
     concrete_strength: str | None = Field(default=None, max_length=200)
     # Catatan
@@ -130,13 +139,14 @@ class FinishWrite(CamelBaseModel):
     color_code: str | None = Field(default=None, max_length=50)
 
 
-class ConditionsCreate(CamelBaseModel):
+# ===== Kondisi per work type (langkah define sesudah request dibuat) =====
+class CalculationConditionsCreate(CamelBaseModel):
     design_standard_id: str = Field(min_length=1)
     wind_speed: float | None = None
     air_density: float
 
 
-class ConditionsUpdate(CamelBaseModel):
+class CalculationConditionsUpdate(CamelBaseModel):
     design_standard_id: str | None = Field(default=None, min_length=1)
     wind_speed: float | None = None
     air_density: float | None = None
@@ -146,8 +156,28 @@ class ConditionsUpdate(CamelBaseModel):
         return _reject_null(self, ("design_standard_id", "air_density"))
 
 
+class DrawingConditionsCreate(CamelBaseModel):
+    region_id: str = Field(min_length=1)
+    drawing_type: DrawingType
+
+
+class DrawingConditionsUpdate(CamelBaseModel):
+    region_id: str | None = Field(default=None, min_length=1)
+    drawing_type: DrawingType | None = None
+
+    @model_validator(mode="after")
+    def _not_null(self):
+        return _reject_null(self, ("region_id", "drawing_type"))
+
 
 # ===== Request =====
+# Key kondisi yang ditolak di body create (camelCase dan snake_case).
+_CONDITION_KEYS = frozenset({
+    "conditions",
+    "calculationConditions", "calculation_conditions",
+    "drawingConditions", "drawing_conditions",
+})
+
 # request_no, subject, due_date nullable di DB tetapi wajib di form intake.
 _REQUEST_NOT_NULL = (
     "pole_category_id", "request_no", "pj_no", "request_type", "design_type",
@@ -178,11 +208,23 @@ class RequestCreate(CamelBaseModel):
     yp_details: YpDetailsWrite | None = None
     ys_details: YsDetailsWrite | None = None
     finish: FinishWrite | None = None
-    conditions: ConditionsCreate
     assignments: list[AssignmentCreate] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_conditions(cls, data):
+        # Kondisi didefinisikan sesudah request dibuat. Ditolak eksplisit, bukan diabaikan
+        # diam-diam, supaya client tidak mengira kondisinya tersimpan.
+        if isinstance(data, dict) and (_CONDITION_KEYS & data.keys()):
+            raise ValueError(
+                "conditions cannot be sent when creating a request; define them with "
+                "POST /api/requests/{id}/calculation-conditions or /drawing-conditions"
+            )
+        return data
 
     @model_validator(mode="after")
     def _check_form(self):
+
         if self.brand_line == BrandLine.yp and self.ys_details is not None:
             raise ValueError("ysDetails is only allowed for a YS request")
         if self.brand_line == BrandLine.ys and self.yp_details is not None:
@@ -191,16 +233,8 @@ class RequestCreate(CamelBaseModel):
             self.yp_details is None or self.yp_details.requesting_department_code is None
         ):
             raise ValueError("ypDetails.requestingDepartmentCode is required for a YP request")
-        if self.design_type in DRAWING_DESIGN_TYPES and (
-            self.shared_details is None
-            or self.shared_details.region_id is None
-            or self.shared_details.drawing_type is None
-        ):
-            raise ValueError(
-                "sharedDetails.regionId and sharedDetails.drawingType are required "
-                "when designType includes drawing"
-            )
         return self
+
 
 
 class RequestUpdate(CamelBaseModel):
@@ -238,7 +272,6 @@ class SharedDetailsRead(CamelBaseModel):
     scheduled_delivery_date: str | None = None
     delivery_quantity: int | None = None
     requester_pic_name: str | None = None
-    region_id: str | None = None
     drawing_type: DrawingType | None = None
     paper_size: str | None = None
     is_cad_data_requested: bool | None = None
@@ -281,6 +314,7 @@ class YsDetailsRead(CamelBaseModel):
     foundation_width_y: float | None = None
     embedment_depth: float | None = None
     design_standard_text: str | None = None
+    wind_speed_text: str | None = None
     opening_height: str | None = None
     concrete_strength: str | None = None
     opening_direction_note: str | None = None
@@ -297,11 +331,18 @@ class FinishRead(CamelBaseModel):
     color_code: str | None = None
 
 
-class ConditionsRead(CamelBaseModel):
+class CalculationConditionsRead(CamelBaseModel):
     id: str
     design_standard_id: str
     wind_speed: float | None = None
     air_density: float
+
+
+class DrawingConditionsRead(CamelBaseModel):
+    id: str
+    region_id: str
+    drawing_type: DrawingType
+
 
 
 class RequestRead(CamelBaseModel):
@@ -331,7 +372,9 @@ class RequestDetailRead(RequestRead):
     yp_details: YpDetailsRead | None = None
     ys_details: YsDetailsRead | None = None
     finish: FinishRead | None = None
-    conditions: ConditionsRead | None = None
+    # null sampai kondisi work type itu didefinisikan
+    calculation_conditions: CalculationConditionsRead | None = None
+    drawing_conditions: DrawingConditionsRead | None = None
 
 
 

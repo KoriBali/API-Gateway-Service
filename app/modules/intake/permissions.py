@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import CurrentUser
 from app.database.models.intake import Request
+from app.database.models.workflow import WorkType
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.assignment.repository import AssignmentRepository
 
@@ -13,6 +14,15 @@ def _forbidden(detail: str = "You do not have permission to perform this action"
 
 
 
+def _can_manage(actor: CurrentUser, request: Request) -> bool:
+    if actor.role == "superadmin":
+        return True
+    if actor.role == "admin_department" and actor.department_id is not None \
+            and request.responsible_department_id == actor.department_id:
+        return True
+    return request.created_by_user_id == actor.id
+
+
 def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
     """
         Boleh update/delete:
@@ -21,12 +31,18 @@ def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
         - pembuat request itu sendiri (record miliknya)
     """
     # TODO(workflow): izin lengkap per peran menyusul di plan workflow.
-    if actor.role == "superadmin":
+    if not _can_manage(actor, request):
+        raise _forbidden()
+
+
+async def ensure_can_edit_conditions(
+    db: AsyncSession, actor: CurrentUser, request: Request, work_type: WorkType,
+) -> None:
+    """Define dan ubah kondisi satu work type: yang boleh mengelola request, atau
+    pengerja dengan assignment aktif di work type itu."""
+    if _can_manage(actor, request):
         return
-    if actor.role == "admin_department" and actor.department_id is not None \
-            and request.responsible_department_id == actor.department_id:
-        return
-    if request.created_by_user_id == actor.id:
+    if await AssignmentRepository.has_active(db, request.id, actor.id, work_type):
         return
     raise _forbidden()
 
