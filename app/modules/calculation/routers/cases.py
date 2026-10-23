@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
 from app.modules.intake import permissions as intake_permissions
+from app.modules.intake.repository import RequestRepository
 from app.modules.workflow.repository import RequestEventRepository
 from app.modules.case import permissions as case_permissions
 from app.modules.case.repository import CaseRepository
@@ -77,6 +78,11 @@ async def create_calculation_case(
     # Kunci request: case baru ikut menentukan status prevention_check.
     req = await case_permissions.load_readable_request(db, request_id, actor, for_update=True)
     await case_permissions.ensure_can_create(db, actor, req, WorkType.calculation)
+    if await RequestRepository.get_conditions(db, WorkType.calculation, req.id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Calculation conditions must be defined before creating a calculation case",
+        )
 
     data = payload.model_dump(exclude_unset=True)
     # Isian awal judul dari requests.subject. Satu arah, hanya saat create.
