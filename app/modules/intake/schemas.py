@@ -142,14 +142,14 @@ class FinishWrite(CamelBaseModel):
 # ===== Kondisi per work type (langkah define sesudah request dibuat) =====
 class CalculationConditionsCreate(CamelBaseModel):
     design_standard_id: str = Field(min_length=1)
-    wind_speed: float | None = None
-    air_density: float
+    wind_speed: float | None = Field(default=None, gt=0)
+    air_density: float = Field(gt=0)
 
 
 class CalculationConditionsUpdate(CamelBaseModel):
     design_standard_id: str | None = Field(default=None, min_length=1)
-    wind_speed: float | None = None
-    air_density: float | None = None
+    wind_speed: float | None = Field(default=None, gt=0)
+    air_density: float | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _not_null(self):
@@ -177,6 +177,9 @@ _CONDITION_KEYS = frozenset({
     "calculationConditions", "calculation_conditions",
     "drawingConditions", "drawing_conditions",
 })
+
+# Dipakai juga oleh PATCH di router, yang membandingkan dengan nilai tersimpan.
+DUE_BEFORE_REQUEST_DATE = "dueDate cannot be earlier than requestDate"
 
 # request_no, subject, due_date nullable di DB tetapi wajib di form intake.
 _REQUEST_NOT_NULL = (
@@ -233,6 +236,8 @@ class RequestCreate(CamelBaseModel):
             self.yp_details is None or self.yp_details.requesting_department_code is None
         ):
             raise ValueError("ypDetails.requestingDepartmentCode is required for a YP request")
+        if self.due_date < self.request_date:
+            raise ValueError(DUE_BEFORE_REQUEST_DATE)
         return self
 
 

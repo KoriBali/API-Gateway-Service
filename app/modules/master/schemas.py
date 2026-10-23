@@ -25,8 +25,15 @@ class CodeLabelSchema(CamelBaseModel):
 
 
 # ===== Relational Table Structure =====
+class PoleCategorySchema(CamelBaseModel):
+    id : str
+    name : str
+    is_active : bool
+
+
 class DesignStandardSchema(CamelBaseModel):
     id : str
+    pole_category_id : str
     name : str
     default_wind_speed : float | None
     default_air_density : float | None
