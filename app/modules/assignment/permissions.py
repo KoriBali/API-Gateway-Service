@@ -6,6 +6,7 @@ from app.database.models.identity import UserRole
 from app.database.models.intake import DesignType, Request
 from app.database.models.workflow import RequestAssignment, WorkType
 from app.modules.assignment.repository import AssignmentRepository
+from app.modules.identity.repository import DepartmentRepository
 
 
 # Work type yang tercakup tiap design_type request.
@@ -53,6 +54,24 @@ async def ensure_assignable(
         raise _unprocessable(f"A user with role '{user.role.value}' cannot be assigned to a request")
     if user.department_id != department_id:
         raise _unprocessable("assigneeUserId must belong to the request's responsible department")
+    
+    
+    
+async def resolve_assignable_department(
+    db: AsyncSession, actor: CurrentUser, department_id: str | None
+) -> str:
+        """Department yang daftar calon assignee boleh dibaca aktor. superadmin tidak memiliki department, jadi wajib menyebutnya. peran lain hanya department sendiri"""
+        if actor.role == "superadmin":
+            if department_id is None:
+                raise _unprocessable("departmentId is required for superadmin")
+            if await DepartmentRepository.get_by_id(db, department_id) is None:
+                raise _unprocessable("departmentId does not reference an existing department")
+            return department_id
+        if actor.department_id is None:
+            raise _forbidden("User has no Department")
+        if department_id is not None and department_id != actor.department_id:
+            raise _forbidden("You can only list assignable users of your own Department")
+        return actor.department_id
 
 
 
