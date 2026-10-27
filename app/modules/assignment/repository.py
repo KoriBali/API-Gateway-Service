@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.database.models.identity import User
+from app.database.models.identity import User, UserRole
 from app.database.models.intake import Request
 from app.database.models.workflow import (
     AssignmentStatus,
@@ -67,6 +67,22 @@ class AssignmentRepository:
     @staticmethod
     async def get_user(db: AsyncSession, user_id: str) -> User | None:
         return await db.scalar(select(User).where(User.id == user_id))
+    
+    @staticmethod
+    async def list_assignable_users(
+        db: AsyncSession, department_id: str, roles: frozenset[UserRole]
+    ) -> list[User]:
+        """Active User in one Department yang boleh di assign: drafter, drafter_checker, admin_department"""
+        result = await db.execute(
+            select(User)
+            .where(
+                User.department_id == department_id,
+                User.is_active.is_(True),
+                User.role.in_(roles)
+            )
+            .order_by(User.full_name, User.username)
+        )
+        return list(result.scalars().all())
 
     @staticmethod
     async def get_in_request(
