@@ -46,7 +46,7 @@ DEPARTMENT_CODES = [("R", "Department R"), ("I", "Department I"), ("F", "Departm
 LIGHTING_COMPANY_CODES = [("LEV-1761A22", "Koito"), ("E77257SAJ9", "Iwasaki"), ("NYR30031LF9", "Panasonic")]
 
 DESIGN_STANDARDS = {
-    "acemast": [
+    "disaster_prevention": [
         {"name": "Standard Acts. (Law)"},
         {"name": "V60"},
         {"name": "Tower Standard"},
@@ -54,7 +54,7 @@ DESIGN_STANDARDS = {
     ],
     "lighting": [
         {
-            "name": "JIL",
+            "name": "Old JIL",
             "defaultWindSpeed": 60,
             "defaultAirDensity": 1.23,
         },
@@ -66,7 +66,7 @@ DESIGN_STANDARDS = {
     ],
     "multiple" : [
         {"name" : "V60"},
-        {"name" : "JIL"},
+        {"name" : "Old JIL"},
         {"name" : "Haiden"},
     ]
 }

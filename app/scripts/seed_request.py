@@ -80,7 +80,7 @@ REQUESTS = [
     # budi (drafter/YSG)
     {
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
-        "pole_category": "lighting", "design_standard": "JIL",
+        "pole_category": "lighting", "design_standard": "Old JIL",
         "request_no": "EPJ100001-1", "pj_no": "100001",
         "request_type": RequestType.general, "design_type": DesignType.drawing,
         "request_classification": RequestClassification.new,
@@ -104,11 +104,11 @@ REQUESTS = [
     {
         # tail YS di request form YP: tail mengikuti merek, bukan form; project tetap sama
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
-        "pole_category": "acemast", "design_standard": "V60",
+        "pole_category": "disaster_prevention", "design_standard": "V60",
         "request_no": "EYS100001-2", "pj_no": "100001",
         "request_type": RequestType.general, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.change,
-        "subject": "Sample acemast change", "due_in_days": 30,
+        "subject": "Sample disaster prevention change", "due_in_days": 30,
         "requesting_department_name": "Sample East Office",
         "wind_speed": None, "air_density": 1.23,
         "yp_details": {
@@ -135,7 +135,7 @@ REQUESTS = [
     # dewi (drafter/YSC) -> department berbeda, menguji scope lintas-department
     {
         "creator": "dewi", "project": 2, "brand_line": BrandLine.ys,
-        "pole_category": "lighting", "design_standard": "JIL",
+        "pole_category": "lighting", "design_standard": "Old JIL",
         "request_no": "YSE-26-0001", "pj_no": "20001",
         "request_type": RequestType.general, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.new,
@@ -174,7 +174,7 @@ REQUESTS = [
     {
         # request berkepala General Affairs (総務部): request_type special, tanpa project
         "creator": "eko", "project": None, "brand_line": BrandLine.yp,
-        "pole_category": "acemast", "design_standard": "V60",
+        "pole_category": "disaster_prevention", "design_standard": "V60",
         "request_no": "EPJ100003-1", "pj_no": "100003",
         "request_type": RequestType.special, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.new,
