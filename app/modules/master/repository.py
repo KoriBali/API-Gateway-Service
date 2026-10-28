@@ -19,6 +19,8 @@ from app.database.models import (
     PoleStandardType,
     PoleDiameter,
     PoleCombination,
+    PoleStandardHeight,
+    PoleStandardSegment,
 
     # Coupling
     Region,
@@ -118,7 +120,9 @@ class MasterRepository:
             select(PoleStandard)
             .where(PoleStandard.is_active == True)
             .options(
-                selectinload(PoleStandard.pole_standard_heights),
+                # segments di-load untuk is_calculable
+                selectinload(PoleStandard.pole_standard_heights)
+                .selectinload(PoleStandardHeight.segments),
                 selectinload(PoleStandard.pole_diameters)
                 .selectinload(PoleDiameter.pole_combinations)
                 .selectinload(PoleCombination.pole_thicknesses)
@@ -133,6 +137,24 @@ class MasterRepository:
 
         result = await db.execute(stmt)
         return result.scalars().all()
+    
+    
+    
+    @staticmethod
+    async def get_pole_standard_height_geometry(db: AsyncSession, height_id: str):
+        stmt = (
+            select(PoleStandardHeight)
+            .where(
+                PoleStandardHeight.id == height_id,
+                PoleStandardHeight.is_active == True,
+            )
+            .options(
+                selectinload(PoleStandardHeight.segments)
+                .selectinload(PoleStandardSegment.material),
+                selectinload(PoleStandardHeight.direct_objects),
+            )
+        )
+        return (await db.execute(stmt)).scalar_one_or_none()
 
 
 

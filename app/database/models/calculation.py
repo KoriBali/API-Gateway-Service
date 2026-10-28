@@ -5,15 +5,17 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     String,
     Numeric,
     Integer,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -24,8 +26,6 @@ if TYPE_CHECKING:
 
     from app.database.models.calculation_object import(
         DirectObject,
-        DirectObjectResult,
-        PoleResult,
     )
 
     from app.database.models.calculation_object import(
@@ -68,6 +68,11 @@ class PoleKind(str, enum.Enum):
 class StatusCalculationRun(str, enum.Enum):
     ok = "ok"
     ng = "ng"
+    failed = "failed"
+
+
+class CalculationRunType(str, enum.Enum):
+    pole = "pole"
 
 
 
@@ -142,6 +147,12 @@ class CalculationCase(Base):
         Integer,
         nullable=True
     )
+    
+    evaluated_positions_m: Mapped[list[Decimal] | None] = mapped_column(
+        ARRAY(Numeric(10, 5)),
+        nullable=True
+    )
+
 
     title: Mapped[str] = mapped_column(
         String,
@@ -296,6 +307,26 @@ class CalculationCondition(Base):
 # ===== Calculation Run =====
 class CalculationRun(Base):
     __tablename__ = "calculation_runs"
+    __table_args__ = (
+        # Penopang FK komposit parent_run_id: run induk harus milik case yang sama.
+        UniqueConstraint("id", "calculation_case_id", name="uq_calculation_runs_id_calculation_case_id"),
+        ForeignKeyConstraint(
+            ["parent_run_id", "calculation_case_id"],
+            ["calculation_runs.id", "calculation_runs.calculation_case_id"],
+            ondelete="CASCADE",
+            onupdate="CASCADE",
+        ),
+        CheckConstraint(
+            "run_type <> 'pole' OR parent_run_id IS NULL",
+            name="run_type_parent",
+        ),
+        # failed tepat bila hasil kosong dan rincian penolakan terisi.
+        CheckConstraint(
+            "(status = 'failed') = (result_snapshot IS NULL)"
+            " AND (status = 'failed') = (error_snapshot IS NOT NULL)",
+            name="status_snapshot",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         String,
@@ -308,12 +339,44 @@ class CalculationRun(Base):
         ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
+    run_type: Mapped[CalculationRunType] = mapped_column(
+        Enum(CalculationRunType),
+        nullable=False
+    )
+
+    parent_run_id: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
     status: Mapped[StatusCalculationRun] = mapped_column(
         Enum(StatusCalculationRun),
         nullable=False
     )
 
-    input_snapshot: Mapped[dict | None] = mapped_column(JSONB)
+    # Body persis yang dikirim ke engine + konteks penyusunnya. Disusun server, tidak pernah dari frontend.
+    input_snapshot: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False
+    )
+
+    # none_as_null: Python None disimpan sebagai SQL NULL, bukan JSON 'null',
+    # supaya CHECK status_snapshot bisa membedakan kosong dan terisi.
+    result_snapshot: Mapped[dict | None] = mapped_column(
+        JSONB(none_as_null=True),
+        nullable=True
+    )
+
+    error_snapshot: Mapped[dict | None] = mapped_column(
+        JSONB(none_as_null=True),
+        nullable=True
+    )
+
+    run_by_user_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('users.id', ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False
+    )
 
     run_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -324,64 +387,6 @@ class CalculationRun(Base):
     calculation_case: Mapped["CalculationCase"] = relationship(
         back_populates="calculation_runs"
     )
-
-    # Parent
-    calculation_results: Mapped[list["CalculationResult"]] = relationship(
-        back_populates="calculation_run",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
-
-
-# ===== Calculation Result =====
-class CalculationResult(Base):
-    __tablename__ = "calculation_results"
-
-    id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4())
-    )
-
-    calculation_run_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('calculation_runs.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
-
-    total_moment: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    total_windload: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    status: Mapped[StatusCalculationRun] = mapped_column(
-        Enum(StatusCalculationRun),
-        nullable=False
-    )
-
-    # Child
-    calculation_run: Mapped["CalculationRun"] = relationship(
-        back_populates="calculation_results"
-    )
-
-    # Parent
-    pole_results: Mapped[list["PoleResult"]] = relationship(
-        back_populates="calculation_result",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
-    direct_object_results: Mapped[list["DirectObjectResult"]] = relationship(
-        back_populates="calculation_result",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
 
 
 

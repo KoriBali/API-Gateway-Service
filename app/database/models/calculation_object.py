@@ -13,12 +13,15 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.database.models.geometry import (
+    DirectObjectColumnsMixin,
+    PoleSegmentColumnsMixin,
+    direct_object_constraints,
+    pole_segment_constraints,
+)
 
 if TYPE_CHECKING:
-    from app.database.models.calculation import (
-        CalculationCase,
-        CalculationResult
-    )
+    from app.database.models.calculation import CalculationCase
 
     from app.database.models.master import(
         ObjectType
@@ -27,8 +30,9 @@ if TYPE_CHECKING:
 
 
 # === Step Pole ===
-class StepPole(Base):
+class StepPole(Base, PoleSegmentColumnsMixin):
     __tablename__ = "step_poles"
+    __table_args__ = pole_segment_constraints("step_poles", "calculation_case_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -45,39 +49,10 @@ class StepPole(Base):
         ForeignKey('materials.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
 
-    name: Mapped[str] = mapped_column(
-        String,
-        nullable=False
-    )
-
-    order: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False
-    )
-
-    diameter: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    thickness: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    height: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
+    # Tidak dikirim ke engine. Aplikasi menolak nilai selain 1.
     quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False
-    )
-
-    # Parent
-    pole_results: Mapped[list["PoleResult"]] = relationship(
-        back_populates="step_pole"
     )
 
     # Child
@@ -87,51 +62,10 @@ class StepPole(Base):
 
 
 
-# === Pole Result ===
-class PoleResult(Base):
-    __tablename__ = "pole_results"
-
-    id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4())
-    )
-
-    step_pole_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('step_poles.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
-
-    calculation_result_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('calculation_results.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
-
-    windload: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    moment: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    # Child
-    step_pole: Mapped["StepPole"] = relationship(
-        back_populates="pole_results"
-    )
-
-    calculation_result: Mapped["CalculationResult"] = relationship(
-        back_populates="pole_results"
-    )
-
-
-
-
 # === Direct Object ===
-class DirectObject(Base):
+class DirectObject(Base, DirectObjectColumnsMixin):
     __tablename__ = "direct_objects"
+    __table_args__ = direct_object_constraints("direct_objects", "calculation_case_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -144,97 +78,10 @@ class DirectObject(Base):
         ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
-    object_type_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('object_types.id', ondelete="RESTRICT", onupdate="CASCADE")
-    )
-
-    name: Mapped[str] = mapped_column(
-        String,
-        nullable=False
-    )
-
-    front_area: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    height: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    nnc: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    weight: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    quantity: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False
-    )
-
     # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
         back_populates="direct_objects"
     )
-
-    object_type: Mapped["ObjectType"] = relationship(
-        back_populates="direct_objects"
-    )
-
-    # Parent
-    direct_object_results: Mapped[list["DirectObjectResult"]] = relationship(
-        back_populates="direct_object",
-        passive_deletes=True
-    )
-
-
-
-# === Direct Object Result ===
-class DirectObjectResult(Base):
-    __tablename__ = "direct_object_results"
-
-    id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4())
-    )
-
-    direct_object_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('direct_objects.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
-
-    calculation_result_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('calculation_results.id', ondelete="CASCADE", onupdate="CASCADE")
-    )
-
-    windload: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    moment: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    # Child
-    direct_object: Mapped["DirectObject"] = relationship(
-        back_populates="direct_object_results"
-    )
-
-    calculation_result: Mapped["CalculationResult"] = relationship(
-        back_populates="direct_object_results"
-    )
-
 
 
 # === Overhead Wires ===
