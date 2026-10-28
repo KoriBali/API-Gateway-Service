@@ -293,7 +293,7 @@ class PoleStandardHeight(Base):
 
     @property
     def is_calculable(self) -> bool:
-        """Turunan, bukan kolom (DD BAB 13). Relasi segments wajib sudah di-load."""
+        """Turunan, bukan kolom. Relasi segments wajib sudah di-load."""
         return bool(self.segments) and bool(self.evaluated_positions_m)
 
 

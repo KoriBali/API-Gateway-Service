@@ -12,14 +12,6 @@ class Settings(BaseSettings):
 
     calc_service_url: str
     calc_service_key: str
-
-    """
-    ===== Calculation stub =====
-        True  = endpoint /api/calculate mengembalikan hasil placeholder (calc-service belum siap). 
-        False = teruskan ke calc-service via forward().
-        Flip ke False (atau set CALC_STUB_MODE=false di .env) saat calc-service siap.
-    """
-    calc_stub_mode: bool = True
     
 
     DATABASE_URL: str

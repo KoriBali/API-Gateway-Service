@@ -14,6 +14,7 @@ from app.modules.files import storage
 from app.modules.calculation.repository import CalculationCaseRepository
 from app.modules.calculation.schemas import (
     CalculationCaseCreate,
+    CalculationCaseDetail,
     CalculationCaseRead,
     CalculationCaseUpdate,
 )
@@ -34,6 +35,15 @@ async def _load_case(db: AsyncSession, request_id: str, case_id: str, actor: Cur
     if case is None:
         raise case_permissions.case_not_found()
     return case
+
+
+
+async def case_detail(db: AsyncSession, case_id: str) -> CalculationCaseDetail:
+    """Case beserta segmen, objek langsung, dan keterangan beda katalog. Dipakai juga Simpan."""
+    case = await CalculationCaseRepository.get_detail(db, case_id)
+    detail = CalculationCaseDetail.model_validate(case)
+    detail.geometry_differs_from_catalog = await CalculationCaseRepository.geometry_differs_from_catalog(db, case)
+    return detail
 
 
 
@@ -61,7 +71,7 @@ async def get_calculation_case(
 ):
     case = await _load_case(db, request_id, case_id, actor)
     return success_response(
-        data=CalculationCaseRead.model_validate(case),
+        data=await case_detail(db, case.id),
         message="Calculation case retrieved",
     )
 

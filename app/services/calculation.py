@@ -9,6 +9,53 @@ from app.core.config import settings
 from app.core.security import get_internal_service_headers
 from app.utils.message_response import get_message_by_unique_code 
 
+# ===== Pemanggil Calculation Service untuk Hitung dan Simpan =====
+# Berbeda dari forward(): pemanggil butuh kode status dan body apa adanya
+# penolakan payload (4xx) disimpan sebagai run failed, bukan diteruskan sebagai error.
+POLE_CALCULATE_PATH = "/api/pole/calculate"
+
+
+class EngineUnavailable(Exception):
+    """Calculation Service tidak terjangkau, atau menjawab selain 200 dan 422.
+
+    Hanya 422 yang berarti payload ditolak (fakta tentang input). 401, 403, 404,
+    dan 5xx adalah masalah konfigurasi atau infrastruktur, sehingga tidak menjadi run.
+    """
+
+
+class EngineResponse(BaseModel):
+    status_code: int
+    body: Any
+
+
+async def post_engine(path: str, payload: dict) -> EngineResponse:
+    url = f"{settings.calc_service_url}{path}"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json=payload,
+                headers=get_internal_service_headers(),
+                timeout=30.0,
+            )
+    except httpx.RequestError as e:
+        logger.error(f"Cannot reach calculation service: {e!r}")
+        raise EngineUnavailable(str(e)) from e
+
+    if response.status_code not in (200, 422):
+        logger.error(f"Calculation service error: {response.status_code}")
+        raise EngineUnavailable(f"HTTP {response.status_code}")
+
+    try:
+        body = response.json()
+    except ValueError:
+        # Jawaban bukan JSON: tidak bisa dipercaya sebagai hasil.
+        logger.error(f"Calculation service returned non-JSON: {response.status_code}")
+        raise EngineUnavailable(f"non-JSON response, HTTP {response.status_code}")
+    return EngineResponse(status_code=response.status_code, body=body)
+
+
+
 # Generic Class untuk menampung respoonse dari forwarder
 class ForwarderResult(BaseModel):
     data: Any
