@@ -25,6 +25,7 @@ from app.database.models.calculation_object import (
 )
 
 from app.database.models.calculation import PoleFamily, GroundPosition, PoleKind
+from app.database.models.geometry import PoleSegmentColumnsMixin, pole_segment_constraints
 
 if TYPE_CHECKING:
     from app.database.models.identity import User
@@ -395,8 +396,9 @@ class DrawingFoundation(Base, FoundationColumnsMixin):
 
 
 # === Drawing Step Pole ===
-class DrawingStepPole(Base):
+class DrawingStepPole(Base, PoleSegmentColumnsMixin):
     __tablename__ = "drawing_step_poles"
+    __table_args__ = pole_segment_constraints("drawing_step_poles", "drawing_case_id")
 
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
@@ -407,11 +409,6 @@ class DrawingStepPole(Base):
     material_id: Mapped[str] = mapped_column(
         String, ForeignKey('materials.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    order: Mapped[int] = mapped_column(Integer, nullable=False)
-    diameter: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
-    thickness: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
-    height: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Child

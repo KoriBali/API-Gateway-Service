@@ -5,6 +5,7 @@ How to Run(pipenv shell):
     python -m app.scripts.seed_master
 """
 import asyncio
+from decimal import Decimal
 
 from sqlalchemy import select
 
@@ -20,6 +21,12 @@ from app.database.models import (
     PoleCategory,
     PoleStandard,
     PoleStandardHeight,
+    PoleStandardSegment,
+    PoleStandardDirectObject,
+    PoleType,
+    ObjectKind,
+    PoleHeightGroundPosition,
+    PoleStandardType,
     PoleHeightGroundPosition,
     PoleStandardType,
     PoleDiameter,
@@ -58,6 +65,11 @@ DESIGN_STANDARDS = {
             "defaultWindSpeed": 60,
             "defaultAirDensity": 1.23,
         },
+        {
+            "name": "New JIL",
+            "defaultWindSpeed": 60,
+            "defaultAirDensity": 1.23,
+        },
         {"name": "Haiden"},
     ],
     "signboard": [
@@ -71,6 +83,14 @@ DESIGN_STANDARDS = {
     ]
 }
 
+# Nomor design standard yang dikirim ke engine, per nama (berlaku di semua kategori).
+# Nama yang tidak ada di sini (Haiden, Signboard) tidak punya nomor dan tidak bisa dihitung.
+DESIGN_STANDARD_CODES = {
+    "Standard Acts. (Law)": 1,
+    "V60": 2,
+    "Old JIL": 3,
+    "Tower Standard": 6,
+}
 
 # ===== Pole Standard = Straight =====
 STRAIGHT_COMBINATIONS = {
@@ -93,6 +113,30 @@ TAPER_HEIGHTS_A = {
     "under_gl": [4800, 5300, 8300, 10300, 12300],
 }
 
+# ===== Geometri katalog taper =====
+# Sumber: Spec_Taper_Pole_Standard.xlsx, sama dengan konstanta frontend. Baru IS yang
+# diisi; tipe lain menyusul. Kunci = height on_gl (mm), nilai = (diameter bawah,
+# diameter atas, tebal) dalam mm. Baris under_gl = height on_gl + 300 mm, dengan
+# segmen straight 0.3 m yang tertanam di bawah garis tanah.
+TAPER_GEOMETRY = {
+    "IS": {
+        8000: (165, 85, 4),
+        10000: (175, 75, 4),
+        12000: (195, 75, 4),
+    },
+}
+TAPER_GEOMETRY_MATERIAL = "STK400"
+UNDER_GL_OFFSET_MM = 300
+UNDER_GL_EMBEDDED_M = Decimal("0.3")
+TAPER_EVALUATED_POSITIONS_M = [Decimal("0")]
+# Lampu IS
+TAPER_LAMP = {
+    "name": "灯具",
+    "front_area_m2": Decimal("0.1"),
+    "mass_per_unit_kg": Decimal("14"),
+    "base_wind_coefficient": Decimal("1"),
+    "quantity": 1,
+}
 
 def _offset_heights(heights, delta):
     return {gp: [h + delta for h in values] for gp, values in heights.items()}
@@ -321,13 +365,20 @@ async def _seed_design_standards(db):
                 )
             )
 
-            if exists.scalar_one_or_none() is None:
+            code = DESIGN_STANDARD_CODES.get(standard["name"])
+            row = exists.scalar_one_or_none()
+            if row is None:
                 db.add(DesignStandard(
                     pole_category_id = category.id, 
                     name = standard["name"],
+                    code = code,
                     default_wind_speed = standard.get("defaultWindSpeed"),
                     default_air_density = standard.get("defaultAirDensity")
                     ))
+            elif row.code is None and code is not None:
+                # DB yang di-migrate tanpa reset: isi nomor yang masih kosong, tidak menimpa.
+                row.code = code
+
 
 
 # Pole Standard = Straight
@@ -497,6 +548,84 @@ async def _seed_taper_pole(db):
 
 
 
+# Geometri taper per pilihan tinggi
+async def _seed_taper_geometry(db):
+    material = (await db.execute(
+        select(Material).where(Material.name == TAPER_GEOMETRY_MATERIAL)
+    )).scalar_one()
+
+    for code, rows in TAPER_GEOMETRY.items():
+        standard = (await db.execute(
+            select(PoleStandard).where(
+                PoleStandard.type == PoleStandardType.taper,
+                PoleStandard.code == code,
+            )
+        )).scalar_one()
+
+        for on_gl_mm, (diameter_lower, diameter_upper, thickness) in rows.items():
+            for ground_position in (PoleHeightGroundPosition.on_gl, PoleHeightGroundPosition.under_gl):
+                is_under_gl = ground_position == PoleHeightGroundPosition.under_gl
+                height_mm = on_gl_mm + (UNDER_GL_OFFSET_MM if is_under_gl else 0)
+
+                # Baris height dibuat _seed_taper_pole; tidak ada berarti konstanta tidak sinkron.
+                height = (await db.execute(
+                    select(PoleStandardHeight).where(
+                        PoleStandardHeight.pole_standard_id == standard.id,
+                        PoleStandardHeight.ground_position == ground_position,
+                        PoleStandardHeight.height == height_mm,
+                    )
+                )).scalar_one()
+
+                # Isi bila kosong, tidak menimpa.
+                if height.gl_elevation_m is None:
+                    height.gl_elevation_m = UNDER_GL_EMBEDDED_M if is_under_gl else Decimal("0")
+                if height.evaluated_positions_m is None:
+                    height.evaluated_positions_m = list(TAPER_EVALUATED_POSITIONS_M)
+
+                # Idempotent per pilihan tinggi: segmen dan lampu hanya dibuat bila belum ada sama sekali.
+                has_segments = (await db.execute(
+                    select(PoleStandardSegment.id).where(
+                        PoleStandardSegment.pole_standard_height_id == height.id
+                    ).limit(1)
+                )).scalar_one_or_none()
+                if has_segments is None:
+                    db.add(PoleStandardSegment(
+                        pole_standard_height_id=height.id,
+                        material_id=material.id,
+                        name="Pole-1",
+                        pole_type=PoleType.taper,
+                        top_elevation_m=Decimal(height_mm) / 1000,
+                        diameter_lower_mm=diameter_lower,
+                        diameter_upper_mm=diameter_upper,
+                        thickness_lower_mm=thickness,
+                        thickness_upper_mm=thickness,
+                    ))
+                    if is_under_gl:
+                        db.add(PoleStandardSegment(
+                            pole_standard_height_id=height.id,
+                            material_id=material.id,
+                            name="Pole-2",
+                            pole_type=PoleType.straight,
+                            top_elevation_m=UNDER_GL_EMBEDDED_M,
+                            diameter_lower_mm=diameter_lower,
+                            thickness_lower_mm=thickness,
+                        ))
+
+                has_objects = (await db.execute(
+                    select(PoleStandardDirectObject.id).where(
+                        PoleStandardDirectObject.pole_standard_height_id == height.id
+                    ).limit(1)
+                )).scalar_one_or_none()
+                if has_objects is None:
+                    db.add(PoleStandardDirectObject(
+                        pole_standard_height_id=height.id,
+                        object_kind=ObjectKind.omni,
+                        elevation_m=Decimal(on_gl_mm) / 1000,
+                        **TAPER_LAMP,
+                    ))
+
+
+
 async def main():
     async with AsyncSessionLocal() as db:
         await _seed_simple_name(db, Material, MATERIALS)
@@ -508,6 +637,8 @@ async def main():
         await _seed_design_standards(db)
         await _seed_straight_pole(db)
         await _seed_taper_pole(db)
+        await _seed_taper_pole(db)
+        await _seed_taper_geometry(db)
         await _seed_code_label_ordered(db, CouplingPosition, COUPLING_POSITIONS)
         await _seed_code_label_ordered(db, CouplingSize, COUPLING_SIZES)
         await _seed_code_label_ordered(db, CouplingType, COUPLING_TYPES)

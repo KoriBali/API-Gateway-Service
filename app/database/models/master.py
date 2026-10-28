@@ -9,13 +9,19 @@ from sqlalchemy import (
     String,
     Numeric,
     Boolean,
-    JSON,
     Integer,
     UniqueConstraint
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.database.models.geometry import (
+    DirectObjectColumnsMixin,
+    PoleSegmentColumnsMixin,
+    direct_object_constraints,
+    pole_segment_constraints,
+)
 
 if TYPE_CHECKING:
     from app.database.models.calculation import(
@@ -25,7 +31,6 @@ if TYPE_CHECKING:
 
     from app.database.models.calculation_object import(
         ArmObject,
-        DirectObject
     )
 
     from app.database.models.drawing import(
@@ -111,6 +116,12 @@ class DesignStandard(Base):
         nullable=False
     )
 
+    # Nomor design standard yang dikirim ke Calculation Service. Kosong = tidak bisa dihitung.
+    code: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
+    )
+    
     default_wind_speed: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 5),
         nullable=True
@@ -167,11 +178,6 @@ class PoleStandard(Base):
     type: Mapped[PoleStandardType] = mapped_column(
         Enum(PoleStandardType),
         nullable=False
-    )
-
-    geometry: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True
     )
 
     is_active: Mapped[bool] = mapped_column(
@@ -237,9 +243,22 @@ class PoleStandardHeight(Base):
     )
 
 
+    # Label katalog dalam mm (8300 = IS8.3B). Tidak pernah dibaca penyusun payload.
     height: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
+    )
+
+    # Posisi cek penampang (m dari dasar tiang), disalin ke case lewat G1.
+    evaluated_positions_m: Mapped[list[Decimal] | None] = mapped_column(
+        ARRAY(Numeric(10, 5)),
+        nullable=True
+    )
+
+    # Elevasi garis tanah dari dasar tiang (m): 0 untuk on_gl, 0.3 untuk under_gl.
+    gl_elevation_m: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
     )
 
     is_active: Mapped[bool] = mapped_column(
@@ -257,6 +276,82 @@ class PoleStandardHeight(Base):
         back_populates="pole_standard_height",
         passive_deletes=True
     )
+
+    segments: Mapped[list["PoleStandardSegment"]] = relationship(
+        back_populates="pole_standard_height",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PoleStandardSegment.top_elevation_m",
+    )
+
+    direct_objects: Mapped[list["PoleStandardDirectObject"]] = relationship(
+        back_populates="pole_standard_height",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PoleStandardDirectObject.name",
+    )
+
+    @property
+    def is_calculable(self) -> bool:
+        """Turunan, bukan kolom (DD BAB 13). Relasi segments wajib sudah di-load."""
+        return bool(self.segments) and bool(self.evaluated_positions_m)
+
+
+
+# === Pole Standard Segment ===
+class PoleStandardSegment(Base, PoleSegmentColumnsMixin):
+    __tablename__ = 'pole_standard_segments'
+    __table_args__ = pole_segment_constraints("pole_standard_segments", "pole_standard_height_id")
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    pole_standard_height_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('pole_standard_heights.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    material_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('materials.id', ondelete='RESTRICT', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    # Child
+    pole_standard_height: Mapped["PoleStandardHeight"] = relationship(
+        back_populates="segments"
+    )
+
+    material: Mapped["Material"] = relationship()
+
+
+
+# === Pole Standard Direct Object ===
+class PoleStandardDirectObject(Base, DirectObjectColumnsMixin):
+    __tablename__ = 'pole_standard_direct_objects'
+    __table_args__ = direct_object_constraints("pole_standard_direct_objects", "pole_standard_height_id")
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    pole_standard_height_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('pole_standard_heights.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    # Child
+    pole_standard_height: Mapped["PoleStandardHeight"] = relationship(
+        back_populates="direct_objects"
+    )
+
 
 
 
@@ -540,11 +635,6 @@ class ObjectType(Base):
     )
 
     # Parent
-    direct_objects: Mapped[list["DirectObject"]] = relationship(
-        back_populates="object_type",
-        passive_deletes=True
-    )
-
     arm_objects: Mapped[list["ArmObject"]] = relationship(
         back_populates="object_type",
         passive_deletes=True

@@ -13,6 +13,7 @@ from app.modules.master.schemas import (
     PoleCategorySchema,
     DesignStandardSchema,
     PoleStandardSchema,
+    PoleStandardHeightGeometrySchema,
     RegionSchema,
     ExternalObjectAvailabilitySchema,
     ExternalObjectSchema,
@@ -144,6 +145,27 @@ async def get_pole_standards(
     # Cahce Karena Data jarang berganti
     result.headers["Cache-Control"] = "public, max-age=3600"
     return result
+
+
+
+# ===== Geometri per pilihan tinggi =====
+# Dibaca frontend untuk mengisi form perhitungan sesudah height dipilih. Segmen
+# hanya untuk ditampilkan (tidak bisa diubah); objek langsung adalah nilai awal
+# yang boleh diubah. Height tanpa geometri tetap 200 dengan isCalculable false.
+@routerMaster.get("/pole-standard-heights/{height_id}/geometry")
+async def get_pole_standard_height_geometry(
+    height_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    row = await MasterRepository.get_pole_standard_height_geometry(db, height_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Pole standard height not found")
+    data = PoleStandardHeightGeometrySchema.model_validate(row)
+    result = success_response(data=data, message="Pole standard height geometry retrieved")
+    # Cache karena data jarang berganti (sejajar pole-standards)
+    result.headers["Cache-Control"] = "public, max-age=3600"
+    return result
+
 
 
 # ===== BootStrap(aggregate) =====

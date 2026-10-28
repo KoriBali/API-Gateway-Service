@@ -35,6 +35,7 @@ class DesignStandardSchema(CamelBaseModel):
     id : str
     pole_category_id : str
     name : str
+    code : int | None
     default_wind_speed : float | None
     default_air_density : float | None
     is_active : bool
@@ -59,15 +60,53 @@ class PoleDiameterSchema(CamelBaseModel):
 
 class PoleStandardHeightSchema(CamelBaseModel):
     id : str
+    ground_position : str
     height : float
+    is_calculable : bool
 
 class PoleStandardSchema(CamelBaseModel):
     id : str
     name : str
     type : str
-    geometry : dict | None = None
     pole_standard_heights : List[PoleStandardHeightSchema] = []
     pole_diameters : List[PoleDiameterSchema] = []
+    
+    
+    
+# ===== Geometri per pilihan tinggi (prefill form perhitungan) =====
+class PoleStandardSegmentSchema(CamelBaseModel):
+    id : str
+    name : str
+    material : MaterialSchema
+    pole_type : str
+    top_elevation_m : float
+    diameter_lower_mm : float
+    diameter_upper_mm : float | None
+    thickness_lower_mm : float
+    thickness_upper_mm : float | None
+
+class PoleStandardDirectObjectSchema(CamelBaseModel):
+    id : str
+    name : str
+    object_kind : str
+    front_area_m2 : float
+    side_area_m2 : float | None
+    fixed_angle_deg : float | None
+    mass_per_unit_kg : float
+    elevation_m : float
+    base_wind_coefficient : float
+    quantity : int
+
+class PoleStandardHeightGeometrySchema(CamelBaseModel):
+    id : str
+    pole_standard_id : str
+    ground_position : str
+    height : float
+    gl_elevation_m : float | None
+    evaluated_positions_m : List[float] | None
+    is_calculable : bool
+    segments : List[PoleStandardSegmentSchema] = []
+    direct_objects : List[PoleStandardDirectObjectSchema] = []
 
 
 
