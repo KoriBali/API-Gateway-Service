@@ -58,6 +58,11 @@ DESIGN_STANDARDS = {
             "defaultWindSpeed": 60,
             "defaultAirDensity": 1.23,
         },
+        {
+            "name": "New JIL",
+            "defaultWindSpeed": 60,
+            "defaultAirDensity": 1.23,
+        },
         {"name": "Haiden"},
     ],
     "signboard": [
