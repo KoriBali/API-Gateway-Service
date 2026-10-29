@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import StringConstraints, model_validator
 
@@ -166,6 +166,109 @@ class CalculationCaseDetail(CalculationCaseRead):
 
 
 
+# ===== Tampilan hasil =====
+# Nilai mesin. Frontend menampilkan ok/ng sebagai O.K/N.G.
+CheckStatus = Literal["ok", "ng"]
+
+
+class DirectionCheck(CamelBaseModel):
+    """Pengecekan kekuatan angin satu arah di satu posisi cek."""
+    direction: str
+    resultant_wind_load_n: float
+    combined_wind_moment_nm: float
+    calculated_stress_n_mm2: float
+    allowable_stress_n_mm2: float
+    utilization_ratio: float
+    status: CheckStatus
+
+
+class PositionCheck(CamelBaseModel):
+    """Satu posisi cek: penampang yang dicek dan kedelapan arah, urutan dari Calculation Service."""
+    evaluated_position_m: float
+    pole_name: str
+    material_name: str
+    diameter_mm: float
+    thickness_mm: float
+    section_modulus_cm3: float
+    total_fix_load_n: float
+    status: CheckStatus
+    # Arah dengan rasio terbesar. Bila sama besar, arah yang lebih dulu.
+    governing_direction: str
+    directions: list[DirectionCheck]
+
+
+class CalculationDisplay(CamelBaseModel):
+    # Sama dengan status run: ok bila seluruh pengecekan di semua posisi dan arah O.K.
+    status: CheckStatus
+    positions: list[PositionCheck]
+
+
+
+# ===== Data laporan =====
+class ReportLoadRow(CamelBaseModel):
+    """Satu baris tabel beban: objek langsung lalu segmen tiang."""
+    kind: Literal["direct_object", "pole"]
+    name: str
+    unit_weight_n: float
+    quantity: int
+    fix_load_n: float
+    projected_area_per_unit_m2: float
+    wind_coefficient: float
+    wind_load_per_unit_n: float
+    wind_quantity: int
+    wind_load_n: float
+
+
+class ReportSection(CamelBaseModel):
+    """Pemeriksaan satu posisi cek pada arah laporan."""
+    evaluated_position_m: float
+    pole_name: str
+    material_name: str
+    diameter_mm: float
+    thickness_mm: float
+    section_modulus_cm3: float
+    rows: list[ReportLoadRow]
+    vertical_load_n: float
+    horizontal_load_n: float
+    bending_moment_nm: float
+    calculated_stress_n_mm2: float
+    allowable_stress_n_mm2: float
+    utilization_ratio: float
+    status: CheckStatus
+
+
+class ReportFoundationLoads(CamelBaseModel):
+    """Gaya di dasar tiang: posisi cek terendah, arah laporan."""
+    vertical_load_n: float
+    horizontal_load_n: float
+    bending_moment_nm: float
+
+
+class ReportOverallCheck(CamelBaseModel):
+    """Status run dan pengecekan dengan rasio terbesar di semua posisi dan arah."""
+    status: StatusCalculationRun
+    evaluated_position_m: float
+    direction: str
+    utilization_ratio: float
+
+
+class CalculationReport(CamelBaseModel):
+    run_id: str
+    template: str
+    design_standard_code: int
+    design_standard_name: str
+    # Arah yang ditampilkan di bagian pemeriksaan.
+    report_direction: str
+    design_wind_speed_m_s: float
+    wind_pressure_n_m2: float
+    allowable_stress_n_mm2: float
+    # Urut dari posisi cek tertinggi.
+    sections: list[ReportSection]
+    foundation: ReportFoundationLoads
+    overall: ReportOverallCheck
+
+
+
 # ===== Run =====
 class CalculationRunSummary(CamelBaseModel):
     id: str
@@ -181,6 +284,8 @@ class CalculationRunRead(CalculationRunSummary):
     input_snapshot: dict[str, Any]
     result_snapshot: dict[str, Any] | None = None
     error_snapshot: dict[str, Any] | None = None
+    # Disusun saat dibaca, tidak disimpan. None untuk run failed.
+    display: CalculationDisplay | None = None
 
 
 class RunNotCreated(CamelBaseModel):
@@ -195,7 +300,8 @@ class CalculationSaveResult(CamelBaseModel):
 
 
 class CalculateResult(CamelBaseModel):
-    """Hasil Hitung. Tampilan hasil (formatter) menyusul di Milestone 03."""
+    """Hasil Hitung: tampilan hasil beserta payload dan jawaban mentah Calculation Service."""
     status: StatusCalculationRun
+    display: CalculationDisplay
     engine_request: dict[str, Any]
     engine_result: dict[str, Any]

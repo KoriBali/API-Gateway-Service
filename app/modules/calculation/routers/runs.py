@@ -7,7 +7,7 @@ from app.core.security import CurrentUser, require_roles
 from app.utils.response import success_response
 from app.modules.intake.repository import RequestRepository
 from app.modules.case import permissions as case_permissions
-from app.modules.calculation import builder
+from app.modules.calculation import builder, display, report
 from app.modules.calculation.repository import CalculationCaseRepository
 from app.modules.calculation.routers.cases import case_detail
 from app.modules.calculation.schemas import (
@@ -77,6 +77,22 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
     return height, conditions, design_standard
 
 
+def _run_read(run) -> CalculationRunRead:
+    """Run beserta tampilan hasilnya, disusun saat dibaca."""
+    read = CalculationRunRead.model_validate(run)
+    if run.result_snapshot is not None:
+        read.display = display.format_display(run.result_snapshot)
+    return read
+
+
+async def _load_run(db: AsyncSession, case, run_id: str):
+    run = await CalculationCaseRepository.get_run(db, case.id, run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Calculation run not found")
+    return run
+
+
+
 # ===== Hitung (G14): tanpa menulis apa pun =====
 @routerCalculationRun.post("/{request_id}/calculation-cases/{case_id}/calculate")
 async def calculate_case(
@@ -113,6 +129,7 @@ async def calculate_case(
                 detail={"reason": "engine_rejected", "engineResponse": response.body},
             )
         run_status = builder.derive_status(response.body)
+        result_display = display.format_display(response.body)
     except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
         logger.error(f"Calculate failed for case {case.id}: {e!r}")
         reason = builder.RunSkipReason.engine_unavailable
@@ -122,7 +139,10 @@ async def calculate_case(
         )
 
     return success_response(
-        data=CalculateResult(status=run_status, engine_request=engine_request, engine_result=response.body),
+        data=CalculateResult(
+            status=run_status, display=result_display,
+            engine_request=engine_request, engine_result=response.body,
+        ),
         message="Calculation completed",
     )
 
@@ -192,7 +212,7 @@ async def save_and_run(
         input_snapshot=input_snapshot, result_snapshot=result_snapshot, error_snapshot=error_snapshot,
     )
     return success_response(
-        data=CalculationSaveResult(case=detail, run=CalculationRunRead.model_validate(run)),
+        data=CalculationSaveResult(case=detail, run=_run_read(run)),
         status_code=status.HTTP_201_CREATED,
         message="Calculation input saved and run created",
     )
@@ -224,10 +244,38 @@ async def get_run(
     actor: CurrentUser = Depends(_READ_ROLE),
 ):
     case = await _load_case(db, request_id, case_id, actor)
-    run = await CalculationCaseRepository.get_run(db, case.id, run_id)
-    if run is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Calculation run not found")
+    run = await _load_run(db, case, run_id)
     return success_response(
-        data=CalculationRunRead.model_validate(run),
+        data=_run_read(run),
         message="Calculation run retrieved",
     )
+
+
+
+# ===== Data laporan =====
+@routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/runs/{run_id}/report")
+async def get_run_report(
+    request_id: str,
+    case_id: str,
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_READ_ROLE),
+):
+    case = await _load_case(db, request_id, case_id, actor)
+    run = await _load_run(db, case, run_id)
+    if run.status == StatusCalculationRun.failed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": "run_failed", "message": "A failed run has no report"},
+        )
+    try:
+        data = report.format_report(run)
+    except report.ReportTemplateUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "report_template_unavailable",
+                "message": "The design standard of this run has no report template yet",
+            },
+        )
+    return success_response(data=data, message="Calculation report retrieved")
