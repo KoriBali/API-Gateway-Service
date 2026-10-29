@@ -24,23 +24,10 @@ CaseTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 
 
 class CalculationCaseFields(CamelBaseModel):
-    """Field skalar case yang diisi owner. Dipakai bersama Create dan Update."""
+    """Header case yang diisi owner: cangkang saja. Isian perhitungan (tinggi, objek
+    langsung) hanya ditulis Simpan. Field lain di body diabaikan."""
     title: CaseTitle | None = None
-    pole_standard_id: str | None = None
-    pole_standard_height_id: str | None = None
-    pole_combination_id: str | None = None
-    pole_family: PoleFamily | None = None
-    ground_position: GroundPosition | None = None
-    lowest_height: float | None = None
-    embedment_length: float | None = None
-    overdesign_factor: int | None = None
     case_label: str | None = None
-
-    # TODO(calc-contract): komponen belum difinalkan. Skeleton pass-through.
-    #   Dipetakan konkret ke CalculationOpening/BasePlate/Foundation di iterasi lanjut.
-    openings: list[dict] | None = None
-    baseplates: list[dict] | None = None
-    foundations: list[dict] | None = None
 
 
 class CalculationCaseCreate(CalculationCaseFields):
@@ -111,11 +98,9 @@ class DirectObjectInput(CamelBaseModel):
 
 
 class CalculationInput(CamelBaseModel):
-    """Isian satu halaman perhitungan tiang standard. Segmen tiang tidak diterima:
-    selalu dari katalog pilihan tinggi."""
+    """Isian satu halaman perhitungan tiang standard: pilihan tinggi dan objek langsung.
+    Segmen tiang dan ground position tidak diterima: keduanya dari katalog pilihan tinggi."""
     pole_standard_height_id: str
-    ground_position: GroundPosition
-    overdesign_factor: int | None = None
     direct_objects: list[DirectObjectInput]
     # Simpan saja: salin ulang segmen dan posisi cek dari katalog walau tinggi tidak berubah (G1).
     recopy_catalog: bool = False
@@ -171,35 +156,20 @@ class CalculationCaseDetail(CalculationCaseRead):
 CheckStatus = Literal["ok", "ng"]
 
 
-class DirectionCheck(CamelBaseModel):
-    """Pengecekan kekuatan angin satu arah di satu posisi cek."""
-    direction: str
-    resultant_wind_load_n: float
-    combined_wind_moment_nm: float
-    calculated_stress_n_mm2: float
-    allowable_stress_n_mm2: float
-    utilization_ratio: float
-    status: CheckStatus
-
-
 class PositionCheck(CamelBaseModel):
-    """Satu posisi cek: penampang yang dicek dan kedelapan arah, urutan dari Calculation Service."""
+    """Hasil satu posisi cek pada arah tampilan design standard."""
     evaluated_position_m: float
-    pole_name: str
-    material_name: str
-    diameter_mm: float
-    thickness_mm: float
-    section_modulus_cm3: float
-    total_fix_load_n: float
-    status: CheckStatus
-    # Arah dengan rasio terbesar. Bila sama besar, arah yang lebih dulu.
-    governing_direction: str
-    directions: list[DirectionCheck]
+    evaluated_pole_name: str
+    utilization_ratio: float
+    status: str
 
 
 class CalculationDisplay(CamelBaseModel):
     # Sama dengan status run: ok bila seluruh pengecekan di semua posisi dan arah O.K.
     status: CheckStatus
+    # Arah yang ditampilkan, mengikuti design standard run (Old JIL: N).
+    # None = arah design standard ini belum ditentukan; positions kosong.
+    display_direction: str | None = None
     positions: list[PositionCheck]
 
 
@@ -242,6 +212,44 @@ class ReportFoundationLoads(CamelBaseModel):
     vertical_load_n: float
     horizontal_load_n: float
     bending_moment_nm: float
+    
+
+class ReportStepPole(CamelBaseModel):
+    """Satu segmen tiang yang dihitung run. Bentuk sama dengan step_poles, tanpa id.
+    Straight: ukuran di kolom lower, upper kosong."""
+    name: str
+    pole_type: PoleType
+    material_name: str
+    top_elevation_m: float
+    diameter_lower_mm: float
+    diameter_upper_mm: float | None = None
+    thickness_lower_mm: float
+    thickness_upper_mm: float | None = None
+
+
+class ReportDirectObject(CamelBaseModel):
+    """Satu objek langsung yang dihitung run. Bentuk sama dengan direct_objects, tanpa id."""
+    name: str
+    object_kind: ObjectKind
+    front_area_m2: float
+    side_area_m2: float | None = None
+    fixed_angle_deg: float | None = None
+    mass_per_unit_kg: float
+    elevation_m: float
+    base_wind_coefficient: float
+    quantity: int
+
+
+class ReportGeometry(CamelBaseModel):
+    """Tiang dan objek langsung yang dihitung run, dari input_snapshot, bukan dari case saat ini."""
+    pole_standard_name: str
+    pole_standard_height: float
+    ground_position: GroundPosition
+    gl_elevation_m: float | None = None
+    # Urut dari puncak tertinggi, sama dengan payload Calculation Service.
+    step_poles: list[ReportStepPole]
+    # Urut nama, sama dengan payload Calculation Service.
+    direct_objects: list[ReportDirectObject]
 
 
 class ReportOverallCheck(CamelBaseModel):
@@ -262,6 +270,7 @@ class CalculationReport(CamelBaseModel):
     design_wind_speed_m_s: float
     wind_pressure_n_m2: float
     allowable_stress_n_mm2: float
+    geometry: ReportGeometry
     # Urut dari posisi cek tertinggi.
     sections: list[ReportSection]
     foundation: ReportFoundationLoads
@@ -300,8 +309,6 @@ class CalculationSaveResult(CamelBaseModel):
 
 
 class CalculateResult(CamelBaseModel):
-    """Hasil Hitung: tampilan hasil beserta payload dan jawaban mentah Calculation Service."""
+    """Hasil Hitung: status dan tampilan hasil. Payload dan jawaban mentah ada di run (Simpan)."""
     status: StatusCalculationRun
     display: CalculationDisplay
-    engine_request: dict[str, Any]
-    engine_result: dict[str, Any]

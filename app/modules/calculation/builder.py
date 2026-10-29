@@ -19,14 +19,17 @@ FIXED_WIND_DESIGN_STANDARDS = frozenset({2, 3, 4, 5})
 # Elevasi diukur dari dasar tiang.
 BASE_ELEVATION_M = 0.0
 
-# Case on_gl memakai baris katalog on_gl. Baseplate under GL dan embedment tanpa
-# baseplate memakai baris under_gl (+300 mm). upper_gl tidak punya baris katalog.
-CATALOG_GROUND_POSITION = {
-    GroundPosition.on_gl: PoleHeightGroundPosition.on_gl,
-    GroundPosition.under_gl: PoleHeightGroundPosition.under_gl,
-    GroundPosition.embedment: PoleHeightGroundPosition.under_gl,
+# Ground position case diturunkan dari baris katalog tinggi yang dipilih. under_gl =
+# baseplate di bawah GL. embedment (baris katalog yang sama, tanpa baseplate) belum bisa
+# dipilih sampai ada langkah baseplate/foundation. upper_gl tidak punya baris katalog.
+CASE_GROUND_POSITION = {
+    PoleHeightGroundPosition.on_gl: GroundPosition.on_gl,
+    PoleHeightGroundPosition.under_gl: GroundPosition.under_gl,
 }
 
+# Nama jenis di kontrak Calculation Service. Dipakai juga laporan untuk membaca balik snapshot.
+ENGINE_POLE_TYPES = {PoleType.taper: "Taper", PoleType.straight: "Straight"}
+ENGINE_OBJECT_TYPES = {ObjectKind.omni: "Omni", ObjectKind.directional: "Directional"}
 
 class RunSkipReason(str, enum.Enum):
     """Alasan Simpan tidak membuat run. Input tetap tersimpan."""
@@ -66,7 +69,6 @@ def build_pole_request(
     material_names: dict[str, str],
     direct_objects,
     evaluated_positions_m,
-    overdesign_factor: int | None,
 ) -> dict:
     """segments: baris berbentuk PoleSegmentColumnsMixin + material_id.
     direct_objects: baris atau input berbentuk DirectObjectColumnsMixin."""
@@ -76,7 +78,7 @@ def build_pole_request(
     for segment in sorted(segments, key=lambda s: s.top_elevation_m, reverse=True):
         pole = {
             "name": segment.name,
-            "pole_type": "Taper" if segment.pole_type == PoleType.taper else "Straight",
+            "pole_type": ENGINE_POLE_TYPES[segment.pole_type],
             "material": material_names[segment.material_id],
             "top_elevation_m": _num(segment.top_elevation_m),
         }
@@ -96,7 +98,7 @@ def build_pole_request(
     for obj in sorted(direct_objects, key=lambda o: o.name):
         item = {
             "name": obj.name,
-            "object_type": "Omni" if obj.object_kind == ObjectKind.omni else "Directional",
+            "object_type": ENGINE_OBJECT_TYPES[obj.object_kind],
             "front_area_m2": _num(obj.front_area_m2),
             "mass_per_unit_kg": _num(obj.mass_per_unit_kg),
             "elevation_m": _num(obj.elevation_m),
@@ -118,13 +120,11 @@ def build_pole_request(
         "direct_objects": objects,
         "evaluated_positions_m": [_num(p) for p in evaluated_positions_m],
     }
-    # Kosong: Calculation Service memakai 1.
-    if overdesign_factor is not None:
-        body["overdesign_factor"] = overdesign_factor
+    # overdesign_factor tidak dikirim: Calculation Service memakai 1
     return body
 
 
-def build_context(*, conditions, design_standard, height, ground_position: GroundPosition) -> dict:
+def build_context(*, conditions, design_standard, height) -> dict:
     """Bagian context input_snapshot: data gateway yang dipakai menyusun payload."""
     return {
         "design_standard_id": design_standard.id,
@@ -136,7 +136,7 @@ def build_context(*, conditions, design_standard, height, ground_position: Groun
         "pole_standard_name": height.pole_standard.name,
         "pole_standard_height_id": height.id,
         "pole_standard_height": _num(height.height),
-        "ground_position": ground_position.value,
+        "ground_position": CASE_GROUND_POSITION[height.ground_position].value,
         "gl_elevation_m": _num(height.gl_elevation_m) if height.gl_elevation_m is not None else None,
     }
 

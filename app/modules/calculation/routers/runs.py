@@ -58,20 +58,7 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
             status_code=status.HTTP_409_CONFLICT,
             detail="Only taper standard poles can be calculated yet",
         )
-    expected = builder.CATALOG_GROUND_POSITION.get(payload.ground_position)
-    if expected is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"groundPosition {payload.ground_position.value} has no catalog pole height",
-        )
-    if height.ground_position != expected:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"groundPosition {payload.ground_position.value} requires a "
-                f"{expected.value} pole height"
-            ),
-        )
+
     conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     design_standard = await CalculationCaseRepository.get_design_standard(db, conditions.design_standard_id)
     return height, conditions, design_standard
@@ -81,7 +68,9 @@ def _run_read(run) -> CalculationRunRead:
     """Run beserta tampilan hasilnya, disusun saat dibaca."""
     read = CalculationRunRead.model_validate(run)
     if run.result_snapshot is not None:
-        read.display = display.format_display(run.result_snapshot)
+        read.display = display.format_display(
+            run.result_snapshot, run.input_snapshot["context"]["design_standard_code"],
+        )
     return read
 
 
@@ -119,7 +108,6 @@ async def calculate_case(
         material_names={s.material_id: s.material.name for s in height.segments},
         direct_objects=payload.direct_objects,
         evaluated_positions_m=height.evaluated_positions_m,
-        overdesign_factor=payload.overdesign_factor,
     )
     try:
         response = await post_engine(POLE_CALCULATE_PATH, engine_request)
@@ -129,7 +117,7 @@ async def calculate_case(
                 detail={"reason": "engine_rejected", "engineResponse": response.body},
             )
         run_status = builder.derive_status(response.body)
-        result_display = display.format_display(response.body)
+        result_display = display.format_display(response.body, design_standard.code)
     except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
         logger.error(f"Calculate failed for case {case.id}: {e!r}")
         reason = builder.RunSkipReason.engine_unavailable
@@ -139,10 +127,7 @@ async def calculate_case(
         )
 
     return success_response(
-        data=CalculateResult(
-            status=run_status, display=result_display,
-            engine_request=engine_request, engine_result=response.body,
-        ),
+        data=CalculateResult(status=run_status, display=result_display),
         message="Calculation completed",
     )
 
@@ -185,13 +170,11 @@ async def save_and_run(
         material_names=await CalculationCaseRepository.material_names(db, [s.material_id for s in detail.step_poles]),
         direct_objects=detail.direct_objects,
         evaluated_positions_m=detail.evaluated_positions_m,
-        overdesign_factor=detail.overdesign_factor,
     )
     input_snapshot = {
         "engine_request": engine_request,
         "context": builder.build_context(
-            conditions=conditions, design_standard=design_standard,
-            height=height, ground_position=payload.ground_position,
+            conditions=conditions, design_standard=design_standard, height=height,
         ),
     }
 

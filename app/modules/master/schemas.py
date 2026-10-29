@@ -1,4 +1,6 @@
 from typing import List
+
+from pydantic import Field
 from app.utils.base_schema import CamelBaseModel
 
 
@@ -105,7 +107,10 @@ class PoleStandardHeightGeometrySchema(CamelBaseModel):
     gl_elevation_m : float | None
     evaluated_positions_m : List[float] | None
     is_calculable : bool
-    segments : List[PoleStandardSegmentSchema] = []
+    
+    # Dinamai sama dengan step_poles case, karena isinya disalin ke sana saat Simpan.
+    # Dibaca dari relasi PoleStandardHeight.segments.
+    step_poles : List[PoleStandardSegmentSchema] = Field(default=[], validation_alias="segments")
     direct_objects : List[PoleStandardDirectObjectSchema] = []
 
 
