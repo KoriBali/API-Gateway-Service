@@ -9,14 +9,19 @@ Service); formatter hanya memilih dan menyusun.
 from collections.abc import Callable
 
 from app.database.models.calculation import CalculationRun
-from app.modules.calculation.display import check_status
+from app.modules.calculation import builder
+from app.modules.calculation.display import check_status, direction_row
 from app.modules.calculation.schemas import (
     CalculationReport,
+    ReportDirectObject,
     ReportFoundationLoads,
+    ReportGeometry,
     ReportLoadRow,
     ReportOverallCheck,
     ReportSection,
+    ReportStepPole,
 )
+
 
 
 class ReportTemplateUnavailable(Exception):
@@ -26,13 +31,59 @@ class ReportTemplateUnavailable(Exception):
 # Calculation Service menghitung satu unit per segmen tiang.
 POLE_QUANTITY = 1
 
+# ===== Geometri yang dihitung (semua template) =====
+# Kebalikan builder: nama jenis Calculation Service kembali ke enum gateway.
+_POLE_TYPES = {name: kind for kind, name in builder.ENGINE_POLE_TYPES.items()}
+_OBJECT_KINDS = {name: kind for kind, name in builder.ENGINE_OBJECT_TYPES.items()}
 
-def _direction(rows: list[dict], direction: str) -> dict:
-    for row in rows:
-        if row["direction"] == direction:
-            return row
-    raise ValueError(f"Calculation Service response has no {direction} direction")
 
+def _step_pole(pole: dict) -> ReportStepPole:
+    pole_type = _POLE_TYPES[pole["pole_type"]]
+    if "diameter_lower_mm" in pole:
+        lower = (pole["diameter_lower_mm"], pole["thickness_lower_mm"])
+        upper = (pole["diameter_upper_mm"], pole["thickness_upper_mm"])
+    else:
+        # Straight dikirim dengan satu ukuran (diameter_mm, thickness_mm).
+        lower, upper = (pole["diameter_mm"], pole["thickness_mm"]), (None, None)
+    return ReportStepPole(
+        name=pole["name"],
+        pole_type=pole_type,
+        material_name=pole["material"],
+        top_elevation_m=pole["top_elevation_m"],
+        diameter_lower_mm=lower[0],
+        diameter_upper_mm=upper[0],
+        thickness_lower_mm=lower[1],
+        thickness_upper_mm=upper[1],
+    )
+
+
+def _direct_object(obj: dict) -> ReportDirectObject:
+    return ReportDirectObject(
+        name=obj["name"],
+        object_kind=_OBJECT_KINDS[obj["object_type"]],
+        front_area_m2=obj["front_area_m2"],
+        side_area_m2=obj.get("side_area_m2"),
+        fixed_angle_deg=obj.get("fixed_angle_deg"),
+        mass_per_unit_kg=obj["mass_per_unit_kg"],
+        elevation_m=obj["elevation_m"],
+        base_wind_coefficient=obj["base_wind_coefficient"],
+        quantity=obj["quantity"],
+    )
+
+
+def _geometry(run: CalculationRun) -> ReportGeometry:
+    """Dari payload yang benar-benar dikirim ke Calculation Service, supaya laporan
+    menggambarkan run ini walau case sudah disimpan ulang dengan tinggi lain."""
+    engine_request = run.input_snapshot["engine_request"]
+    context = run.input_snapshot["context"]
+    return ReportGeometry(
+        pole_standard_name=context["pole_standard_name"],
+        pole_standard_height=context["pole_standard_height"],
+        ground_position=context["ground_position"],
+        gl_elevation_m=context["gl_elevation_m"],
+        step_poles=[_step_pole(p) for p in engine_request["poles"]],
+        direct_objects=[_direct_object(o) for o in engine_request["direct_objects"]],
+    )
 
 # ===== Design standard 3 (Old JIL) =====
 OLD_JIL_TEMPLATE = "old_jil"
@@ -41,7 +92,7 @@ OLD_JIL_DIRECTION = "N"
 
 
 def _object_row(obj: dict) -> ReportLoadRow:
-    wind = _direction(obj["directional_results"], OLD_JIL_DIRECTION)
+    wind = direction_row(obj["directional_results"], OLD_JIL_DIRECTION)
     return ReportLoadRow(
         kind="direct_object",
         name=obj["object_name"],
@@ -75,7 +126,7 @@ def _pole_row(pole: dict) -> ReportLoadRow:
 def _old_jil_section(position: dict) -> ReportSection:
     check = position["section_check"]
     section = check["section_properties"]
-    wind = _direction(check["directional_results"], OLD_JIL_DIRECTION)
+    wind = direction_row(check["directional_results"], OLD_JIL_DIRECTION)
     strength = wind["wind_strength"]
     # direct_object bernilai null bila case tanpa objek langsung.
     objects = (position.get("direct_object") or {}).get("direct_object_results") or []
@@ -133,6 +184,7 @@ def _old_jil_report(run: CalculationRun) -> CalculationReport:
         # Standar 2 sampai 5: q sama di semua elevasi, jadi cukup dari segmen pertama.
         wind_pressure_n_m2=positions[0]["pole"]["pole_results"][0]["wind_pressure_n_m2"],
         allowable_stress_n_mm2=base.allowable_stress_n_mm2,
+        geometry=_geometry(run),
         sections=sections,
         foundation=ReportFoundationLoads(
             vertical_load_n=base.vertical_load_n,

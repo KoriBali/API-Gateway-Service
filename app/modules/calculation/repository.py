@@ -1,8 +1,9 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.database.models.intake import Request
 from app.modules.workflow.gate import apply_prevention_status
+from app.modules.calculation import builder
 
 from app.database.models.calculation import (
     CalculationCase,
@@ -20,19 +21,12 @@ from app.database.models.master import (
     PoleStandardSegment,
 )
 
-# Field skalar yang boleh ditulis dari payload (whitelist).
+# Field header yang boleh ditulis create dan PATCH (whitelist). Isian perhitungan
+# hanya ditulis save_input (Simpan).
 _CASE_SCALAR_FIELDS = (
     "title",
-    "pole_standard_id",
-    "pole_standard_height_id",
-    "pole_combination_id",
-    "pole_family",
-    "ground_position",
-    "lowest_height",
-    "embedment_length",
-    "overdesign_factor",
-    "pole_kind",
     "case_label",
+    "pole_kind",
 )
 
 
@@ -138,12 +132,8 @@ class CalculationCaseRepository:
         for field in _CASE_SCALAR_FIELDS:
             if field in data:
                 setattr(case, field, data[field])
-        # TODO(calc-contract): tulis komponen (openings/baseplates/foundations) di transaksi
-        #   yang sama, setelah field domain difinalkan. Terapkan aturan "lengkap-atau-lewati"
-        #   karena kolomnya banyak yang NOT NULL.
         db.add(case)
         await db.flush()
-        await CalculationCaseRepository._sync_catalog_geometry(db, case, previous_height_id=None)
         # Case baru belum diperiksa: status bisa turun dari prevention_check
         await apply_prevention_status(db, req)
         await db.commit()
@@ -153,12 +143,9 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def update(db: AsyncSession, case: CalculationCase, data: dict) -> CalculationCase:
-        previous_height_id = case.pole_standard_height_id
         for field in _CASE_SCALAR_FIELDS:
             if field in data:
                 setattr(case, field, data[field])
-        # TODO(calc-contract): tulis-ulang komponen dengan pola delete-then-insert.
-        await CalculationCaseRepository._sync_catalog_geometry(db, case, previous_height_id=previous_height_id)
         await db.commit()
         await db.refresh(case)
         return case
@@ -227,8 +214,10 @@ class CalculationCaseRepository:
         case.pole_standard_id = height.pole_standard_id
         case.pole_standard_height_id = height.id
         case.pole_family = PoleFamily.taper
-        case.ground_position = data.ground_position
-        case.overdesign_factor = data.overdesign_factor
+        case.ground_position = builder.CASE_GROUND_POSITION[height.ground_position]
+        # Tidak diterima dari body: Calculation Service memakai 1. Nilai lama dikosongkan
+        # supaya case tidak menampilkan faktor yang tidak dipakai run.
+        case.overdesign_factor = None
         await CalculationCaseRepository._sync_catalog_geometry(
             db, case, previous_height_id=previous_height_id, force=data.recopy_catalog,
         )
@@ -257,6 +246,12 @@ class CalculationCaseRepository:
         await db.commit()
         await db.refresh(run)
         return run
+    
+    @staticmethod
+    async def has_run(db: AsyncSession, case_id: str) -> bool:
+        """Termasuk run failed: run tetap riwayat case."""
+        stmt = select(exists().where(CalculationRun.calculation_case_id == case_id))
+        return bool(await db.scalar(stmt))
 
     @staticmethod
     async def list_runs(db: AsyncSession, case_id: str) -> list[CalculationRun]:

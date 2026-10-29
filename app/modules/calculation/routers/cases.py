@@ -125,7 +125,19 @@ async def update_calculation_case(
 ):
     case = await _load_case(db, request_id, case_id, actor)
     case_permissions.ensure_owner(actor, case)
-    case = await CalculationCaseRepository.update(db, case, payload.model_dump(exclude_unset=True))
+    data = payload.model_dump(exclude_unset=True)
+    # Satu case, satu jenis tiang: riwayat run dan laporannya tidak boleh bercampur.
+    if (
+        "pole_kind" in data
+        and data["pole_kind"] != case.pole_kind
+        and await CalculationCaseRepository.has_run(db, case.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="poleKind cannot be changed once the case has a calculation run; create a new case instead",
+        )
+    case = await CalculationCaseRepository.update(db, case, data)
+
     return success_response(
         data=CalculationCaseRead.model_validate(case),
         message="Calculation case saved",
