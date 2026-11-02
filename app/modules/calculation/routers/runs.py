@@ -68,9 +68,7 @@ def _run_read(run) -> CalculationRunRead:
     """Run beserta tampilan hasilnya, disusun saat dibaca."""
     read = CalculationRunRead.model_validate(run)
     if run.result_snapshot is not None:
-        read.display = display.format_display(
-            run.result_snapshot, run.input_snapshot["context"]["design_standard_code"],
-        )
+        read.display = display.format_display(run.result_snapshot)
     return read
 
 
@@ -116,8 +114,8 @@ async def calculate_case(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"reason": "engine_rejected", "engineResponse": response.body},
             )
-        run_status = builder.derive_status(response.body)
-        result_display = display.format_display(response.body, design_standard.code)
+        run_status, _ = builder.read_summary(response.body)
+        result_display = display.format_display(response.body)
     except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
         logger.error(f"Calculate failed for case {case.id}: {e!r}")
         reason = builder.RunSkipReason.engine_unavailable
@@ -181,10 +179,11 @@ async def save_and_run(
     try:
         response = await post_engine(POLE_CALCULATE_PATH, engine_request)
         if response.status_code == 422:
-            run_status, result_snapshot = StatusCalculationRun.failed, None
+            run_status, utilization_ratio, result_snapshot = StatusCalculationRun.failed, None, None
             error_snapshot = {"status_code": 422, "body": response.body}
         else:
-            run_status, result_snapshot, error_snapshot = builder.derive_status(response.body), response.body, None
+            run_status, utilization_ratio = builder.read_summary(response.body)
+            result_snapshot, error_snapshot = response.body, None
     except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
         logger.error(f"Run not created for case {case.id}: {e!r}")
         return not_created(builder.RunSkipReason.engine_unavailable)
@@ -192,8 +191,10 @@ async def save_and_run(
     # Transaksi 2: run immutable.
     run = await CalculationCaseRepository.create_run(
         db, case_id=case.id, run_by_user_id=actor.id, status=run_status,
-        input_snapshot=input_snapshot, result_snapshot=result_snapshot, error_snapshot=error_snapshot,
+        utilization_ratio=utilization_ratio, input_snapshot=input_snapshot,
+        result_snapshot=result_snapshot, error_snapshot=error_snapshot,
     )
+
     return success_response(
         data=CalculationSaveResult(case=detail, run=_run_read(run)),
         status_code=status.HTTP_201_CREATED,

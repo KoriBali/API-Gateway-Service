@@ -231,12 +231,14 @@ class CalculationCaseRepository:
     @staticmethod
     async def create_run(
         db: AsyncSession, *, case_id: str, run_by_user_id: str, status: StatusCalculationRun,
-        input_snapshot: dict, result_snapshot: dict | None, error_snapshot: dict | None,
+        utilization_ratio: float | None, input_snapshot: dict, result_snapshot: dict | None,
+        error_snapshot: dict | None,
     ) -> CalculationRun:
         run = CalculationRun(
             calculation_case_id=case_id,
             run_type=CalculationRunType.pole,
             status=status,
+            utilization_ratio=utilization_ratio,
             input_snapshot=input_snapshot,
             result_snapshot=result_snapshot,
             error_snapshot=error_snapshot,

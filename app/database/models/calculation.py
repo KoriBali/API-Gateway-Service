@@ -12,7 +12,6 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     String,
     Numeric,
-    Integer,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -143,8 +142,8 @@ class CalculationCase(Base):
         nullable=True
     )
 
-    overdesign_factor: Mapped[int | None] = mapped_column(
-        Integer,
+    overdesign_factor: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
         nullable=True
     )
     
@@ -326,6 +325,11 @@ class CalculationRun(Base):
             " AND (status = 'failed') = (error_snapshot IS NOT NULL)",
             name="status_snapshot",
         ),
+        # Rasio pengecekan penentu ada tepat untuk run yang punya hasil.
+        CheckConstraint(
+            "(status = 'failed') = (utilization_ratio IS NULL)",
+            name="status_utilization_ratio",
+        ),
     )
 
     id: Mapped[str] = mapped_column(
@@ -369,6 +373,13 @@ class CalculationRun(Base):
 
     error_snapshot: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True),
+        nullable=True
+    )
+    
+    # utilization_ratio pengecekan penentu (summary.governing), untuk mengurutkan run
+    # tanpa membuka JSON. NULL untuk run failed.
+    utilization_ratio: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
         nullable=True
     )
 

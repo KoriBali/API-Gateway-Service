@@ -63,7 +63,7 @@ class CalculationCaseRead(CamelBaseModel):
     ground_position: GroundPosition | None = None
     lowest_height: float | None = None
     embedment_length: float | None = None
-    overdesign_factor: int | None = None
+    overdesign_factor: float | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -152,45 +152,62 @@ class CalculationCaseDetail(CalculationCaseRead):
 
 
 # ===== Tampilan hasil =====
-# Nilai mesin. Frontend menampilkan ok/ng sebagai O.K/N.G.
+# Nilai mesin. Frontend menampilkan ok/ng sebagai OK/NG.
 CheckStatus = Literal["ok", "ng"]
 
 
-class PositionCheck(CamelBaseModel):
-    """Hasil satu posisi cek pada arah tampilan design standard."""
-    evaluated_position_m: float
-    evaluated_pole_name: str
+class DisplayCheck(CamelBaseModel):
+    """Satu pengecekan kekuatan, apa adanya dari Calculation Service. Tiang: per posisi
+    cek dan wind case. Lengan: per lengan, tanpa posisi cek dan wind case."""
+    component: str
+    # Segmen tiang di posisi cek, atau nama lengan.
+    name: str
+    evaluated_position_m: float | None = None
+    wind_case: str | None = None
+    check: str
     utilization_ratio: float
+    # Teks Calculation Service: "OK" / "NG".
     status: str
 
 
+class DisplayGoverning(CamelBaseModel):
+    """Pengecekan dengan utilization_ratio terbesar (summary.governing)."""
+    component: str
+    name: str
+    evaluated_position_m: float | None = None
+    wind_case: str | None = None
+    check: str
+    utilization_ratio: float
+
+
 class CalculationDisplay(CamelBaseModel):
-    # Sama dengan status run: ok bila seluruh pengecekan di semua posisi dan arah O.K.
+    # Sama dengan status run: ng bila ada satu pengecekan NG.
     status: CheckStatus
-    # Arah yang ditampilkan, mengikuti design standard run (Old JIL: N).
-    # None = arah design standard ini belum ditentukan; positions kosong.
-    display_direction: str | None = None
-    positions: list[PositionCheck]
+    governing: DisplayGoverning
+    checks: list[DisplayCheck]
 
 
 
 # ===== Data laporan =====
 class ReportLoadRow(CamelBaseModel):
-    """Satu baris tabel beban: objek langsung lalu segmen tiang."""
-    kind: Literal["direct_object", "pole"]
+    """Satu baris tabel beban, apa adanya dari load_rows. Urutan Calculation Service:
+    lengan, objek langsung, kawat udara, lalu segmen tiang dari atas."""
+    kind: Literal["arm", "direct_object", "overhead_wire", "pole"]
     name: str
-    unit_weight_n: float
     quantity: int
     fix_load_n: float
-    projected_area_per_unit_m2: float
-    wind_coefficient: float
-    wind_load_per_unit_n: float
-    wind_quantity: int
+    # Lengan: null; nilainya ada per objek lengan.
+    projected_area_m2: float | None = None
+    wind_coefficient: float | None = None
     wind_load_n: float
+    load_center_height_m: float
+    wind_moment_nm: float | None = None
+    # Kawat udara saja.
+    wind_tension_n: float | None = None
 
 
 class ReportSection(CamelBaseModel):
-    """Pemeriksaan satu posisi cek pada arah laporan."""
+    """Pemeriksaan tiang di satu posisi cek pada wind case laporan."""
     evaluated_position_m: float
     pole_name: str
     material_name: str
@@ -199,7 +216,12 @@ class ReportSection(CamelBaseModel):
     section_modulus_cm3: float
     rows: list[ReportLoadRow]
     vertical_load_n: float
+    wind_load_n: float
+    wind_tension_n: float
     horizontal_load_n: float
+    arm_fix_load_moment_nm: float
+    combined_moment_x_nm: float
+    combined_moment_y_nm: float
     bending_moment_nm: float
     calculated_stress_n_mm2: float
     allowable_stress_n_mm2: float
@@ -252,12 +274,9 @@ class ReportGeometry(CamelBaseModel):
     direct_objects: list[ReportDirectObject]
 
 
-class ReportOverallCheck(CamelBaseModel):
-    """Status run dan pengecekan dengan rasio terbesar di semua posisi dan arah."""
+class ReportOverallCheck(DisplayGoverning):
+    """Status run dan pengecekan penentu di semua posisi cek, wind case, dan lengan."""
     status: StatusCalculationRun
-    evaluated_position_m: float
-    direction: str
-    utilization_ratio: float
 
 
 class CalculationReport(CamelBaseModel):
@@ -265,8 +284,8 @@ class CalculationReport(CamelBaseModel):
     template: str
     design_standard_code: int
     design_standard_name: str
-    # Arah yang ditampilkan di bagian pemeriksaan.
-    report_direction: str
+    # Wind case yang ditampilkan di bagian pemeriksaan.
+    wind_case: str
     design_wind_speed_m_s: float
     wind_pressure_n_m2: float
     allowable_stress_n_mm2: float
@@ -285,6 +304,7 @@ class CalculationRunSummary(CamelBaseModel):
     run_type: CalculationRunType
     parent_run_id: str | None = None
     status: StatusCalculationRun
+    utilization_ratio: float | None = None
     run_by_user_id: str
     run_at: datetime
 
