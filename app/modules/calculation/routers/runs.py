@@ -110,9 +110,11 @@ async def calculate_case(
     # Belum ada salinan untuk Hitung: geometri dibaca dari katalog saat itu juga.
     engine_request = builder.build_pole_request(
         design_standard_code=design_standard.code,
-        segments=height.segments,
+        wind_speed=conditions.wind_speed,
+        air_density=conditions.air_density,
+        step_poles=height.step_poles,
         material_names=await CalculationCaseRepository.material_names(
-            db, [s.material_id for s in height.segments] + [a.material_id for a in payload.arms],
+            db, [s.material_id for s in height.step_poles] + [a.material_id for a in payload.arms],
         ),
         direct_objects=payload.direct_objects,
         overhead_wires=payload.overhead_wires,
@@ -177,7 +179,9 @@ async def save_and_run(
     # Payload disusun ulang dari data yang baru disimpan, bukan dari body.
     engine_request = builder.build_pole_request(
         design_standard_code=design_standard.code,
-        segments=detail.step_poles,
+        wind_speed=conditions.wind_speed,
+        air_density=conditions.air_density,
+        step_poles=detail.step_poles,
         material_names=await CalculationCaseRepository.material_names(
             db, [s.material_id for s in detail.step_poles] + [a.material_id for a in detail.arms],
         ),
@@ -186,6 +190,7 @@ async def save_and_run(
         arms=detail.arms,
         evaluated_positions_m=detail.evaluated_positions_m,
     )
+
     input_snapshot = {
         "engine_request": engine_request,
         "context": builder.build_context(

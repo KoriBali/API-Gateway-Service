@@ -76,7 +76,7 @@ class PoleStandardSchema(CamelBaseModel):
     
     
 # ===== Geometri per pilihan tinggi (prefill form perhitungan) =====
-class PoleStandardSegmentSchema(CamelBaseModel):
+class PoleStandardStepPoleSchema(CamelBaseModel):
     id : str
     name : str
     material : MaterialSchema
@@ -133,9 +133,8 @@ class PoleStandardHeightGeometrySchema(CamelBaseModel):
     evaluated_positions_m : List[float] | None
     is_calculable : bool
     
-    # Dinamai sama dengan step_poles case, karena isinya disalin ke sana saat Simpan.
-    # Dibaca dari relasi PoleStandardHeight.segments.
-    step_poles : List[PoleStandardSegmentSchema] = Field(default=[], validation_alias="segments")
+    #  Sama dengan step_poles case, karena isinya disalin ke sana saat Simpan.
+    step_poles : List[PoleStandardStepPoleSchema] = []
     direct_objects : List[PoleStandardDirectObjectSchema] = []
     arms : List[PoleStandardArmSchema] = []
 

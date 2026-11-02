@@ -18,11 +18,11 @@ from app.database.models.geometry import (
     ArmColumnsMixin,
     ArmObjectColumnsMixin,
     DirectObjectColumnsMixin,
-    PoleSegmentColumnsMixin,
+    StepPoleColumnsMixin,
     arm_constraints,
     arm_object_constraints,
     direct_object_constraints,
-    pole_segment_constraints,
+    step_pole_constraints,
 )
 
 if TYPE_CHECKING:
@@ -31,9 +31,9 @@ if TYPE_CHECKING:
 
 
 # === Step Pole ===
-class StepPole(Base, PoleSegmentColumnsMixin):
+class StepPole(Base, StepPoleColumnsMixin):
     __tablename__ = "step_poles"
-    __table_args__ = pole_segment_constraints("step_poles", "calculation_case_id")
+    __table_args__ = step_pole_constraints("step_poles", "calculation_case_id")
 
     id: Mapped[str] = mapped_column(
         String,

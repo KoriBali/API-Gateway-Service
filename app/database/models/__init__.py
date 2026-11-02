@@ -9,7 +9,7 @@ from .master import (
     DesignStandard, 
     PoleStandard, 
     PoleStandardHeight, 
-    PoleStandardSegment,
+    PoleStandardStepPole,
     PoleStandardArm,
     PoleStandardArmObject,
     PoleStandardDirectObject,

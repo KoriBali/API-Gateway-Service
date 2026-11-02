@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: 5e3f74140932
+Revision ID: af647fc0f996
 Revises: 
-Create Date: 2026-11-02 11:38:09.773618
+Create Date: 2026-11-02 16:04:02.487028
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5e3f74140932'
+revision: str = 'af647fc0f996'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -348,7 +348,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_direct_objects')),
     sa.UniqueConstraint('pole_standard_height_id', 'name', name='uq_pole_standard_direct_objects_name')
     )
-    op.create_table('pole_standard_segments',
+    op.create_table('pole_standard_step_poles',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_standard_height_id', sa.String(), nullable=False),
     sa.Column('material_id', sa.String(), nullable=False),
@@ -359,12 +359,12 @@ def upgrade() -> None:
     sa.Column('diameter_upper_mm', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('thickness_lower_mm', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('thickness_upper_mm', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.CheckConstraint("(pole_type = 'straight' AND diameter_upper_mm IS NULL AND thickness_upper_mm IS NULL) OR (pole_type = 'taper' AND diameter_upper_mm IS NOT NULL AND thickness_upper_mm IS NOT NULL)", name=op.f('ck_pole_standard_segments_pole_type_dimensions')),
-    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_pole_standard_segments_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], name=op.f('fk_pole_standard_segments_pole_standard_height_id_pole_standard_heights'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_segments')),
-    sa.UniqueConstraint('pole_standard_height_id', 'name', name='uq_pole_standard_segments_name'),
-    sa.UniqueConstraint('pole_standard_height_id', 'top_elevation_m', name='uq_pole_standard_segments_top_elevation_m')
+    sa.CheckConstraint("(pole_type = 'straight' AND diameter_upper_mm IS NULL AND thickness_upper_mm IS NULL) OR (pole_type = 'taper' AND diameter_upper_mm IS NOT NULL AND thickness_upper_mm IS NOT NULL)", name=op.f('ck_pole_standard_step_poles_pole_type_dimensions')),
+    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_pole_standard_step_poles_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], name=op.f('fk_pole_standard_step_poles_pole_standard_height_id_pole_standard_heights'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_step_poles')),
+    sa.UniqueConstraint('pole_standard_height_id', 'name', name='uq_pole_standard_step_poles_name'),
+    sa.UniqueConstraint('pole_standard_height_id', 'top_elevation_m', name='uq_pole_standard_step_poles_top_elevation_m')
     )
     op.create_table('request_assignments',
     sa.Column('id', sa.String(), nullable=False),
@@ -993,7 +993,7 @@ def downgrade() -> None:
     op.drop_table('request_finish')
     op.drop_index('uq_request_assignments_active_per_worker', table_name='request_assignments', postgresql_where=sa.text("assignment_status = 'active'"))
     op.drop_table('request_assignments')
-    op.drop_table('pole_standard_segments')
+    op.drop_table('pole_standard_step_poles')
     op.drop_table('pole_standard_direct_objects')
     op.drop_table('pole_standard_arms')
     op.drop_table('pole_combinations')

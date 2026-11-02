@@ -17,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 # ===== Enums =====
 class PoleType(str, enum.Enum):
-    """Bentuk satu segmen. Terpisah dari PoleFamily: tiang taper bisa punya segmen straight."""
+    """Bentuk satu step pole. Terpisah dari PoleFamily: tiang taper bisa punya step pole straight."""
     taper = "taper"
     straight = "straight"
 
@@ -27,9 +27,9 @@ class ObjectKind(str, enum.Enum):
     directional = "directional"
 
 
-# ===== Segmen tiang =====
-class PoleSegmentColumnsMixin:
-    """Dipakai step_poles, drawing_step_poles, dan pole_standard_segments."""
+# ===== Step pole =====
+class StepPoleColumnsMixin:
+    """Dipakai step_poles, drawing_step_poles, dan pole_standard_step_poles."""
     name: Mapped[str] = mapped_column(String, nullable=False)
     pole_type: Mapped[PoleType] = mapped_column(Enum(PoleType), nullable=False)
     top_elevation_m: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
@@ -39,7 +39,7 @@ class PoleSegmentColumnsMixin:
     thickness_upper_mm: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
 
 
-def pole_segment_constraints(table_name: str, parent_column: str) -> tuple:
+def step_pole_constraints(table_name: str, parent_column: str) -> tuple:
     return (
         # Straight: kolom upper kosong. Taper: keduanya terisi.
         CheckConstraint(
@@ -47,7 +47,7 @@ def pole_segment_constraints(table_name: str, parent_column: str) -> tuple:
             " OR (pole_type = 'taper' AND diameter_upper_mm IS NOT NULL AND thickness_upper_mm IS NOT NULL)",
             name="pole_type_dimensions",
         ),
-        # Calculation Service menolak nama kembar dan mengurutkan segmen menurut Top Elevation.
+        # Calculation Service menolak nama kembar dan mengurutkan step pole menurut Top Elevation.
         UniqueConstraint(parent_column, "name", name=f"uq_{table_name}_name"),
         UniqueConstraint(parent_column, "top_elevation_m", name=f"uq_{table_name}_top_elevation_m"),
     )

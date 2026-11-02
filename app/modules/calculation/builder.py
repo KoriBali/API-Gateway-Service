@@ -13,9 +13,9 @@ from app.database.models.master import PoleHeightGroundPosition
 
 # Versi kontrak POST /api/pole/calculate yang disusun dan dibaca gateway. Jawaban
 # dengan versi lain tidak dikenali.
-ENGINE_SCHEMA_VERSION = "2.0"
+ENGINE_SCHEMA_VERSION = "2.2"
 
-# design_standards.code yang diterima Calculation Service kontrak 2.0. Code lain ditolak
+# design_standards.code yang diterima Calculation Service kontrak 2.2. Code lain ditolak
 # 422 oleh Calculation Service, jadi Simpan tidak membuat run untuknya.
 CALCULABLE_DESIGN_STANDARDS = frozenset({3})
 
@@ -72,35 +72,38 @@ def _num_or_none(value: Decimal | float | int | None) -> float | None:
 def build_pole_request(
     *,
     design_standard_code: int,
-    segments,
+    wind_speed,
+    air_density,
+    step_poles,
     material_names: dict[str, str],
     direct_objects,
     overhead_wires,
     arms,
     evaluated_positions_m,
 ) -> dict:
-    """segments: baris berbentuk PoleSegmentColumnsMixin + material_id.
+    """wind_speed, air_density: dari calculation_conditions request, wajib terisi.
+    step_poles: baris berbentuk StepPoleColumnsMixin + material_id.
     direct_objects: baris atau input berbentuk DirectObjectColumnsMixin.
     overhead_wires: baris atau input berkolom sama dengan overhead_wires.
     arms: baris atau input berbentuk ArmColumnsMixin + material_id + objects.
-    material_names: nama material segmen dan lengan.
+    material_names: nama material step pole dan lengan.
 
     """
     poles = []
     # Urut dari puncak tertinggi, sama dengan payload contoh. Calculation Service
     # mengurutkan ulang menurut top_elevation_m, jadi urutan tidak mengubah hasil.
-    for segment in sorted(segments, key=lambda s: s.top_elevation_m, reverse=True):
+    for step_pole in sorted(step_poles, key=lambda s: s.top_elevation_m, reverse=True):
         poles.append({
-            "name": segment.name,
-            "pole_type": ENGINE_POLE_TYPES[segment.pole_type],
-            "material": material_names[segment.material_id],
-            "top_elevation_m": _num(segment.top_elevation_m),
-            "diameter_lower_mm": _num(segment.diameter_lower_mm),
-            "diameter_upper_mm": _num_or_none(segment.diameter_upper_mm),
-            "thickness_lower_mm": _num(segment.thickness_lower_mm),
-            "thickness_upper_mm": _num_or_none(segment.thickness_upper_mm),
+            "name": step_pole.name,
+            "pole_type": ENGINE_POLE_TYPES[step_pole.pole_type],
+            "material": material_names[step_pole.material_id],
+            "top_elevation_m": _num(step_pole.top_elevation_m),
+            "diameter_lower_mm": _num(step_pole.diameter_lower_mm),
+            "diameter_upper_mm": _num_or_none(step_pole.diameter_upper_mm),
+            "thickness_lower_mm": _num(step_pole.thickness_lower_mm),
+            "thickness_upper_mm": _num_or_none(step_pole.thickness_upper_mm),
         })
-        # quantity segmen sengaja tidak dikirim.
+        # quantity step pole sengaja tidak dikirim.
 
     objects = [
         {
@@ -159,10 +162,14 @@ def build_pole_request(
         for arm in sorted(arms, key=lambda a: a.name)
     ]
 
-    # Tinggi struktur dihitung Calculation Service dari puncak segmen tertinggi.
+    # Tinggi struktur dihitung Calculation Service dari puncak step pole tertinggi.
     # overdesign_factor dan include_oblique_wind tidak dikirim: Calculation Service
+    # memakai 1.0 dan arah lurus. Wind speed dan air density tidak punya default
+    # di Calculation Service, jadi selalu dikirim.
     return {
         "design_standard": design_standard_code,
+        "wind_speed_m_s": _num(wind_speed),
+        "air_density_kg_m3": _num(air_density),
         "base_elevation_m": BASE_ELEVATION_M,
         "poles": poles,
         "direct_objects": objects,

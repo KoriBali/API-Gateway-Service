@@ -21,7 +21,7 @@ from app.database.models import (
     PoleCategory,
     PoleStandard,
     PoleStandardHeight,
-    PoleStandardSegment,
+    PoleStandardStepPole,
     PoleStandardDirectObject,
     PoleStandardArm,
     PoleStandardArmObject,
@@ -56,14 +56,14 @@ LIGHTING_COMPANY_CODES = [("LEV-1761A22", "Koito"), ("E77257SAJ9", "Iwasaki"), (
 
 DESIGN_STANDARDS = {
     "disaster_prevention": [
-        {"name": "Standard Acts. (Law)"},
-        {"name": "V60"},
-        {"name": "Tower Standard"},
-        {"name": "Haiden"},
+        {"name": "Act Disaster Prevention"},
+        {"name": "Fixed Wind Disaster Prevention"},
+        {"name": "Act Tower"},
+        {"name": "Haiden Kitei"},
     ],
     "lighting": [
         {
-            "name": "Old JIL",
+            "name": "Old Lighting Pole",
             "defaultWindSpeed": 60,
             "defaultAirDensity": 1.23,
         },
@@ -72,26 +72,29 @@ DESIGN_STANDARDS = {
             "defaultWindSpeed": 60,
             "defaultAirDensity": 1.23,
         },
-        {"name": "Haiden"},
+        {"name": "Haiden Kitei"},
     ],
     "signboard": [
-        {"name": "V60"},
+        {"name": "Fixed Wind Disaster Prevention"},
         {"name": "Signboard"},
     ],
     "multiple" : [
-        {"name" : "V60"},
-        {"name" : "Old JIL"},
-        {"name" : "Haiden"},
+        {"name" : "Fixed Wind Disaster Prevention"},
+        {"name" : "Old Lighting Pole"},
+        {"name" : "Haiden Kitei"},
     ]
 }
 
 # Nomor design standard yang dikirim ke engine, per nama (berlaku di semua kategori).
-# Nama yang tidak ada di sini (Haiden, Signboard) tidak punya nomor dan tidak bisa dihitung.
+# Nama dan nomor mengikuti DesignStandardCode Calculation Service. Nama yang tidak ada di
+# sini (Signboard) tidak punya nomor. Yang bisa dihitung ditentukan CALCULABLE_DESIGN_STANDARDS.
 DESIGN_STANDARD_CODES = {
-    "Standard Acts. (Law)": 1,
-    "V60": 2,
-    "Old JIL": 3,
-    "Tower Standard": 6,
+    "Act Disaster Prevention": 1,
+    "Fixed Wind Disaster Prevention": 2,
+    "Old Lighting Pole": 3,
+    "Act Tower": 6,
+    "New JIL": 7,
+    "Haiden Kitei": 8,
 }
 
 # ===== Pole Standard = Straight =====
@@ -116,73 +119,74 @@ TAPER_HEIGHTS_A = {
 }
 
 # ===== Geometri katalog taper =====
-# Sumber: spec_taper_pole_standard.json,
-# Kunci = (ground position, height label dalam mm). Tiap segmen dari yang teratas:
+# Sumber: 44 payload uji di services/docs/calculation-engine/taper-pole-payloads, yang
+# hasilnya sudah dicocokkan dengan python_calc_V2. Disusun mekanis dari file JSON.
+# Kunci = (ground position, height label dalam mm). Tiap step pole dari yang teratas:
 # (bentuk, top elevation mm, diameter bawah mm, diameter atas mm; None untuk straight).
+# evaluated_mm = posisi cek, urut seperti payload (tipe A: puncak taper lalu dasar tiang).
 # lamp_mm = elevasi lampu pada objek langsung (tipe I).
 # arm_mm + arm_angles = elevasi pasang dan sudut tiap lengan (tipe L satu, tipe T dua).
 TAPER_GEOMETRY = {
     "IS": {
-        ("on_gl", 8000): {"segments": [("taper", 8000, 165, 85)], "lamp_mm": 8000},
-        ("under_gl", 8300): {"segments": [("taper", 8300, 165, 85), ("straight", 300, 165, None)], "lamp_mm": 8000},
-        ("on_gl", 10000): {"segments": [("taper", 10000, 175, 75)], "lamp_mm": 10000},
-        ("under_gl", 10300): {"segments": [("taper", 10300, 175, 75), ("straight", 300, 175, None)], "lamp_mm": 10000},
-        ("on_gl", 12000): {"segments": [("taper", 12000, 195, 75)], "lamp_mm": 12000},
-        ("under_gl", 12300): {"segments": [("taper", 12300, 195, 75), ("straight", 300, 195, None)], "lamp_mm": 12000},
+        ("on_gl", 8000): {"step_poles": [("taper", 8000, 165, 85)], "evaluated_mm": [0], "lamp_mm": 8000},
+        ("under_gl", 8300): {"step_poles": [("taper", 8300, 165, 85), ("straight", 300, 165, None)], "evaluated_mm": [0], "lamp_mm": 8300},
+        ("on_gl", 10000): {"step_poles": [("taper", 10000, 175, 75)], "evaluated_mm": [0], "lamp_mm": 10000},
+        ("under_gl", 10300): {"step_poles": [("taper", 10300, 175, 75), ("straight", 300, 175, None)], "evaluated_mm": [0], "lamp_mm": 10300},
+        ("on_gl", 12000): {"step_poles": [("taper", 12000, 195, 75)], "evaluated_mm": [0], "lamp_mm": 12000},
+        ("under_gl", 12300): {"step_poles": [("taper", 12300, 195, 75), ("straight", 300, 195, None)], "evaluated_mm": [0], "lamp_mm": 12300},
     },
     "IA": {
-        ("on_gl", 4500): {"segments": [("straight", 4500, 75, None), ("taper", 3405, 165, 75), ("straight", 1500, 165, None)], "lamp_mm": 4500},
-        ("under_gl", 4800): {"segments": [("straight", 4500, 75, None), ("taper", 3405, 165, 75), ("straight", 1800, 165, None)], "lamp_mm": 4500},
-        ("on_gl", 5000): {"segments": [("straight", 5000, 75, None), ("taper", 3405, 165, 75), ("straight", 1500, 165, None)], "lamp_mm": 5000},
-        ("under_gl", 5300): {"segments": [("straight", 5300, 75, None), ("taper", 3405, 165, 75), ("straight", 1800, 165, None)], "lamp_mm": 5000},
-        ("on_gl", 8000): {"segments": [("straight", 8000, 75, None), ("taper", 6500, 165, 75), ("straight", 1500, 165, None)], "lamp_mm": 8000},
-        ("under_gl", 8300): {"segments": [("straight", 8000, 75, None), ("taper", 6500, 165, 75), ("straight", 1800, 165, None)], "lamp_mm": 8000},
-        ("on_gl", 10000): {"segments": [("straight", 10000, 75, None), ("taper", 7500, 175, 75), ("straight", 1500, 175, None)], "lamp_mm": 10000},
-        ("under_gl", 10300): {"segments": [("straight", 10000, 75, None), ("taper", 7500, 175, 75), ("straight", 1800, 175, None)], "lamp_mm": 10000},
-        ("on_gl", 12000): {"segments": [("straight", 12000, 75, None), ("taper", 9500, 195, 75), ("straight", 1500, 195, None)], "lamp_mm": 12000},
-        ("under_gl", 12300): {"segments": [("straight", 12000, 75, None), ("taper", 9500, 195, 75), ("straight", 1800, 195, None)], "lamp_mm": 12000},
+        ("on_gl", 4500): {"step_poles": [("straight", 4500, 75, None), ("taper", 3405, 165, 75), ("straight", 1500, 165, None)], "evaluated_mm": [3405, 0], "lamp_mm": 4500},
+        ("under_gl", 4800): {"step_poles": [("straight", 4800, 75, None), ("taper", 3705, 165, 75), ("straight", 1800, 165, None)], "evaluated_mm": [3705, 0], "lamp_mm": 4800},
+        ("on_gl", 5000): {"step_poles": [("straight", 5000, 75, None), ("taper", 3405, 165, 75), ("straight", 1500, 165, None)], "evaluated_mm": [3405, 0], "lamp_mm": 5000},
+        ("under_gl", 5300): {"step_poles": [("straight", 5300, 75, None), ("taper", 3705, 165, 75), ("straight", 1800, 165, None)], "evaluated_mm": [3705, 0], "lamp_mm": 5300},
+        ("on_gl", 8000): {"step_poles": [("straight", 8000, 75, None), ("taper", 6500, 165, 75), ("straight", 1500, 165, None)], "evaluated_mm": [6500, 0], "lamp_mm": 8000},
+        ("under_gl", 8300): {"step_poles": [("straight", 8300, 75, None), ("taper", 6800, 165, 75), ("straight", 1800, 165, None)], "evaluated_mm": [6800, 0], "lamp_mm": 8300},
+        ("on_gl", 10000): {"step_poles": [("straight", 10000, 75, None), ("taper", 7500, 175, 75), ("straight", 1500, 175, None)], "evaluated_mm": [7500, 0], "lamp_mm": 10000},
+        ("under_gl", 10300): {"step_poles": [("straight", 10300, 75, None), ("taper", 7800, 175, 75), ("straight", 1800, 175, None)], "evaluated_mm": [7800, 0], "lamp_mm": 10300},
+        ("on_gl", 12000): {"step_poles": [("straight", 12000, 75, None), ("taper", 9500, 195, 75), ("straight", 1500, 195, None)], "evaluated_mm": [9500, 0], "lamp_mm": 12000},
+        ("under_gl", 12300): {"step_poles": [("straight", 12300, 75, None), ("taper", 9800, 195, 75), ("straight", 1800, 195, None)], "evaluated_mm": [9800, 0], "lamp_mm": 12300},
     },
     "LS": {
-        ("on_gl", 8100): {"segments": [("taper", 8100, 165, 85)], "arm_mm": 8000, "arm_angles": (0,)},
-        ("under_gl", 8400): {"segments": [("taper", 8400, 165, 85), ("straight", 300, 165, None)], "arm_mm": 8000, "arm_angles": (0,)},
-        ("on_gl", 10100): {"segments": [("taper", 10100, 175, 75)], "arm_mm": 10000, "arm_angles": (0,)},
-        ("under_gl", 10400): {"segments": [("taper", 10400, 175, 75), ("straight", 300, 175, None)], "arm_mm": 10000, "arm_angles": (0,)},
-        ("on_gl", 12100): {"segments": [("taper", 12100, 195, 75)], "arm_mm": 12000, "arm_angles": (0,)},
-        ("under_gl", 12400): {"segments": [("taper", 12400, 195, 75), ("straight", 300, 195, None)], "arm_mm": 12000, "arm_angles": (0,)},
+        ("on_gl", 8100): {"step_poles": [("taper", 8100, 165, 85)], "evaluated_mm": [0], "arm_mm": 8000, "arm_angles": (0,)},
+        ("under_gl", 8400): {"step_poles": [("taper", 8400, 165, 85), ("straight", 300, 165, None)], "evaluated_mm": [0], "arm_mm": 8300, "arm_angles": (0,)},
+        ("on_gl", 10100): {"step_poles": [("taper", 10100, 175, 75)], "evaluated_mm": [0], "arm_mm": 10000, "arm_angles": (0,)},
+        ("under_gl", 10400): {"step_poles": [("taper", 10400, 175, 75), ("straight", 300, 175, None)], "evaluated_mm": [0], "arm_mm": 10300, "arm_angles": (0,)},
+        ("on_gl", 12100): {"step_poles": [("taper", 12100, 195, 75)], "evaluated_mm": [0], "arm_mm": 12000, "arm_angles": (0,)},
+        ("under_gl", 12400): {"step_poles": [("taper", 12400, 195, 75), ("straight", 300, 195, None)], "evaluated_mm": [0], "arm_mm": 12300, "arm_angles": (0,)},
     },
     "LA": {
-        ("on_gl", 4600): {"segments": [("straight", 4600, 75, None), ("taper", 3505, 165, 75), ("straight", 1600, 165, None)], "arm_mm": 4500, "arm_angles": (0,)},
-        ("under_gl", 4900): {"segments": [("straight", 4600, 75, None), ("taper", 3505, 165, 75), ("straight", 1900, 165, None)], "arm_mm": 4500, "arm_angles": (0,)},
-        ("on_gl", 5100): {"segments": [("straight", 5100, 75, None), ("taper", 3505, 165, 75), ("straight", 1600, 165, None)], "arm_mm": 5000, "arm_angles": (0,)},
-        ("under_gl", 5400): {"segments": [("straight", 5100, 75, None), ("taper", 3505, 165, 75), ("straight", 1900, 165, None)], "arm_mm": 5000, "arm_angles": (0,)},
-        ("on_gl", 8100): {"segments": [("straight", 8100, 75, None), ("taper", 6600, 165, 75), ("straight", 1600, 165, None)], "arm_mm": 8000, "arm_angles": (0,)},
-        ("under_gl", 8400): {"segments": [("straight", 8100, 75, None), ("taper", 6600, 165, 75), ("straight", 1900, 165, None)], "arm_mm": 8000, "arm_angles": (0,)},
-        ("on_gl", 10100): {"segments": [("straight", 10100, 75, None), ("taper", 7600, 175, 75), ("straight", 1600, 175, None)], "arm_mm": 10000, "arm_angles": (0,)},
-        ("under_gl", 10400): {"segments": [("straight", 10100, 75, None), ("taper", 7600, 175, 75), ("straight", 1900, 175, None)], "arm_mm": 10000, "arm_angles": (0,)},
-        ("on_gl", 12100): {"segments": [("straight", 12100, 75, None), ("taper", 9600, 195, 75), ("straight", 1600, 195, None)], "arm_mm": 12000, "arm_angles": (0,)},
-        ("under_gl", 12400): {"segments": [("straight", 12100, 75, None), ("taper", 9600, 195, 75), ("straight", 1900, 195, None)], "arm_mm": 12000, "arm_angles": (0,)},
+        ("on_gl", 4600): {"step_poles": [("straight", 4600, 75, None), ("taper", 3505, 165, 75), ("straight", 1600, 165, None)], "evaluated_mm": [3505, 0], "arm_mm": 4500, "arm_angles": (0,)},
+        ("under_gl", 4900): {"step_poles": [("straight", 4900, 75, None), ("taper", 3805, 165, 75), ("straight", 1900, 165, None)], "evaluated_mm": [3805, 0], "arm_mm": 4800, "arm_angles": (0,)},
+        ("on_gl", 5100): {"step_poles": [("straight", 5100, 75, None), ("taper", 3505, 165, 75), ("straight", 1600, 165, None)], "evaluated_mm": [3505, 0], "arm_mm": 5000, "arm_angles": (0,)},
+        ("under_gl", 5400): {"step_poles": [("straight", 5400, 75, None), ("taper", 3805, 165, 75), ("straight", 1900, 165, None)], "evaluated_mm": [3805, 0], "arm_mm": 5300, "arm_angles": (0,)},
+        ("on_gl", 8100): {"step_poles": [("straight", 8100, 75, None), ("taper", 6600, 165, 75), ("straight", 1600, 165, None)], "evaluated_mm": [6600, 0], "arm_mm": 8000, "arm_angles": (0,)},
+        ("under_gl", 8400): {"step_poles": [("straight", 8400, 75, None), ("taper", 6900, 165, 75), ("straight", 1900, 165, None)], "evaluated_mm": [6900, 0], "arm_mm": 8300, "arm_angles": (0,)},
+        ("on_gl", 10100): {"step_poles": [("straight", 10100, 75, None), ("taper", 7600, 175, 75), ("straight", 1600, 175, None)], "evaluated_mm": [7600, 0], "arm_mm": 10000, "arm_angles": (0,)},
+        ("under_gl", 10400): {"step_poles": [("straight", 10400, 75, None), ("taper", 7900, 175, 75), ("straight", 1900, 175, None)], "evaluated_mm": [7900, 0], "arm_mm": 10300, "arm_angles": (0,)},
+        ("on_gl", 12100): {"step_poles": [("straight", 12100, 75, None), ("taper", 9600, 195, 75), ("straight", 1600, 195, None)], "evaluated_mm": [9600, 0], "arm_mm": 12000, "arm_angles": (0,)},
+        ("under_gl", 12400): {"step_poles": [("straight", 12400, 75, None), ("taper", 9900, 195, 75), ("straight", 1900, 195, None)], "evaluated_mm": [9900, 0], "arm_mm": 12300, "arm_angles": (0,)},
     },
     "TS": {
-        ("on_gl", 8100): {"segments": [("taper", 8100, 165, 85)], "arm_mm": 8000, "arm_angles": (0, 180)},
-        ("under_gl", 8400): {"segments": [("taper", 8400, 165, 85), ("straight", 300, 165, None)], "arm_mm": 8000, "arm_angles": (0, 180)},
-        ("on_gl", 10100): {"segments": [("taper", 10100, 175, 75)], "arm_mm": 10000, "arm_angles": (0, 180)},
-        ("under_gl", 10400): {"segments": [("taper", 10400, 175, 75), ("straight", 300, 175, None)], "arm_mm": 10000, "arm_angles": (0, 180)},
-        ("on_gl", 12100): {"segments": [("taper", 12100, 195, 75)], "arm_mm": 12000, "arm_angles": (0, 180)},
-        ("under_gl", 12400): {"segments": [("taper", 12400, 195, 75), ("straight", 300, 195, None)], "arm_mm": 12000, "arm_angles": (0, 180)},
+        ("on_gl", 8100): {"step_poles": [("taper", 8100, 165, 85)], "evaluated_mm": [0], "arm_mm": 8000, "arm_angles": (0, 180)},
+        ("under_gl", 8400): {"step_poles": [("taper", 8400, 165, 85), ("straight", 300, 165, None)], "evaluated_mm": [0], "arm_mm": 8300, "arm_angles": (0, 180)},
+        ("on_gl", 10100): {"step_poles": [("taper", 10100, 175, 75)], "evaluated_mm": [0], "arm_mm": 10000, "arm_angles": (0, 180)},
+        ("under_gl", 10400): {"step_poles": [("taper", 10400, 175, 75), ("straight", 300, 175, None)], "evaluated_mm": [0], "arm_mm": 10300, "arm_angles": (0, 180)},
+        ("on_gl", 12100): {"step_poles": [("taper", 12100, 195, 75)], "evaluated_mm": [0], "arm_mm": 12000, "arm_angles": (0, 180)},
+        ("under_gl", 12400): {"step_poles": [("taper", 12400, 195, 75), ("straight", 300, 195, None)], "evaluated_mm": [0], "arm_mm": 12300, "arm_angles": (0, 180)},
     },
     "TA": {
-        ("on_gl", 8100): {"segments": [("straight", 8100, 75, None), ("taper", 6600, 165, 75), ("straight", 1600, 165, None)], "arm_mm": 8000, "arm_angles": (0, 180)},
-        ("under_gl", 8400): {"segments": [("straight", 8100, 75, None), ("taper", 6600, 165, 75), ("straight", 1900, 165, None)], "arm_mm": 8000, "arm_angles": (0, 180)},
-        ("on_gl", 10100): {"segments": [("straight", 10100, 75, None), ("taper", 7600, 175, 75), ("straight", 1600, 175, None)], "arm_mm": 10000, "arm_angles": (0, 180)},
-        ("under_gl", 10400): {"segments": [("straight", 10100, 75, None), ("taper", 7600, 175, 75), ("straight", 1900, 175, None)], "arm_mm": 10000, "arm_angles": (0, 180)},
-        ("on_gl", 12100): {"segments": [("straight", 12100, 75, None), ("taper", 9600, 195, 75), ("straight", 1600, 195, None)], "arm_mm": 12000, "arm_angles": (0, 180)},
-        ("under_gl", 12400): {"segments": [("straight", 12100, 75, None), ("taper", 9600, 195, 75), ("straight", 1900, 195, None)], "arm_mm": 12000, "arm_angles": (0, 180)},
+        ("on_gl", 8100): {"step_poles": [("straight", 8100, 75, None), ("taper", 6600, 165, 75), ("straight", 1600, 165, None)], "evaluated_mm": [6600, 0], "arm_mm": 8000, "arm_angles": (0, 180)},
+        ("under_gl", 8400): {"step_poles": [("straight", 8400, 75, None), ("taper", 6900, 165, 75), ("straight", 1900, 165, None)], "evaluated_mm": [6900, 0], "arm_mm": 8300, "arm_angles": (0, 180)},
+        ("on_gl", 10100): {"step_poles": [("straight", 10100, 75, None), ("taper", 7600, 175, 75), ("straight", 1600, 175, None)], "evaluated_mm": [7600, 0], "arm_mm": 10000, "arm_angles": (0, 180)},
+        ("under_gl", 10400): {"step_poles": [("straight", 10400, 75, None), ("taper", 7900, 175, 75), ("straight", 1900, 175, None)], "evaluated_mm": [7900, 0], "arm_mm": 10300, "arm_angles": (0, 180)},
+        ("on_gl", 12100): {"step_poles": [("straight", 12100, 75, None), ("taper", 9600, 195, 75), ("straight", 1600, 195, None)], "evaluated_mm": [9600, 0], "arm_mm": 12000, "arm_angles": (0, 180)},
+        ("under_gl", 12400): {"step_poles": [("straight", 12400, 75, None), ("taper", 9900, 195, 75), ("straight", 1900, 195, None)], "evaluated_mm": [9900, 0], "arm_mm": 12300, "arm_angles": (0, 180)},
     },
 }
 TAPER_THICKNESS_MM = 4
 TAPER_GEOMETRY_MATERIAL = "STK400"
 UNDER_GL_EMBEDDED_M = Decimal("0.3")
-TAPER_EVALUATED_POSITIONS_M = [Decimal("0")]
 # Lampu tipe I, berdiri sendiri di tiang
 TAPER_LAMP = {
     "name": "灯具",
@@ -191,7 +195,7 @@ TAPER_LAMP = {
     "base_wind_coefficient": Decimal("1"),
     "quantity": 1,
 }
-# Lengan tipe L dan T. Spec tidak memuat material lengan: STK400 sama dengan default frontend.
+# Lengan tipe L dan T, material STK400 (TAPER_GEOMETRY_MATERIAL), sama dengan payload.
 TAPER_ARM_NAMES = ("照明アーム1", "照明アーム2")
 TAPER_ARM = {
     "diameter_mm": Decimal("60.5"),
@@ -201,6 +205,7 @@ TAPER_ARM = {
 }
 # Lampu yang sama, dipasang di ujung lengan
 TAPER_ARM_LAMP = {**TAPER_LAMP, "horizontal_load_distance_m": Decimal("0.18")}
+
 
 def _offset_heights(heights, delta):
     return {gp: [h + delta for h in values] for gp, values in heights.items()}
@@ -647,18 +652,18 @@ async def _seed_taper_geometry(db):
                 is_under_gl = ground_position == PoleHeightGroundPosition.under_gl
                 height.gl_elevation_m = UNDER_GL_EMBEDDED_M if is_under_gl else Decimal("0")
             if height.evaluated_positions_m is None:
-                height.evaluated_positions_m = list(TAPER_EVALUATED_POSITIONS_M)
+                height.evaluated_positions_m = [_mm_to_m(value) for value in row["evaluated_mm"]]
 
             # Idempotent per pilihan tinggi: tiap kelompok hanya dibuat bila belum ada sama sekali.
-            has_segments = (await db.execute(
-                select(PoleStandardSegment.id).where(
-                    PoleStandardSegment.pole_standard_height_id == height.id
+            has_step_poles = (await db.execute(
+                select(PoleStandardStepPole.id).where(
+                    PoleStandardStepPole.pole_standard_height_id == height.id
                 ).limit(1)
             )).scalar_one_or_none()
-            if has_segments is None:
-                for number, (kind, top_mm, diameter_lower, diameter_upper) in enumerate(row["segments"], start=1):
+            if has_step_poles is None:
+                for number, (kind, top_mm, diameter_lower, diameter_upper) in enumerate(row["step_poles"], start=1):
                     is_taper = kind == PoleType.taper.value
-                    db.add(PoleStandardSegment(
+                    db.add(PoleStandardStepPole(
                         pole_standard_height_id=height.id,
                         material_id=material.id,
                         name=f"Pole-{number}",

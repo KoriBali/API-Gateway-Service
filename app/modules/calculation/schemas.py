@@ -154,13 +154,13 @@ class ArmInput(CamelBaseModel):
 
 class CalculationInput(CamelBaseModel):
     """Isian satu halaman perhitungan tiang standard: pilihan tinggi dan beban tiang.
-    Selain tiang, semuanya boleh kosong. Segmen tiang dan ground position tidak diterima:
+    Selain tiang, semuanya boleh kosong. Step pole dan ground position tidak diterima:
     keduanya dari katalog pilihan tinggi."""
     pole_standard_height_id: str
     direct_objects: list[DirectObjectInput]
     overhead_wires: list[OverheadWireInput] = []
     arms: list[ArmInput] = []
-    # Simpan saja: salin ulang segmen dan posisi cek dari katalog walau tinggi tidak berubah (G1).
+    # Simpan saja: salin ulang step pole dan posisi cek dari katalog walau tinggi tidak berubah (G1).
     recopy_catalog: bool = False
 
     @model_validator(mode="after")
@@ -264,7 +264,7 @@ class DisplayCheck(CamelBaseModel):
     """Satu pengecekan kekuatan, apa adanya dari Calculation Service. Tiang: per posisi
     cek dan wind case. Lengan: per lengan, tanpa posisi cek dan wind case."""
     component: str
-    # Segmen tiang di posisi cek, atau nama lengan.
+    # Step pole di posisi cek, atau nama lengan.
     name: str
     evaluated_position_m: float | None = None
     wind_case: str | None = None
@@ -295,7 +295,7 @@ class CalculationDisplay(CamelBaseModel):
 # ===== Data laporan =====
 class ReportLoadRow(CamelBaseModel):
     """Satu baris tabel beban, apa adanya dari load_rows. Urutan Calculation Service:
-    lengan, objek langsung, kawat udara, lalu segmen tiang dari atas."""
+    lengan, objek langsung, kawat udara, lalu step pole dari atas."""
     kind: Literal["arm", "direct_object", "overhead_wire", "pole"]
     name: str
     quantity: int
@@ -333,6 +333,24 @@ class ReportSection(CamelBaseModel):
     status: CheckStatus
 
 
+class ReportSpecification(CamelBaseModel):
+    """Sifat penampang satu step pole atau satu lengan, apa adanya dari Calculation Service.
+    Step pole diukur di diameter dan tebal bawahnya; ada untuk setiap step pole, termasuk
+    yang tanpa posisi cek."""
+    # pole atau arm, sama dengan DisplayCheck.component.
+    component: str
+    name: str
+    # Lengan: null.
+    pole_type: PoleType | None = None
+    material_name: str
+    diameter_mm: float
+    thickness_mm: float
+    cross_section_area_cm2: float
+    moment_of_inertia_cm4: float
+    radius_of_gyration_cm: float
+    unit_weight_kg_m: float
+
+
 class ReportFoundationLoads(CamelBaseModel):
     """Gaya di dasar tiang: posisi cek terendah, arah laporan."""
     vertical_load_n: float
@@ -341,7 +359,7 @@ class ReportFoundationLoads(CamelBaseModel):
     
 
 class ReportStepPole(CamelBaseModel):
-    """Satu segmen tiang yang dihitung run. Bentuk sama dengan step_poles, tanpa id.
+    """Satu step pole yang dihitung run. Bentuk sama dengan step_poles, tanpa id.
     Straight: ukuran di kolom lower, upper kosong."""
     name: str
     pole_type: PoleType
@@ -428,6 +446,7 @@ class ReportArmSpecification(CamelBaseModel):
     section_modulus_cm3: float
     moment_of_inertia_cm4: float
     radius_of_gyration_cm: float
+    unit_weight_kg_m: float
     mass_kg: float
     fix_load_n: float
     front_projected_area_m2: float
@@ -485,6 +504,9 @@ class CalculationReport(CamelBaseModel):
     wind_pressure_n_m2: float
     allowable_stress_n_mm2: float
     geometry: ReportGeometry
+    # Step pole dari puncak tertinggi seperti geometry.step_poles, lalu lengan urut nama
+    # seperti geometry.arms.
+    specifications: list[ReportSpecification]
     # Urut dari posisi cek tertinggi.
     sections: list[ReportSection]
     foundation: ReportFoundationLoads

@@ -19,6 +19,7 @@ from app.modules.calculation.schemas import (
     ReportLoadRow,
     ReportOverallCheck,
     ReportSection,
+    ReportSpecification,
     ReportStepPole,
     ReportArm,
     ReportArmObject,
@@ -95,12 +96,12 @@ def _geometry(run: CalculationRun) -> ReportGeometry:
         arms=[_arm(a) for a in engine_request["arms"]],
     )
 
-# ===== Design standard 3 (Old JIL) =====
-OLD_JIL_TEMPLATE = "old_jil"
-# Laporan Old JIL memakai arah angin lurus. Gateway tidak meminta arah miring.
-OLD_JIL_WIND_CASE = "STRAIGHT"
-OLD_JIL_CHECK = "pole_bending"
-OLD_JIL_ARM_CHECK = "arm_bending"
+# ===== Design standard 3 (Old Lighting Pole) =====
+OLD_LIGHTING_POLE_TEMPLATE = "old_lighting_pole"
+# Laporan Old Lighting Pole memakai arah angin lurus. Gateway tidak meminta arah miring.
+OLD_LIGHTING_POLE_WIND_CASE = "STRAIGHT"
+OLD_LIGHTING_POLE_CHECK = "pole_bending"
+OLD_LIGHTING_POLE_ARM_CHECK = "arm_bending"
 
 
 def _by_key(rows: list[dict], key: str, value: str) -> dict:
@@ -115,11 +116,45 @@ def _load_row(row: dict) -> ReportLoadRow:
     return ReportLoadRow.model_validate({**row, "kind": row["kind"].lower()})
 
 
-def _old_jil_section(position: dict) -> ReportSection:
+def _pole_specification(pole: dict) -> ReportSpecification:
+    return ReportSpecification.model_validate({
+        **pole,
+        "component": "pole",
+        "pole_type": _POLE_TYPES[pole["pole_type"]],
+        "material_name": pole["material"],
+    })
+
+
+def _arm_specification(arm: dict, sent: dict) -> ReportSpecification:
+    # Ukuran dan material dari payload; nilai penampang dari jawaban Calculation Service.
+    specification = arm["specification"]
+    return ReportSpecification(
+        component="arm",
+        name=arm["name"],
+        material_name=sent["material"],
+        diameter_mm=sent["diameter_mm"],
+        thickness_mm=sent["thickness_mm"],
+        cross_section_area_cm2=specification["section_area_cm2"],
+        moment_of_inertia_cm4=specification["moment_of_inertia_cm4"],
+        radius_of_gyration_cm=specification["radius_of_gyration_cm"],
+        unit_weight_kg_m=specification["unit_weight_kg_m"],
+    )
+
+
+def _specifications(run: CalculationRun) -> list[ReportSpecification]:
+    """Step pole lalu lengan, urutan apa adanya dari Calculation Service (sama dengan payload)."""
+    data = run.result_snapshot["data"]
+    sent_arms = {a["name"]: a for a in run.input_snapshot["engine_request"]["arms"]}
+    return [_pole_specification(p) for p in data["pole_sections"]] + [
+        _arm_specification(a, sent_arms[a["name"]]) for a in data["arms"]
+    ]
+
+
+def _old_lighting_pole_section(position: dict) -> ReportSection:
     section = position["section"]
-    wind_case = _by_key(position["wind_cases"], "code", OLD_JIL_WIND_CASE)
+    wind_case = _by_key(position["wind_cases"], "code", OLD_LIGHTING_POLE_WIND_CASE)
     totals = wind_case["totals"]
-    check = _by_key(wind_case["checks"], "check", OLD_JIL_CHECK)
+    check = _by_key(wind_case["checks"], "check", OLD_LIGHTING_POLE_CHECK)
     return ReportSection(
         evaluated_position_m=position["evaluated_position_m"],
         pole_name=position["pole_name"],
@@ -144,9 +179,9 @@ def _old_jil_section(position: dict) -> ReportSection:
     )
     
 
-def _old_jil_arm(arm: dict) -> ReportArmResult:
+def _old_lighting_pole_arm(arm: dict) -> ReportArmResult:
     totals = arm["totals"]
-    check = _by_key(arm["checks"], "check", OLD_JIL_ARM_CHECK)
+    check = _by_key(arm["checks"], "check", OLD_LIGHTING_POLE_ARM_CHECK)
     return ReportArmResult(
         name=arm["name"],
         specification=arm["specification"],
@@ -163,8 +198,8 @@ def _old_jil_arm(arm: dict) -> ReportArmResult:
     )
 
 
-def _old_jil_wire(wire: dict) -> ReportOverheadWireResult:
-    wind_case = _by_key(wire["wind_cases"], "code", OLD_JIL_WIND_CASE)
+def _old_lighting_pole_wire(wire: dict) -> ReportOverheadWireResult:
+    wind_case = _by_key(wire["wind_cases"], "code", OLD_LIGHTING_POLE_WIND_CASE)
     return ReportOverheadWireResult(
         name=wire["name"],
         wind_coefficient=wire["wind_coefficient"],
@@ -175,28 +210,29 @@ def _old_jil_wire(wire: dict) -> ReportOverheadWireResult:
     )
 
 
-def _old_jil_report(run: CalculationRun) -> CalculationReport:
+def _old_lighting_pole_report(run: CalculationRun) -> CalculationReport:
     data = run.result_snapshot["data"]
     context = run.input_snapshot["context"]
     conditions = data["conditions"]
     # Satu bagian per posisi cek yang ada di run, dari yang tertinggi. Tiang dengan
     # satu posisi cek (IS: dasar tiang) hanya punya satu bagian.
     positions = sorted(data["evaluated_positions"], key=lambda p: p["evaluated_position_m"], reverse=True)
-    sections = [_old_jil_section(p) for p in positions]
+    sections = [_old_lighting_pole_section(p) for p in positions]
     base = sections[-1]
     return CalculationReport(
         run_id=run.id,
-        template=OLD_JIL_TEMPLATE,
+        template=OLD_LIGHTING_POLE_TEMPLATE,
         design_standard_code=context["design_standard_code"],
         design_standard_name=context["design_standard_name"],
-        wind_case=OLD_JIL_WIND_CASE,
+        wind_case=OLD_LIGHTING_POLE_WIND_CASE,
         design_wind_speed_m_s=conditions["wind_speed_m_s"],
         wind_pressure_n_m2=conditions["wind_pressure_n_m2"],
         allowable_stress_n_mm2=base.allowable_stress_n_mm2,
         geometry=_geometry(run),
+        specifications=_specifications(run),
         sections=sections,
-        arms=[_old_jil_arm(a) for a in data["arms"]],
-        overhead_wires=[_old_jil_wire(w) for w in data["overhead_wires"]],
+        arms=[_old_lighting_pole_arm(a) for a in data["arms"]],
+        overhead_wires=[_old_lighting_pole_wire(w) for w in data["overhead_wires"]],
         foundation=ReportFoundationLoads(
             vertical_load_n=base.vertical_load_n,
             horizontal_load_n=base.horizontal_load_n,
@@ -208,7 +244,7 @@ def _old_jil_report(run: CalculationRun) -> CalculationReport:
 
 # Kunci = design_standards.code yang tercatat di input_snapshot run.
 REPORT_TEMPLATES: dict[int, Callable[[CalculationRun], CalculationReport]] = {
-    3: _old_jil_report,
+    3: _old_lighting_pole_report,
 }
 
 

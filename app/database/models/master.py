@@ -20,11 +20,11 @@ from app.database.models.geometry import (
     ArmColumnsMixin,
     ArmObjectColumnsMixin,
     DirectObjectColumnsMixin,
-    PoleSegmentColumnsMixin,
+    StepPoleColumnsMixin,
     arm_constraints,
     arm_object_constraints,
     direct_object_constraints,
-    pole_segment_constraints,
+    step_pole_constraints,
 )
 
 if TYPE_CHECKING:
@@ -277,11 +277,11 @@ class PoleStandardHeight(Base):
         passive_deletes=True
     )
 
-    segments: Mapped[list["PoleStandardSegment"]] = relationship(
+    step_poles: Mapped[list["PoleStandardStepPole"]] = relationship(
         back_populates="pole_standard_height",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        order_by="PoleStandardSegment.top_elevation_m",
+        order_by="PoleStandardStepPole.top_elevation_m",
     )
 
     direct_objects: Mapped[list["PoleStandardDirectObject"]] = relationship(
@@ -300,15 +300,15 @@ class PoleStandardHeight(Base):
 
     @property
     def is_calculable(self) -> bool:
-        """Turunan, bukan kolom. Relasi segments wajib sudah di-load."""
-        return bool(self.segments) and bool(self.evaluated_positions_m)
+        """Turunan, bukan kolom. Relasi step_poles wajib sudah di-load."""
+        return bool(self.step_poles) and bool(self.evaluated_positions_m)
 
 
 
-# === Pole Standard Segment ===
-class PoleStandardSegment(Base, PoleSegmentColumnsMixin):
-    __tablename__ = 'pole_standard_segments'
-    __table_args__ = pole_segment_constraints("pole_standard_segments", "pole_standard_height_id")
+# === Pole Standard Step Pole ===
+class PoleStandardStepPole(Base, StepPoleColumnsMixin):
+    __tablename__ = 'pole_standard_step_poles'
+    __table_args__ = step_pole_constraints("pole_standard_step_poles", "pole_standard_height_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -330,7 +330,7 @@ class PoleStandardSegment(Base, PoleSegmentColumnsMixin):
 
     # Child
     pole_standard_height: Mapped["PoleStandardHeight"] = relationship(
-        back_populates="segments"
+        back_populates="step_poles"
     )
 
     material: Mapped["Material"] = relationship()
