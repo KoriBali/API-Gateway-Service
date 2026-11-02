@@ -1,7 +1,6 @@
 from typing import Annotated, Any, Literal
 
-from pydantic import StringConstraints, model_validator
-
+from pydantic import Field, StringConstraints, model_validator
 
 from app.utils.base_schema import CamelBaseModel, snake_to_camel
 
@@ -97,19 +96,83 @@ class DirectObjectInput(CamelBaseModel):
         return self
 
 
+class OverheadWireInput(CamelBaseModel):
+    """Satu kawat udara. Nilai numerik divalidasi Calculation Service."""
+    name: ObjectName
+    mass_per_length_kg_m: float
+    diameter_mm: float
+    elevation_m: float
+    span_length_m: float
+    # Persen, misalnya 3.
+    sag_ratio_percent: float
+    base_wind_coefficient: float
+    fixed_angle_deg: float = 0
+    vertical_angle_deg: float = 0
+
+
+class ArmObjectInput(CamelBaseModel):
+    """Satu objek di lengan. Arah hadapnya mengikuti lengan."""
+    name: ObjectName
+    object_kind: ObjectKind
+    front_area_m2: float
+    side_area_m2: float | None = None
+    mass_per_unit_kg: float
+    horizontal_load_distance_m: float
+    base_wind_coefficient: float
+    quantity: int
+
+    @model_validator(mode="after")
+    def _kind_dimensions(self):
+        # Sama dengan CHECK object_kind_dimensions, supaya ditolak 422 sebelum ke DB.
+        has_side = self.side_area_m2 is not None
+        if self.object_kind == ObjectKind.omni and has_side:
+            raise ValueError("omni arm objects cannot have sideAreaM2")
+        if self.object_kind == ObjectKind.directional and not has_side:
+            raise ValueError("directional arm objects require sideAreaM2")
+        return self
+
+
+class ArmInput(CamelBaseModel):
+    """Satu lengan. Badan lengan dihitung Calculation Service, tidak dikirim sebagai objek."""
+    name: ObjectName
+    material_id: str
+    diameter_mm: float
+    thickness_mm: float
+    total_length_m: float
+    exposed_length_m: float
+    installation_height_m: float
+    fixed_angle_deg: float = 0
+    objects: list[ArmObjectInput] = []
+
+    @model_validator(mode="after")
+    def _unique_object_names(self):
+        names = [o.name for o in self.objects]
+        if len(names) != len(set(names)):
+            raise ValueError("arm objects names must be unique within an arm")
+        return self
+
+
 class CalculationInput(CamelBaseModel):
-    """Isian satu halaman perhitungan tiang standard: pilihan tinggi dan objek langsung.
-    Segmen tiang dan ground position tidak diterima: keduanya dari katalog pilihan tinggi."""
+    """Isian satu halaman perhitungan tiang standard: pilihan tinggi dan beban tiang.
+    Selain tiang, semuanya boleh kosong. Segmen tiang dan ground position tidak diterima:
+    keduanya dari katalog pilihan tinggi."""
     pole_standard_height_id: str
     direct_objects: list[DirectObjectInput]
+    overhead_wires: list[OverheadWireInput] = []
+    arms: list[ArmInput] = []
     # Simpan saja: salin ulang segmen dan posisi cek dari katalog walau tinggi tidak berubah (G1).
     recopy_catalog: bool = False
 
     @model_validator(mode="after")
     def _unique_names(self):
-        names = [o.name for o in self.direct_objects]
-        if len(names) != len(set(names)):
-            raise ValueError("directObjects names must be unique")
+        for field, rows in (
+            ("directObjects", self.direct_objects),
+            ("overheadWires", self.overhead_wires),
+            ("arms", self.arms),
+        ):
+            names = [row.name for row in rows]
+            if len(names) != len(set(names)):
+                raise ValueError(f"{field} names must be unique")
         return self
 
 
@@ -141,11 +204,52 @@ class DirectObjectRead(CamelBaseModel):
     quantity: int
 
 
+class OverheadWireRead(CamelBaseModel):
+    id: str
+    name: str
+    mass_per_length_kg_m: float
+    diameter_mm: float
+    elevation_m: float
+    span_length_m: float
+    sag_ratio_percent: float
+    base_wind_coefficient: float
+    fixed_angle_deg: float
+    vertical_angle_deg: float
+
+
+class ArmObjectRead(CamelBaseModel):
+    id: str
+    name: str
+    object_kind: ObjectKind
+    front_area_m2: float
+    side_area_m2: float | None = None
+    mass_per_unit_kg: float
+    horizontal_load_distance_m: float
+    base_wind_coefficient: float
+    quantity: int
+
+
+class ArmRead(CamelBaseModel):
+    id: str
+    name: str
+    material_id: str
+    diameter_mm: float
+    thickness_mm: float
+    total_length_m: float
+    exposed_length_m: float
+    installation_height_m: float
+    fixed_angle_deg: float
+    # Dinamai sama dengan body Hitung/Simpan. Dibaca dari relasi arm_objects.
+    objects: list[ArmObjectRead] = Field(default=[], validation_alias="arm_objects")
+
+
 class CalculationCaseDetail(CalculationCaseRead):
     """GET satu case dan hasil Simpan: case beserta isi perhitungannya."""
     evaluated_positions_m: list[float] | None = None
     step_poles: list[StepPoleRead] = []
     direct_objects: list[DirectObjectRead] = []
+    overhead_wires: list[OverheadWireRead] = []
+    arms: list[ArmRead] = []
     # Keterangan, bukan palang. None = bukan tiang standard atau belum pilih tinggi.
     geometry_differs_from_catalog: bool | None = None
 
@@ -260,10 +364,48 @@ class ReportDirectObject(CamelBaseModel):
     elevation_m: float
     base_wind_coefficient: float
     quantity: int
+    
+    
+class ReportOverheadWire(CamelBaseModel):
+    """Satu kawat udara yang dihitung run. Bentuk sama dengan overhead_wires, tanpa id."""
+    name: str
+    mass_per_length_kg_m: float
+    diameter_mm: float
+    elevation_m: float
+    span_length_m: float
+    sag_ratio_percent: float
+    base_wind_coefficient: float
+    fixed_angle_deg: float
+    vertical_angle_deg: float
+
+
+class ReportArmObject(CamelBaseModel):
+    """Satu objek lengan yang dihitung run. Bentuk sama dengan arm_objects, tanpa id."""
+    name: str
+    object_kind: ObjectKind
+    front_area_m2: float
+    side_area_m2: float | None = None
+    mass_per_unit_kg: float
+    horizontal_load_distance_m: float
+    base_wind_coefficient: float
+    quantity: int
+
+
+class ReportArm(CamelBaseModel):
+    """Satu lengan yang dihitung run. Bentuk sama dengan arms, tanpa id."""
+    name: str
+    material_name: str
+    diameter_mm: float
+    thickness_mm: float
+    total_length_m: float
+    exposed_length_m: float
+    installation_height_m: float
+    fixed_angle_deg: float
+    objects: list[ReportArmObject]
 
 
 class ReportGeometry(CamelBaseModel):
-    """Tiang dan objek langsung yang dihitung run, dari input_snapshot, bukan dari case saat ini."""
+    """Tiang dan beban yang dihitung run, dari input_snapshot, bukan dari case saat ini."""
     pole_standard_name: str
     pole_standard_height: float
     ground_position: GroundPosition
@@ -272,11 +414,64 @@ class ReportGeometry(CamelBaseModel):
     step_poles: list[ReportStepPole]
     # Urut nama, sama dengan payload Calculation Service.
     direct_objects: list[ReportDirectObject]
+    overhead_wires: list[ReportOverheadWire]
+    arms: list[ReportArm]
 
 
 class ReportOverallCheck(DisplayGoverning):
     """Status run dan pengecekan penentu di semua posisi cek, wind case, dan lengan."""
     status: StatusCalculationRun
+
+
+class ReportArmSpecification(CamelBaseModel):
+    section_area_cm2: float
+    section_modulus_cm3: float
+    moment_of_inertia_cm4: float
+    radius_of_gyration_cm: float
+    mass_kg: float
+    fix_load_n: float
+    front_projected_area_m2: float
+    center_length_m: float
+
+
+class ReportArmLoad(CamelBaseModel):
+    """Satu baris beban lengan, apa adanya. Baris pertama badan lengan (ArmBody),
+    lalu objek dari yang terjauh."""
+    name: str
+    object_type: str
+    quantity: int
+    fix_load_n: float
+    front_projected_area_m2: float
+    wind_coefficient: float
+    front_wind_load_n: float
+    horizontal_load_distance_m: float
+    fix_load_moment_nm: float
+    wind_moment_nm: float
+
+
+class ReportArmResult(CamelBaseModel):
+    """Hasil satu lengan. Tidak bergantung posisi cek maupun wind case."""
+    name: str
+    specification: ReportArmSpecification
+    loads: list[ReportArmLoad]
+    total_fix_load_n: float
+    total_fix_load_moment_nm: float
+    total_wind_moment_nm: float
+    bending_moment_nm: float
+    calculated_stress_n_mm2: float
+    allowable_stress_n_mm2: float
+    utilization_ratio: float
+    status: CheckStatus
+
+
+class ReportOverheadWireResult(CamelBaseModel):
+    """Hasil satu kawat udara pada wind case laporan."""
+    name: str
+    wind_coefficient: float
+    fix_load_per_length_n_m: float
+    fixed_tension_n: float
+    combined_wind_line_load_n_m: float
+    wind_tension_n: float
 
 
 class CalculationReport(CamelBaseModel):
@@ -294,7 +489,8 @@ class CalculationReport(CamelBaseModel):
     sections: list[ReportSection]
     foundation: ReportFoundationLoads
     overall: ReportOverallCheck
-
+    arms: list[ReportArmResult]
+    overhead_wires: list[ReportOverheadWireResult]
 
 
 # ===== Run =====

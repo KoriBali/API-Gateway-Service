@@ -20,6 +20,11 @@ from app.modules.calculation.schemas import (
     ReportOverallCheck,
     ReportSection,
     ReportStepPole,
+    ReportArm,
+    ReportArmObject,
+    ReportArmResult,
+    ReportOverheadWire,
+    ReportOverheadWireResult
 )
 
 
@@ -60,6 +65,18 @@ def _direct_object(obj: dict) -> ReportDirectObject:
         base_wind_coefficient=obj["base_wind_coefficient"],
         quantity=obj["quantity"],
     )
+    
+
+def _arm_object(obj: dict) -> ReportArmObject:
+    return ReportArmObject.model_validate({**obj, "object_kind": _OBJECT_KINDS[obj["object_type"]]})
+
+
+def _arm(arm: dict) -> ReportArm:
+    return ReportArm.model_validate({
+        **arm,
+        "material_name": arm["material"],
+        "objects": [_arm_object(o) for o in arm["objects"]],
+    })
 
 
 def _geometry(run: CalculationRun) -> ReportGeometry:
@@ -74,6 +91,8 @@ def _geometry(run: CalculationRun) -> ReportGeometry:
         gl_elevation_m=context["gl_elevation_m"],
         step_poles=[_step_pole(p) for p in engine_request["poles"]],
         direct_objects=[_direct_object(o) for o in engine_request["direct_objects"]],
+        overhead_wires=[ReportOverheadWire.model_validate(w) for w in engine_request["overhead_wires"]],
+        arms=[_arm(a) for a in engine_request["arms"]],
     )
 
 # ===== Design standard 3 (Old JIL) =====
@@ -81,6 +100,7 @@ OLD_JIL_TEMPLATE = "old_jil"
 # Laporan Old JIL memakai arah angin lurus. Gateway tidak meminta arah miring.
 OLD_JIL_WIND_CASE = "STRAIGHT"
 OLD_JIL_CHECK = "pole_bending"
+OLD_JIL_ARM_CHECK = "arm_bending"
 
 
 def _by_key(rows: list[dict], key: str, value: str) -> dict:
@@ -122,6 +142,37 @@ def _old_jil_section(position: dict) -> ReportSection:
         utilization_ratio=check["utilization_ratio"],
         status=check_status(check["status"]),
     )
+    
+
+def _old_jil_arm(arm: dict) -> ReportArmResult:
+    totals = arm["totals"]
+    check = _by_key(arm["checks"], "check", OLD_JIL_ARM_CHECK)
+    return ReportArmResult(
+        name=arm["name"],
+        specification=arm["specification"],
+        # Urutan apa adanya: badan lengan lalu objek dari yang terjauh.
+        loads=arm["objects"],
+        total_fix_load_n=totals["fix_load_n"],
+        total_fix_load_moment_nm=totals["fix_load_moment_nm"],
+        total_wind_moment_nm=totals["wind_moment_nm"],
+        bending_moment_nm=check["moment_nm"],
+        calculated_stress_n_mm2=check["stress_n_mm2"],
+        allowable_stress_n_mm2=check["allowable_stress_n_mm2"],
+        utilization_ratio=check["utilization_ratio"],
+        status=check_status(check["status"]),
+    )
+
+
+def _old_jil_wire(wire: dict) -> ReportOverheadWireResult:
+    wind_case = _by_key(wire["wind_cases"], "code", OLD_JIL_WIND_CASE)
+    return ReportOverheadWireResult(
+        name=wire["name"],
+        wind_coefficient=wire["wind_coefficient"],
+        fix_load_per_length_n_m=wire["fix_load_per_length_n_m"],
+        fixed_tension_n=wire["fixed_tension_n"],
+        combined_wind_line_load_n_m=wind_case["combined_wind_line_load_n_m"],
+        wind_tension_n=wind_case["wind_tension_n"],
+    )
 
 
 def _old_jil_report(run: CalculationRun) -> CalculationReport:
@@ -144,6 +195,8 @@ def _old_jil_report(run: CalculationRun) -> CalculationReport:
         allowable_stress_n_mm2=base.allowable_stress_n_mm2,
         geometry=_geometry(run),
         sections=sections,
+        arms=[_old_jil_arm(a) for a in data["arms"]],
+        overhead_wires=[_old_jil_wire(w) for w in data["overhead_wires"]],
         foundation=ReportFoundationLoads(
             vertical_load_n=base.vertical_load_n,
             horizontal_load_n=base.horizontal_load_n,

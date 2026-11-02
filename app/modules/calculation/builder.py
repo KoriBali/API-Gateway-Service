@@ -75,13 +75,16 @@ def build_pole_request(
     segments,
     material_names: dict[str, str],
     direct_objects,
+    overhead_wires,
+    arms,
     evaluated_positions_m,
 ) -> dict:
     """segments: baris berbentuk PoleSegmentColumnsMixin + material_id.
     direct_objects: baris atau input berbentuk DirectObjectColumnsMixin.
+    overhead_wires: baris atau input berkolom sama dengan overhead_wires.
+    arms: baris atau input berbentuk ArmColumnsMixin + material_id + objects.
+    material_names: nama material segmen dan lengan.
 
-    Kolom disalin apa adanya, termasuk NULL: upper segmen straight dan arah hadap
-    objek omni dikirim null dan diabaikan Calculation Service.
     """
     poles = []
     # Urut dari puncak tertinggi, sama dengan payload contoh. Calculation Service
@@ -113,15 +116,58 @@ def build_pole_request(
         }
         for obj in sorted(direct_objects, key=lambda o: o.name)
     ]
+    
+    wires = [
+        {
+            "name": wire.name,
+            "mass_per_length_kg_m": _num(wire.mass_per_length_kg_m),
+            "diameter_mm": _num(wire.diameter_mm),
+            "elevation_m": _num(wire.elevation_m),
+            "span_length_m": _num(wire.span_length_m),
+            "sag_ratio_percent": _num(wire.sag_ratio_percent),
+            "base_wind_coefficient": _num(wire.base_wind_coefficient),
+            "fixed_angle_deg": _num(wire.fixed_angle_deg),
+            "vertical_angle_deg": _num(wire.vertical_angle_deg),
+        }
+        for wire in sorted(overhead_wires, key=lambda w: w.name)
+    ]
+
+    arm_rows = [
+        {
+            "name": arm.name,
+            "material": material_names[arm.material_id],
+            "diameter_mm": _num(arm.diameter_mm),
+            "thickness_mm": _num(arm.thickness_mm),
+            "total_length_m": _num(arm.total_length_m),
+            "exposed_length_m": _num(arm.exposed_length_m),
+            "installation_height_m": _num(arm.installation_height_m),
+            "fixed_angle_deg": _num(arm.fixed_angle_deg),
+            "objects": [
+                {
+                    "name": obj.name,
+                    "object_type": ENGINE_OBJECT_TYPES[obj.object_kind],
+                    "front_area_m2": _num(obj.front_area_m2),
+                    "side_area_m2": _num_or_none(obj.side_area_m2),
+                    "mass_per_unit_kg": _num(obj.mass_per_unit_kg),
+                    "horizontal_load_distance_m": _num(obj.horizontal_load_distance_m),
+                    "base_wind_coefficient": _num(obj.base_wind_coefficient),
+                    "quantity": obj.quantity,
+                }
+                for obj in sorted(arm.objects, key=lambda o: o.name)
+            ],
+        }
+        for arm in sorted(arms, key=lambda a: a.name)
+    ]
 
     # Tinggi struktur dihitung Calculation Service dari puncak segmen tertinggi.
     # overdesign_factor dan include_oblique_wind tidak dikirim: Calculation Service
-    # memakai 1.0 dan arah lurus saja, sama dengan laporan Old JIL.
     return {
         "design_standard": design_standard_code,
         "base_elevation_m": BASE_ELEVATION_M,
         "poles": poles,
         "direct_objects": objects,
+        "overhead_wires": wires,
+        "arms": arm_rows,
         "evaluated_positions_m": [_num(p) for p in evaluated_positions_m],
     }
 

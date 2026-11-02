@@ -13,7 +13,7 @@ from app.database.models.calculation import (
     PoleKind,
     StatusCalculationRun,
 )
-from app.database.models.calculation_object import DirectObject, StepPole
+from app.database.models.calculation_object import Arm, ArmObject, DirectObject, OverheadWire, StepPole
 from app.database.models.master import (
     DesignStandard,
     Material,
@@ -57,13 +57,15 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def get_detail(db: AsyncSession, case_id: str) -> CalculationCase:
-        """Case beserta segmen dan objek langsung, untuk CalculationCaseDetail."""
+        """Case beserta segmen, objek langsung, kawat, dan lengan, untuk CalculationCaseDetail."""
         stmt = (
             select(CalculationCase)
             .where(CalculationCase.id == case_id)
             .options(
                 selectinload(CalculationCase.step_poles),
                 selectinload(CalculationCase.direct_objects),
+                selectinload(CalculationCase.overhead_wires),
+                selectinload(CalculationCase.arms).selectinload(Arm.arm_objects),
             )
             .execution_options(populate_existing=True)
         )
@@ -209,7 +211,8 @@ class CalculationCaseRepository:
     @staticmethod
     async def save_input(db: AsyncSession, case: CalculationCase, height: PoleStandardHeight, data) -> None:
         """Simpan isian perhitungan tiang standard. Pemanggil sudah mengunci case.
-        data: CalculationInput. Objek langsung ditulis ulang (hapus lalu insert)."""
+        data: CalculationInput. Objek langsung, kawat, dan lengan ditulis ulang (hapus lalu
+        insert). Objek lengan ikut terhapus lewat ON DELETE CASCADE."""
         previous_height_id = case.pole_standard_height_id
         case.pole_standard_id = height.pole_standard_id
         case.pole_standard_height_id = height.id
@@ -221,10 +224,23 @@ class CalculationCaseRepository:
         await CalculationCaseRepository._sync_catalog_geometry(
             db, case, previous_height_id=previous_height_id, force=data.recopy_catalog,
         )
-
+        
         await db.execute(delete(DirectObject).where(DirectObject.calculation_case_id == case.id))
         for obj in data.direct_objects:
             db.add(DirectObject(calculation_case_id=case.id, **obj.model_dump()))
+
+        await db.execute(delete(OverheadWire).where(OverheadWire.calculation_case_id == case.id))
+        for wire in data.overhead_wires:
+            db.add(OverheadWire(calculation_case_id=case.id, **wire.model_dump()))
+
+        await db.execute(delete(Arm).where(Arm.calculation_case_id == case.id))
+        for arm in data.arms:
+            db.add(Arm(
+                calculation_case_id=case.id,
+                arm_objects=[ArmObject(**obj.model_dump()) for obj in arm.objects],
+                **arm.model_dump(exclude={"objects"}),
+            ))
+
         await db.commit()
 
     # ===== Run =====

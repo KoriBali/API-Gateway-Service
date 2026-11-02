@@ -58,6 +58,14 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
             status_code=status.HTTP_409_CONFLICT,
             detail="Only taper standard poles can be calculated yet",
         )
+    
+    arm_material_ids = {arm.material_id for arm in payload.arms}
+    known_materials = await CalculationCaseRepository.material_names(db, arm_material_ids)
+    if arm_material_ids - known_materials.keys():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="arms materialId does not reference an existing material",
+        )
 
     conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     design_standard = await CalculationCaseRepository.get_design_standard(db, conditions.design_standard_id)
@@ -103,10 +111,15 @@ async def calculate_case(
     engine_request = builder.build_pole_request(
         design_standard_code=design_standard.code,
         segments=height.segments,
-        material_names={s.material_id: s.material.name for s in height.segments},
+        material_names=await CalculationCaseRepository.material_names(
+            db, [s.material_id for s in height.segments] + [a.material_id for a in payload.arms],
+        ),
         direct_objects=payload.direct_objects,
+        overhead_wires=payload.overhead_wires,
+        arms=payload.arms,
         evaluated_positions_m=height.evaluated_positions_m,
     )
+
     try:
         response = await post_engine(POLE_CALCULATE_PATH, engine_request)
         if response.status_code == 422:
@@ -165,8 +178,12 @@ async def save_and_run(
     engine_request = builder.build_pole_request(
         design_standard_code=design_standard.code,
         segments=detail.step_poles,
-        material_names=await CalculationCaseRepository.material_names(db, [s.material_id for s in detail.step_poles]),
+        material_names=await CalculationCaseRepository.material_names(
+            db, [s.material_id for s in detail.step_poles] + [a.material_id for a in detail.arms],
+        ),
         direct_objects=detail.direct_objects,
+        overhead_wires=detail.overhead_wires,
+        arms=detail.arms,
         evaluated_positions_m=detail.evaluated_positions_m,
     )
     input_snapshot = {
