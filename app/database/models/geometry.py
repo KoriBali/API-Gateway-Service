@@ -77,3 +77,47 @@ def direct_object_constraints(table_name: str, parent_column: str) -> tuple:
         ),
         UniqueConstraint(parent_column, "name", name=f"uq_{table_name}_name"),
     )
+    
+
+# ===== Arm =====
+class ArmColumnsMixin:
+    """Dipakai arms dan pole_standard_arms.
+    Badan lengan (titik berat, koefisien angin) dihitung Calculation Service."""
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    diameter_mm: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    thickness_mm: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    total_length_m: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    exposed_length_m: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    installation_height_m: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    fixed_angle_deg: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+
+
+def arm_constraints(table_name: str, parent_column: str) -> tuple:
+    return (
+        UniqueConstraint(parent_column, "name", name=f"uq_{table_name}_name"),
+    )
+
+
+# ===== Arm Object =====
+class ArmObjectColumnsMixin:
+    """Dipakai arm_objects dan pole_standard_arm_objects. Arah hadap mengikuti lengannya."""
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    object_kind: Mapped[ObjectKind] = mapped_column(Enum(ObjectKind), nullable=False)
+    front_area_m2: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    side_area_m2: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    mass_per_unit_kg: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    horizontal_load_distance_m: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    base_wind_coefficient: Mapped[Decimal] = mapped_column(Numeric(10, 5), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+def arm_object_constraints(table_name: str, parent_column: str) -> tuple:
+    return (
+        # Omni: tanpa luas samping. Directional: wajib ada.
+        CheckConstraint(
+            "(object_kind = 'omni' AND side_area_m2 IS NULL)"
+            " OR (object_kind = 'directional' AND side_area_m2 IS NOT NULL)",
+            name="object_kind_dimensions",
+        ),
+        UniqueConstraint(parent_column, "name", name=f"uq_{table_name}_name"),
+    )

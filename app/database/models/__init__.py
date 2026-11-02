@@ -10,6 +10,8 @@ from .master import (
     PoleStandard, 
     PoleStandardHeight, 
     PoleStandardSegment,
+    PoleStandardArm,
+    PoleStandardArmObject,
     PoleStandardDirectObject,
     PoleDiameter, 
     PoleCombination, 

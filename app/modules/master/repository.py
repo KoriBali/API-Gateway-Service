@@ -21,7 +21,8 @@ from app.database.models import (
     PoleCombination,
     PoleStandardHeight,
     PoleStandardSegment,
-
+    PoleStandardArm,
+    
     # Coupling
     Region,
     ExternalObjectAvailability,
@@ -152,6 +153,10 @@ class MasterRepository:
                 selectinload(PoleStandardHeight.segments)
                 .selectinload(PoleStandardSegment.material),
                 selectinload(PoleStandardHeight.direct_objects),
+                selectinload(PoleStandardHeight.arms)
+                .selectinload(PoleStandardArm.material),
+                selectinload(PoleStandardHeight.arms)
+                .selectinload(PoleStandardArm.arm_objects),
             )
         )
         return (await db.execute(stmt)).scalar_one_or_none()

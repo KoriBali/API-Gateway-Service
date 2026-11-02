@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: ca413f886318
+Revision ID: 5e3f74140932
 Revises: 
-Create Date: 2026-11-02 10:09:50.850185
+Create Date: 2026-11-02 11:38:09.773618
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'ca413f886318'
+revision: str = '5e3f74140932'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -315,6 +315,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['pole_diameter_id'], ['pole_diameters.id'], name=op.f('fk_pole_combinations_pole_diameter_id_pole_diameters'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_combinations'))
     )
+    op.create_table('pole_standard_arms',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('pole_standard_height_id', sa.String(), nullable=False),
+    sa.Column('material_id', sa.String(), nullable=False),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('diameter_mm', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('thickness_mm', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('total_length_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('exposed_length_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('installation_height_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('fixed_angle_deg', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_pole_standard_arms_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['pole_standard_height_id'], ['pole_standard_heights.id'], name=op.f('fk_pole_standard_arms_pole_standard_height_id_pole_standard_heights'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_arms')),
+    sa.UniqueConstraint('pole_standard_height_id', 'name', name='uq_pole_standard_arms_name')
+    )
     op.create_table('pole_standard_direct_objects',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_standard_height_id', sa.String(), nullable=False),
@@ -500,6 +516,22 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_nc_checklists')),
     sa.UniqueConstraint('request_id', 'revision_round_id', name='uq_nc_checklists_request_id_revision_round_id', postgresql_nulls_not_distinct=True)
     )
+    op.create_table('pole_standard_arm_objects',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('pole_standard_arm_id', sa.String(), nullable=False),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('object_kind', sa.Enum('omni', 'directional', name='objectkind'), nullable=False),
+    sa.Column('front_area_m2', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('side_area_m2', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('mass_per_unit_kg', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('horizontal_load_distance_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('base_wind_coefficient', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('quantity', sa.Integer(), nullable=False),
+    sa.CheckConstraint("(object_kind = 'omni' AND side_area_m2 IS NULL) OR (object_kind = 'directional' AND side_area_m2 IS NOT NULL)", name=op.f('ck_pole_standard_arm_objects_object_kind_dimensions')),
+    sa.ForeignKeyConstraint(['pole_standard_arm_id'], ['pole_standard_arms.id'], name=op.f('fk_pole_standard_arm_objects_pole_standard_arm_id_pole_standard_arms'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_arm_objects')),
+    sa.UniqueConstraint('pole_standard_arm_id', 'name', name='uq_pole_standard_arm_objects_name')
+    )
     op.create_table('pole_thicknesses',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('pole_combination_id', sa.String(), nullable=False),
@@ -524,18 +556,16 @@ def upgrade() -> None:
     sa.Column('calculation_case_id', sa.String(), nullable=False),
     sa.Column('material_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.Column('diameter', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('thickness', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('length', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('exp_length', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('height', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('distance', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('fix_angle', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('quantity', sa.Integer(), nullable=True),
+    sa.Column('diameter_mm', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('thickness_mm', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('total_length_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('exposed_length_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('installation_height_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('fixed_angle_deg', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_arms_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_arms_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_arms'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_arms')),
+    sa.UniqueConstraint('calculation_case_id', 'name', name='uq_arms_name')
     )
     op.create_table('calculation_base_plates',
     sa.Column('id', sa.String(), nullable=False),
@@ -678,16 +708,17 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('calculation_case_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.Column('weight', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('diameter', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('fix_height', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('span', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('sagging_ratio', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('fix_angle', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('vertical_angle', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('mass_per_length_kg_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('diameter_mm', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('elevation_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('span_length_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('sag_ratio_percent', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('base_wind_coefficient', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('fixed_angle_deg', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('vertical_angle_deg', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_overhead_wires_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_overhead_wires'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_overhead_wires')),
+    sa.UniqueConstraint('calculation_case_id', 'name', name='uq_overhead_wires_name')
     )
     op.create_table('reports',
     sa.Column('id', sa.String(), nullable=False),
@@ -730,16 +761,18 @@ def upgrade() -> None:
     op.create_table('arm_objects',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('arm_id', sa.String(), nullable=False),
-    sa.Column('object_type_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.Column('front_area', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('weight', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('distance', sa.Numeric(precision=10, scale=5), nullable=False),
-    sa.Column('nnc', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('object_kind', sa.Enum('omni', 'directional', name='objectkind'), nullable=False),
+    sa.Column('front_area_m2', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('side_area_m2', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('mass_per_unit_kg', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('horizontal_load_distance_m', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('base_wind_coefficient', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
+    sa.CheckConstraint("(object_kind = 'omni' AND side_area_m2 IS NULL) OR (object_kind = 'directional' AND side_area_m2 IS NOT NULL)", name=op.f('ck_arm_objects_object_kind_dimensions')),
     sa.ForeignKeyConstraint(['arm_id'], ['arms.id'], name=op.f('fk_arm_objects_arm_id_arms'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['object_type_id'], ['object_types.id'], name=op.f('fk_arm_objects_object_type_id_object_types'), onupdate='CASCADE', ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_arm_objects'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_arm_objects')),
+    sa.UniqueConstraint('arm_id', 'name', name='uq_arm_objects_name')
     )
     op.create_table('drawing_base_plates',
     sa.Column('id', sa.String(), nullable=False),
@@ -950,6 +983,7 @@ def downgrade() -> None:
     op.drop_table('arms')
     op.drop_table('work_hours')
     op.drop_table('pole_thicknesses')
+    op.drop_table('pole_standard_arm_objects')
     op.drop_table('nc_checklists')
     op.drop_table('calculation_cases')
     op.drop_table('revision_rounds')
@@ -961,6 +995,7 @@ def downgrade() -> None:
     op.drop_table('request_assignments')
     op.drop_table('pole_standard_segments')
     op.drop_table('pole_standard_direct_objects')
+    op.drop_table('pole_standard_arms')
     op.drop_table('pole_combinations')
     op.drop_table('drawing_conditions')
     op.drop_table('calculation_conditions')

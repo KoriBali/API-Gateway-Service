@@ -17,8 +17,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.database.models.geometry import (
+    ArmColumnsMixin,
+    ArmObjectColumnsMixin,
     DirectObjectColumnsMixin,
     PoleSegmentColumnsMixin,
+    arm_constraints,
+    arm_object_constraints,
     direct_object_constraints,
     pole_segment_constraints,
 )
@@ -27,10 +31,6 @@ if TYPE_CHECKING:
     from app.database.models.calculation import(
         CalculationCase,
         Report
-    )
-
-    from app.database.models.calculation_object import(
-        ArmObject,
     )
 
     from app.database.models.drawing import(
@@ -290,6 +290,13 @@ class PoleStandardHeight(Base):
         passive_deletes=True,
         order_by="PoleStandardDirectObject.name",
     )
+    
+    arms: Mapped[list["PoleStandardArm"]] = relationship(
+        back_populates="pole_standard_height",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PoleStandardArm.name",
+    )
 
     @property
     def is_calculable(self) -> bool:
@@ -352,6 +359,69 @@ class PoleStandardDirectObject(Base, DirectObjectColumnsMixin):
         back_populates="direct_objects"
     )
 
+
+
+# === Pole Standard Arm ===
+class PoleStandardArm(Base, ArmColumnsMixin):
+    __tablename__ = 'pole_standard_arms'
+    __table_args__ = arm_constraints("pole_standard_arms", "pole_standard_height_id")
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    pole_standard_height_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('pole_standard_heights.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    material_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('materials.id', ondelete='RESTRICT', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    # Child
+    pole_standard_height: Mapped["PoleStandardHeight"] = relationship(
+        back_populates="arms"
+    )
+
+    material: Mapped["Material"] = relationship()
+
+    # Parent
+    arm_objects: Mapped[list["PoleStandardArmObject"]] = relationship(
+        back_populates="arm",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PoleStandardArmObject.name",
+    )
+
+
+
+# === Pole Standard Arm Object ===
+class PoleStandardArmObject(Base, ArmObjectColumnsMixin):
+    __tablename__ = 'pole_standard_arm_objects'
+    __table_args__ = arm_object_constraints("pole_standard_arm_objects", "pole_standard_arm_id")
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    pole_standard_arm_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('pole_standard_arms.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    # Child
+    arm: Mapped["PoleStandardArm"] = relationship(
+        back_populates="arm_objects"
+    )
 
 
 
@@ -634,11 +704,6 @@ class ObjectType(Base):
         default=True
     )
 
-    # Parent
-    arm_objects: Mapped[list["ArmObject"]] = relationship(
-        back_populates="object_type",
-        passive_deletes=True
-    )
 
 
 
