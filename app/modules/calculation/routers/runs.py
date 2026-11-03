@@ -68,9 +68,16 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
             detail="arms materialId does not reference an existing material",
         )
 
+    ground_position = builder.resolve_ground_position(height, payload.ground_position)
+    if ground_position is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"groundPosition {payload.ground_position.value} is not available for this pole standard height",
+        )
+
     conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     design_standard = await CalculationCaseRepository.get_design_standard(db, conditions.design_standard_id)
-    return height, conditions, design_standard
+    return height, ground_position, conditions, design_standard
 
 
 def _run_read(run) -> CalculationRunRead:
@@ -99,7 +106,8 @@ async def calculate_case(
     actor: CurrentUser = Depends(_WORKER_ROLE),
 ):
     case = await _load_case(db, request_id, case_id, actor)
-    height, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
+    # Ground position dan panjang tanam divalidasi tetapi tidak dipakai: tidak dikirim ke engine.
+    height, _, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
 
     reason = builder.run_skip_reason(conditions, design_standard, height)
     if reason is not None:
@@ -158,10 +166,10 @@ async def save_and_run(
 ):
     case = await _load_case(db, request_id, case_id, actor, for_update=True)
     case_permissions.ensure_owner(actor, case)
-    height, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
+    height, ground_position, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
 
     # Transaksi 1: input. Tetap tersimpan apa pun hasil perhitungannya (AG17).
-    await CalculationCaseRepository.save_input(db, case, height, payload)
+    await CalculationCaseRepository.save_input(db, case, height, payload, ground_position)
     detail = await case_detail(db, case.id)
 
     def not_created(reason: builder.RunSkipReason):
@@ -196,6 +204,7 @@ async def save_and_run(
         "engine_request": engine_request,
         "context": builder.build_context(
             conditions=conditions, design_standard=design_standard, height=height,
+            ground_position=ground_position, embedment_length_mm=payload.embedment_length_mm,
         ),
     }
 
@@ -260,16 +269,8 @@ async def get_run(
 
 
 # ===== Data laporan =====
-@routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/runs/{run_id}/report")
-async def get_run_report(
-    request_id: str,
-    case_id: str,
-    run_id: str,
-    db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_READ_ROLE),
-):
-    case = await _load_case(db, request_id, case_id, actor)
-    run = await _load_run(db, case, run_id)
+async def _report_response(db: AsyncSession, case, run):
+    """Data laporan satu run beserta header case saat dibaca."""
     if run.status == StatusCalculationRun.failed:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -288,3 +289,48 @@ async def get_run_report(
     header = await ReportHeaderRepository.get(db, case.id)
     data.header = ReportHeaderRead.model_validate(header) if header is not None else None
     return success_response(data=data, message="Calculation report retrieved")
+
+
+# Laporan case: selalu dari run terbaru, dan hanya bila run itu masih menggambarkan isian
+# dan kondisi yang tersimpan. Tidak mundur ke run lama.
+@routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/report")
+async def get_case_report(
+    request_id: str,
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_READ_ROLE),
+):
+    case = await _load_case(db, request_id, case_id, actor)
+    run = await CalculationCaseRepository.latest_run(db, case.id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": "no_run", "message": "The case has no calculation run yet"},
+        )
+    conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
+    causes = builder.run_stale_causes(case, run, conditions)
+    if causes:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "run_stale",
+                "message": "The latest run no longer matches the saved input; save the calculation again",
+                "causes": causes,
+                "runId": run.id,
+            },
+        )
+    return await _report_response(db, case, run)
+
+
+# Riwayat: laporan run tertentu, tanpa pemeriksaan basi.
+@routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/runs/{run_id}/report")
+async def get_run_report(
+    request_id: str,
+    case_id: str,
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_READ_ROLE),
+):
+    case = await _load_case(db, request_id, case_id, actor)
+    run = await _load_run(db, case, run_id)
+    return await _report_response(db, case, run)

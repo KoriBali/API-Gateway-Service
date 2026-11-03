@@ -1,14 +1,16 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.database.models.intake import Request
 from app.modules.workflow.gate import apply_prevention_status
-from app.modules.calculation import builder
 
 from app.database.models.calculation import (
     CalculationCase,
     CalculationRun,
     CalculationRunType,
+    GroundPosition,
     PoleFamily,
     PoleKind,
     Report,
@@ -213,15 +215,23 @@ class CalculationCaseRepository:
 
     # ===== Simpan (G15), bagian input =====
     @staticmethod
-    async def save_input(db: AsyncSession, case: CalculationCase, height: PoleStandardHeight, data) -> None:
+    async def save_input(
+        db: AsyncSession, case: CalculationCase, height: PoleStandardHeight, data,
+        ground_position: GroundPosition,
+    ) -> None:
         """Simpan isian perhitungan tiang standard. Pemanggil sudah mengunci case.
         data: CalculationInput. Objek langsung, kawat, dan lengan ditulis ulang (hapus lalu
-        insert). Objek lengan ikut terhapus lewat ON DELETE CASCADE."""
+        insert). Objek lengan ikut terhapus lewat ON DELETE CASCADE. Draft dikosongkan:
+        isiannya kini tersimpan."""
         previous_height_id = case.pole_standard_height_id
         case.pole_standard_id = height.pole_standard_id
         case.pole_standard_height_id = height.id
         case.pole_family = PoleFamily.taper
-        case.ground_position = builder.CASE_GROUND_POSITION[height.ground_position]
+        case.ground_position = ground_position
+        case.embedment_length_mm = data.embedment_length_mm
+        case.input_saved_at = datetime.now(timezone.utc)
+        case.input_draft = None
+        case.input_draft_saved_at = None
         # Tidak diterima dari body: Calculation Service memakai 1. Nilai lama dikosongkan
         # supaya case tidak menampilkan faktor yang tidak dipakai run.
         case.overdesign_factor = None
@@ -283,6 +293,31 @@ class CalculationCaseRepository:
             .order_by(CalculationRun.run_at.desc(), CalculationRun.id)
         )
         return list((await db.execute(stmt)).scalars().all())
+
+    @staticmethod
+    async def latest_run(db: AsyncSession, case_id: str) -> CalculationRun | None:
+        """Run terbaru case, urutan sama dengan list_runs. Termasuk run failed."""
+        stmt = (
+            select(CalculationRun)
+            .where(CalculationRun.calculation_case_id == case_id)
+            .order_by(CalculationRun.run_at.desc(), CalculationRun.id)
+            .limit(1)
+        )
+        return (await db.execute(stmt)).scalar_one_or_none()
+
+    # ===== Draft isian =====
+    @staticmethod
+    async def put_draft(db: AsyncSession, case: CalculationCase, draft: dict) -> None:
+        case.input_draft = draft
+        case.input_draft_saved_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(case)
+
+    @staticmethod
+    async def delete_draft(db: AsyncSession, case: CalculationCase) -> None:
+        case.input_draft = None
+        case.input_draft_saved_at = None
+        await db.commit()
 
     @staticmethod
     async def get_run(db: AsyncSession, case_id: str, run_id: str) -> CalculationRun | None:
