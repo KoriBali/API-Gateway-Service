@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, StringConstraints, model_validator, field_validator
 
 from app.utils.base_schema import CamelBaseModel, snake_to_camel
 
@@ -493,8 +493,52 @@ class ReportOverheadWireResult(CamelBaseModel):
     wind_tension_n: float
 
 
+# ===== Header laporan =====
+ReportText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+OptionalReportText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]
+
+
+class ReportHeaderWrite(CamelBaseModel):
+    """Body PUT: mengganti seluruh header. Field opsional yang tidak dikirim menjadi kosong."""
+    region_code_id: str
+    department_code_id: str | None = None
+    author_code_id: str | None = None
+    report_number: ReportText
+    design_request_management_no: ReportText
+    report_title_1: ReportText
+    report_title_2: OptionalReportText | None = None
+    report_title_3: OptionalReportText | None = None
+
+    @field_validator("report_title_2", "report_title_3")
+    @classmethod
+    def _blank_title_is_empty(cls, value: str | None) -> str | None:
+        # Form mengirim "" untuk baris judul yang tidak dipakai.
+        return value or None
+
+
+class ReportHeaderCode(CamelBaseModel):
+    id: str
+    code: str
+    label: str
+
+
+class ReportHeaderRead(CamelBaseModel):
+    calculation_case_id: str
+    region_code: ReportHeaderCode
+    department_code: ReportHeaderCode | None = None
+    author_code: ReportHeaderCode | None = None
+    report_number: str
+    design_request_management_no: str
+    report_title_1: str
+    report_title_2: str | None = None
+    report_title_3: str | None = None
+    updated_at: datetime
+
+
 class CalculationReport(CamelBaseModel):
     run_id: str
+    # Header milik case saat dibaca (tabel reports), bukan bagian run. None bila belum diisi.
+    header: ReportHeaderRead | None = None
     template: str
     design_standard_code: int
     design_standard_name: str

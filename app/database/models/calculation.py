@@ -230,7 +230,8 @@ class CalculationCase(Base):
         passive_deletes=True
     )
 
-    reports: Mapped[list["Report"]] = relationship(
+    # Header laporan: satu per case (uq_reports_calculation_case_id).
+    report: Mapped["Report | None"] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
@@ -403,6 +404,8 @@ class CalculationRun(Base):
 
 # ===== Reports =====
 class Report(Base):
+    """Header laporan perhitungan sebuah case. Diisi owner kapan saja, terlepas dari run;
+    isi teknis laporan selalu disusun dari run."""
     __tablename__ = "reports"
 
     id: Mapped[str] = mapped_column(
@@ -413,17 +416,19 @@ class Report(Base):
 
     calculation_case_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
+        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        unique=True
     )
 
     region_code_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey('region_codes.id', ondelete="CASCADE", onupdate="CASCADE")
+        ForeignKey('region_codes.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
 
     department_code_id: Mapped[str | None] = mapped_column(
         String,
-        ForeignKey('department_codes.id', ondelete="CASCADE", onupdate="CASCADE"),
+        ForeignKey('department_codes.id', ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=True
     )
 
@@ -473,7 +478,7 @@ class Report(Base):
 
     # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
-        back_populates="reports"
+        back_populates="report"
     )
 
     region_code: Mapped["RegionCode"] = relationship(

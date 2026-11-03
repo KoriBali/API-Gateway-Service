@@ -579,7 +579,6 @@ class RegionCode(Base):
     # Parent
     reports: Mapped[list["Report"]] = relationship(
         back_populates="region_code",
-        cascade="all, delete-orphan",
         passive_deletes=True
     )
 
@@ -612,7 +611,6 @@ class DepartmentCode(Base):
     # Parent
     reports: Mapped[list["Report"]] = relationship(
         back_populates="department_code",
-        cascade="all, delete-orphan",
         passive_deletes=True
     )
 
@@ -645,7 +643,6 @@ class AuthorCode(Base):
     # Parent
     reports: Mapped[list["Report"]] = relationship(
         back_populates="author_code",
-        cascade="all, delete-orphan",
         passive_deletes=True
     )
 

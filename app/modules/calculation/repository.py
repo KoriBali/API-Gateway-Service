@@ -11,14 +11,18 @@ from app.database.models.calculation import (
     CalculationRunType,
     PoleFamily,
     PoleKind,
+    Report,
     StatusCalculationRun,
 )
 from app.database.models.calculation_object import Arm, ArmObject, DirectObject, OverheadWire, StepPole
 from app.database.models.master import (
+    AuthorCode,
+    DepartmentCode,
     DesignStandard,
     Material,
     PoleStandardHeight,
     PoleStandardStepPole,
+    RegionCode,
 )
 
 # Field header yang boleh ditulis create dan PATCH (whitelist). Isian perhitungan
@@ -287,3 +291,57 @@ class CalculationCaseRepository:
             CalculationRun.calculation_case_id == case_id,
         )
         return (await db.execute(stmt)).scalar_one_or_none()
+
+
+# Field kode header dan master yang dirujuknya.
+_REPORT_CODE_FIELDS = (
+    ("region_code_id", RegionCode),
+    ("department_code_id", DepartmentCode),
+    ("author_code_id", AuthorCode),
+)
+
+
+class ReportHeaderRepository:
+    """Header laporan: satu per calculation case (tabel reports)."""
+
+    @staticmethod
+    async def get(db: AsyncSession, case_id: str) -> Report | None:
+        stmt = (
+            select(Report)
+            .where(Report.calculation_case_id == case_id)
+            .options(
+                selectinload(Report.region_code),
+                selectinload(Report.department_code),
+                selectinload(Report.author_code),
+            )
+            .execution_options(populate_existing=True)
+        )
+        return (await db.execute(stmt)).scalar_one_or_none()
+
+    @staticmethod
+    async def inactive_code_fields(db: AsyncSession, data: dict) -> list[str]:
+        """Field kode yang terisi tetapi tidak menunjuk kode master yang aktif."""
+        invalid = []
+        for field, model in _REPORT_CODE_FIELDS:
+            if data[field] is None:
+                continue
+            stmt = select(exists().where(model.id == data[field], model.is_active == True))
+            if not await db.scalar(stmt):
+                invalid.append(field)
+        return invalid
+
+    @staticmethod
+    async def put(db: AsyncSession, case_id: str, data: dict) -> tuple[Report, bool]:
+        """Buat atau ganti seluruh header. Pemanggil sudah mengunci baris case (for_update),
+        jadi dua PUT bersamaan diantrikan dan tidak sama-sama meng-insert."""
+        header = (await db.execute(
+            select(Report).where(Report.calculation_case_id == case_id)
+        )).scalar_one_or_none()
+        created = header is None
+        if created:
+            header = Report(calculation_case_id=case_id)
+            db.add(header)
+        for field, value in data.items():
+            setattr(header, field, value)
+        await db.commit()
+        return await ReportHeaderRepository.get(db, case_id), created

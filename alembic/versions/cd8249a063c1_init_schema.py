@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: af647fc0f996
+Revision ID: cd8249a063c1
 Revises: 
-Create Date: 2026-11-02 16:04:02.487028
+Create Date: 2026-11-03 09:39:05.124753
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'af647fc0f996'
+revision: str = 'cd8249a063c1'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -735,9 +735,10 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['author_code_id'], ['author_codes.id'], name=op.f('fk_reports_author_code_id_author_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['calculation_case_id'], ['calculation_cases.id'], name=op.f('fk_reports_calculation_case_id_calculation_cases'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['department_code_id'], ['department_codes.id'], name=op.f('fk_reports_department_code_id_department_codes'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['region_code_id'], ['region_codes.id'], name=op.f('fk_reports_region_code_id_region_codes'), onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_reports'))
+    sa.ForeignKeyConstraint(['department_code_id'], ['department_codes.id'], name=op.f('fk_reports_department_code_id_department_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['region_code_id'], ['region_codes.id'], name=op.f('fk_reports_region_code_id_region_codes'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_reports')),
+    sa.UniqueConstraint('calculation_case_id', name=op.f('uq_reports_calculation_case_id'))
     )
     op.create_table('step_poles',
     sa.Column('id', sa.String(), nullable=False),

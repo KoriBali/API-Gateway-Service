@@ -8,7 +8,7 @@ from app.utils.response import success_response
 from app.modules.intake.repository import RequestRepository
 from app.modules.case import permissions as case_permissions
 from app.modules.calculation import builder, display, report
-from app.modules.calculation.repository import CalculationCaseRepository
+from app.modules.calculation.repository import CalculationCaseRepository, ReportHeaderRepository
 from app.modules.calculation.routers.cases import case_detail
 from app.modules.calculation.schemas import (
     CalculateResult,
@@ -16,6 +16,7 @@ from app.modules.calculation.schemas import (
     CalculationRunRead,
     CalculationRunSummary,
     CalculationSaveResult,
+    ReportHeaderRead,
     RunNotCreated,
 )
 from app.services.calculation import POLE_CALCULATE_PATH, EngineUnavailable, post_engine
@@ -284,4 +285,6 @@ async def get_run_report(
                 "message": "The design standard of this run has no report template yet",
             },
         )
+    header = await ReportHeaderRepository.get(db, case.id)
+    data.header = ReportHeaderRead.model_validate(header) if header is not None else None
     return success_response(data=data, message="Calculation report retrieved")
