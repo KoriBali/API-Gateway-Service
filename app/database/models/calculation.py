@@ -12,7 +12,6 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     String,
     Numeric,
-    Integer,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -143,8 +142,8 @@ class CalculationCase(Base):
         nullable=True
     )
 
-    overdesign_factor: Mapped[int | None] = mapped_column(
-        Integer,
+    overdesign_factor: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
         nullable=True
     )
     
@@ -231,7 +230,8 @@ class CalculationCase(Base):
         passive_deletes=True
     )
 
-    reports: Mapped[list["Report"]] = relationship(
+    # Header laporan: satu per case (uq_reports_calculation_case_id).
+    report: Mapped["Report | None"] = relationship(
         back_populates="calculation_case",
         cascade="all, delete-orphan",
         passive_deletes=True
@@ -326,6 +326,11 @@ class CalculationRun(Base):
             " AND (status = 'failed') = (error_snapshot IS NOT NULL)",
             name="status_snapshot",
         ),
+        # Rasio pengecekan penentu ada tepat untuk run yang punya hasil.
+        CheckConstraint(
+            "(status = 'failed') = (utilization_ratio IS NULL)",
+            name="status_utilization_ratio",
+        ),
     )
 
     id: Mapped[str] = mapped_column(
@@ -371,6 +376,13 @@ class CalculationRun(Base):
         JSONB(none_as_null=True),
         nullable=True
     )
+    
+    # utilization_ratio pengecekan penentu (summary.governing), untuk mengurutkan run
+    # tanpa membuka JSON. NULL untuk run failed.
+    utilization_ratio: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
 
     run_by_user_id: Mapped[str] = mapped_column(
         String,
@@ -392,6 +404,8 @@ class CalculationRun(Base):
 
 # ===== Reports =====
 class Report(Base):
+    """Header laporan perhitungan sebuah case. Diisi owner kapan saja, terlepas dari run;
+    isi teknis laporan selalu disusun dari run."""
     __tablename__ = "reports"
 
     id: Mapped[str] = mapped_column(
@@ -402,17 +416,19 @@ class Report(Base):
 
     calculation_case_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE")
+        ForeignKey('calculation_cases.id', ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        unique=True
     )
 
     region_code_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey('region_codes.id', ondelete="CASCADE", onupdate="CASCADE")
+        ForeignKey('region_codes.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
 
     department_code_id: Mapped[str | None] = mapped_column(
         String,
-        ForeignKey('department_codes.id', ondelete="CASCADE", onupdate="CASCADE"),
+        ForeignKey('department_codes.id', ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=True
     )
 
@@ -462,7 +478,7 @@ class Report(Base):
 
     # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
-        back_populates="reports"
+        back_populates="report"
     )
 
     region_code: Mapped["RegionCode"] = relationship(

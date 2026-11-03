@@ -1,7 +1,7 @@
 """Penyusun payload POST /api/pole/calculate dan pembaca status run.
 
 Fungsi murni: tidak membaca DB dan tidak memanggil Calculation Service, supaya
-Hitung (G14) dan Simpan (G15) memakai kode yang sama persis. Kolom geometri
+Hitung dan Simpan memakai kode yang sama persis. Kolom geometri
 bernama sama dengan kontrak Calculation Service, sehingga nilai cukup disalin.
 """
 import enum
@@ -11,10 +11,13 @@ from app.database.models.calculation import GroundPosition, StatusCalculationRun
 from app.database.models.geometry import ObjectKind, PoleType
 from app.database.models.master import PoleHeightGroundPosition
 
-# Standar 2 sampai 5: tekanan angin konstan di Calculation Service, cukup
-# design_standard + structure_height_m. Standar 1 dan 6 butuh kategori atmosfer
-# yang belum punya kolom. Nomor 7 (New JIL) belum diterima.
-FIXED_WIND_DESIGN_STANDARDS = frozenset({2, 3, 4, 5})
+# Versi kontrak POST /api/pole/calculate yang disusun dan dibaca gateway. Jawaban
+# dengan versi lain tidak dikenali.
+ENGINE_SCHEMA_VERSION = "2.2"
+
+# design_standards.code yang diterima Calculation Service kontrak 2.2. Code lain ditolak
+# 422 oleh Calculation Service, jadi Simpan tidak membuat run untuknya.
+CALCULABLE_DESIGN_STANDARDS = frozenset({3})
 
 # Elevasi diukur dari dasar tiang.
 BASE_ELEVATION_M = 0.0
@@ -51,7 +54,7 @@ def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None
     """Prasyarat run (G15). Diperiksa sesudah input tersimpan."""
     if conditions.wind_speed is None:
         return RunSkipReason.wind_speed_missing
-    if design_standard.code not in FIXED_WIND_DESIGN_STANDARDS:
+    if design_standard.code not in CALCULABLE_DESIGN_STANDARDS:
         return RunSkipReason.design_standard_not_calculable
     if not height.is_calculable:
         return RunSkipReason.pole_height_not_calculable
@@ -62,66 +65,118 @@ def _num(value: Decimal | float | int) -> float:
     return float(value)
 
 
+def _num_or_none(value: Decimal | float | int | None) -> float | None:
+    return None if value is None else float(value)
+
+
 def build_pole_request(
     *,
     design_standard_code: int,
-    segments,
+    wind_speed,
+    air_density,
+    step_poles,
     material_names: dict[str, str],
     direct_objects,
+    overhead_wires,
+    arms,
     evaluated_positions_m,
 ) -> dict:
-    """segments: baris berbentuk PoleSegmentColumnsMixin + material_id.
-    direct_objects: baris atau input berbentuk DirectObjectColumnsMixin."""
+    """wind_speed, air_density: dari calculation_conditions request, wajib terisi.
+    step_poles: baris berbentuk StepPoleColumnsMixin + material_id.
+    direct_objects: baris atau input berbentuk DirectObjectColumnsMixin.
+    overhead_wires: baris atau input berkolom sama dengan overhead_wires.
+    arms: baris atau input berbentuk ArmColumnsMixin + material_id + objects.
+    material_names: nama material step pole dan lengan.
+
+    """
     poles = []
     # Urut dari puncak tertinggi, sama dengan payload contoh. Calculation Service
     # mengurutkan ulang menurut top_elevation_m, jadi urutan tidak mengubah hasil.
-    for segment in sorted(segments, key=lambda s: s.top_elevation_m, reverse=True):
-        pole = {
-            "name": segment.name,
-            "pole_type": ENGINE_POLE_TYPES[segment.pole_type],
-            "material": material_names[segment.material_id],
-            "top_elevation_m": _num(segment.top_elevation_m),
-        }
-        if segment.pole_type == PoleType.taper:
-            pole["diameter_lower_mm"] = _num(segment.diameter_lower_mm)
-            pole["diameter_upper_mm"] = _num(segment.diameter_upper_mm)
-            pole["thickness_lower_mm"] = _num(segment.thickness_lower_mm)
-            pole["thickness_upper_mm"] = _num(segment.thickness_upper_mm)
-        else:
-            # Straight: kolom lower adalah satu-satunya ukuran.
-            pole["diameter_mm"] = _num(segment.diameter_lower_mm)
-            pole["thickness_mm"] = _num(segment.thickness_lower_mm)
-        # quantity segmen sengaja tidak dikirim.
-        poles.append(pole)
+    for step_pole in sorted(step_poles, key=lambda s: s.top_elevation_m, reverse=True):
+        poles.append({
+            "name": step_pole.name,
+            "pole_type": ENGINE_POLE_TYPES[step_pole.pole_type],
+            "material": material_names[step_pole.material_id],
+            "top_elevation_m": _num(step_pole.top_elevation_m),
+            "diameter_lower_mm": _num(step_pole.diameter_lower_mm),
+            "diameter_upper_mm": _num_or_none(step_pole.diameter_upper_mm),
+            "thickness_lower_mm": _num(step_pole.thickness_lower_mm),
+            "thickness_upper_mm": _num_or_none(step_pole.thickness_upper_mm),
+        })
+        # quantity step pole sengaja tidak dikirim.
 
-    objects = []
-    for obj in sorted(direct_objects, key=lambda o: o.name):
-        item = {
+    objects = [
+        {
             "name": obj.name,
             "object_type": ENGINE_OBJECT_TYPES[obj.object_kind],
             "front_area_m2": _num(obj.front_area_m2),
+            "side_area_m2": _num_or_none(obj.side_area_m2),
+            "fixed_angle_deg": _num_or_none(obj.fixed_angle_deg),
             "mass_per_unit_kg": _num(obj.mass_per_unit_kg),
             "elevation_m": _num(obj.elevation_m),
             "base_wind_coefficient": _num(obj.base_wind_coefficient),
             "quantity": obj.quantity,
         }
-        if obj.object_kind == ObjectKind.directional:
-            item["side_area_m2"] = _num(obj.side_area_m2)
-            item["fixed_angle_deg"] = _num(obj.fixed_angle_deg)
-        objects.append(item)
+        for obj in sorted(direct_objects, key=lambda o: o.name)
+    ]
+    
+    wires = [
+        {
+            "name": wire.name,
+            "mass_per_length_kg_m": _num(wire.mass_per_length_kg_m),
+            "diameter_mm": _num(wire.diameter_mm),
+            "elevation_m": _num(wire.elevation_m),
+            "span_length_m": _num(wire.span_length_m),
+            "sag_ratio_percent": _num(wire.sag_ratio_percent),
+            "base_wind_coefficient": _num(wire.base_wind_coefficient),
+            "fixed_angle_deg": _num(wire.fixed_angle_deg),
+            "vertical_angle_deg": _num(wire.vertical_angle_deg),
+        }
+        for wire in sorted(overhead_wires, key=lambda w: w.name)
+    ]
 
-    body = {
-        "wind": {
-            "design_standard": design_standard_code,
-            "structure_height_m": max(p["top_elevation_m"] for p in poles),
-        },
+    arm_rows = [
+        {
+            "name": arm.name,
+            "material": material_names[arm.material_id],
+            "diameter_mm": _num(arm.diameter_mm),
+            "thickness_mm": _num(arm.thickness_mm),
+            "total_length_m": _num(arm.total_length_m),
+            "exposed_length_m": _num(arm.exposed_length_m),
+            "installation_height_m": _num(arm.installation_height_m),
+            "fixed_angle_deg": _num(arm.fixed_angle_deg),
+            "objects": [
+                {
+                    "name": obj.name,
+                    "object_type": ENGINE_OBJECT_TYPES[obj.object_kind],
+                    "front_area_m2": _num(obj.front_area_m2),
+                    "side_area_m2": _num_or_none(obj.side_area_m2),
+                    "mass_per_unit_kg": _num(obj.mass_per_unit_kg),
+                    "horizontal_load_distance_m": _num(obj.horizontal_load_distance_m),
+                    "base_wind_coefficient": _num(obj.base_wind_coefficient),
+                    "quantity": obj.quantity,
+                }
+                for obj in sorted(arm.objects, key=lambda o: o.name)
+            ],
+        }
+        for arm in sorted(arms, key=lambda a: a.name)
+    ]
+
+    # Tinggi struktur dihitung Calculation Service dari puncak step pole tertinggi.
+    # overdesign_factor dan include_oblique_wind tidak dikirim: Calculation Service
+    # memakai 1.0 dan arah lurus. Wind speed dan air density tidak punya default
+    # di Calculation Service, jadi selalu dikirim.
+    return {
+        "design_standard": design_standard_code,
+        "wind_speed_m_s": _num(wind_speed),
+        "air_density_kg_m3": _num(air_density),
         "base_elevation_m": BASE_ELEVATION_M,
         "poles": poles,
         "direct_objects": objects,
+        "overhead_wires": wires,
+        "arms": arm_rows,
         "evaluated_positions_m": [_num(p) for p in evaluated_positions_m],
     }
-    # overdesign_factor tidak dikirim: Calculation Service memakai 1
-    return body
 
 
 def build_context(*, conditions, design_standard, height) -> dict:
@@ -141,23 +196,18 @@ def build_context(*, conditions, design_standard, height) -> dict:
     }
 
 
-def derive_status(result_body: dict) -> StatusCalculationRun:
-    """ok bila seluruh pengecekan O.K, ng bila ada yang lain.
+# Status keseluruhan dari Calculation Service ke status run.
+ENGINE_RUN_STATUSES = {"OK": StatusCalculationRun.ok, "NG": StatusCalculationRun.ng}
 
-    Dibaca dari section_check tiap posisi dan tiap arah, untuk kekuatan angin dan
-    seismik. Jawaban tanpa satu pun status dianggap tidak dikenali (ValueError),
-    karena run tidak boleh menyatakan lolos tanpa pengecekan.
+
+def read_summary(result_body: dict) -> tuple[StatusCalculationRun, float]:
+    """Status run dan utilization_ratio pengecekan penentu, apa adanya dari summary.
+
+    Jawaban dengan versi kontrak lain atau tanpa summary yang dikenali menimbulkan
+    KeyError atau ValueError: run tidak boleh menyatakan lolos tanpa pengecekan.
     """
-    statuses = []
-    for position in result_body["data"]["evaluated_positions"]:
-        check = position.get("section_check") or {}
-        for row in check.get("directional_results") or []:
-            for key in ("wind_strength", "seismic_strength"):
-                strength = row.get(key)
-                if strength is not None:
-                    statuses.append(strength.get("status"))
-    if not statuses:
-        raise ValueError("Calculation Service response has no strength status")
-    if all(s == "O.K" for s in statuses):
-        return StatusCalculationRun.ok
-    return StatusCalculationRun.ng
+    data = result_body["data"]
+    if data["schema_version"] != ENGINE_SCHEMA_VERSION:
+        raise ValueError(f"Calculation Service answered schema {data['schema_version']!r}")
+    summary = data["summary"]
+    return ENGINE_RUN_STATUSES[summary["status"]], summary["governing"]["utilization_ratio"]

@@ -148,10 +148,10 @@ async def get_pole_standards(
 
 
 
-# ===== Geometri per pilihan tinggi =====
-# Dibaca frontend untuk mengisi form perhitungan sesudah height dipilih. Segmen
-# hanya untuk ditampilkan (tidak bisa diubah); objek langsung adalah nilai awal
-# yang boleh diubah. Height tanpa geometri tetap 200 dengan isCalculable false.
+# ===== Geometry per Height Options =====
+# Dibaca frontend untuk mengisi form perhitungan sesudah height dipilih. Step pole
+# hanya untuk ditampilkan (tidak bisa diubah); objek langsung dan lengan adalah nilai
+# awal yang boleh diubah. Height tanpa geometri tetap 200 dengan isCalculable false.
 @routerMaster.get("/pole-standard-heights/{height_id}/geometry")
 async def get_pole_standard_height_geometry(
     height_id: str,

@@ -80,7 +80,7 @@ REQUESTS = [
     # budi (drafter/YSG)
     {
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
-        "pole_category": "lighting", "design_standard": "Old JIL",
+        "pole_category": "lighting", "design_standard": "Old Lighting Pole",
         "request_no": "EPJ100001-1", "pj_no": "100001",
         "request_type": RequestType.general, "design_type": DesignType.drawing,
         "request_classification": RequestClassification.new,
@@ -104,7 +104,7 @@ REQUESTS = [
     {
         # tail YS di request form YP: tail mengikuti merek, bukan form; project tetap sama
         "creator": "budi", "project": 0, "brand_line": BrandLine.yp,
-        "pole_category": "disaster_prevention", "design_standard": "V60",
+        "pole_category": "disaster_prevention", "design_standard": "Fixed Wind Disaster Prevention",
         "request_no": "EYS100001-2", "pj_no": "100001",
         "request_type": RequestType.general, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.change,
@@ -119,7 +119,7 @@ REQUESTS = [
     # andi (drafter/YSG) -> menguji isolasi antar-drafter dalam department yang sama
     {
         "creator": "andi", "project": 1, "brand_line": BrandLine.yp,
-        "pole_category": "signboard", "design_standard": "V60",
+        "pole_category": "signboard", "design_standard": "Fixed Wind Disaster Prevention",
         "request_no": "EPJ100002", "pj_no": "100002",   # 図番 tanpa seq
         "request_type": RequestType.general, "design_type": DesignType.drawing_calculation,
         "request_classification": RequestClassification.reuse_new,
@@ -135,7 +135,7 @@ REQUESTS = [
     # dewi (drafter/YSC) -> department berbeda, menguji scope lintas-department
     {
         "creator": "dewi", "project": 2, "brand_line": BrandLine.ys,
-        "pole_category": "lighting", "design_standard": "Old JIL",
+        "pole_category": "lighting", "design_standard": "Old Lighting Pole",
         "request_no": "YSE-26-0001", "pj_no": "20001",
         "request_type": RequestType.general, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.new,
@@ -162,7 +162,7 @@ REQUESTS = [
     {
         # hanya kolom wajib, tanpa project -> menguji nullable di tabel tambahan
         "creator": "dewi", "project": None, "brand_line": BrandLine.ys,
-        "pole_category": "multiple", "design_standard": "V60",
+        "pole_category": "multiple", "design_standard": "Fixed Wind Disaster Prevention",
         "request_no": "YSE-26-0002", "pj_no": "20002",
         "request_type": RequestType.special, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.new,
@@ -174,7 +174,7 @@ REQUESTS = [
     {
         # request berkepala General Affairs (総務部): request_type special, tanpa project
         "creator": "eko", "project": None, "brand_line": BrandLine.yp,
-        "pole_category": "disaster_prevention", "design_standard": "V60",
+        "pole_category": "disaster_prevention", "design_standard": "Fixed Wind Disaster Prevention",
         "request_no": "EPJ100003-1", "pj_no": "100003",
         "request_type": RequestType.special, "design_type": DesignType.calculation,
         "request_classification": RequestClassification.new,

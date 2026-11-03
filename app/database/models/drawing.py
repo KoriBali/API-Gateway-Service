@@ -25,7 +25,7 @@ from app.database.models.calculation_object import (
 )
 
 from app.database.models.calculation import PoleFamily, GroundPosition, PoleKind
-from app.database.models.geometry import PoleSegmentColumnsMixin, pole_segment_constraints
+from app.database.models.geometry import StepPoleColumnsMixin, step_pole_constraints
 
 if TYPE_CHECKING:
     from app.database.models.identity import User
@@ -396,9 +396,9 @@ class DrawingFoundation(Base, FoundationColumnsMixin):
 
 
 # === Drawing Step Pole ===
-class DrawingStepPole(Base, PoleSegmentColumnsMixin):
+class DrawingStepPole(Base, StepPoleColumnsMixin):
     __tablename__ = "drawing_step_poles"
-    __table_args__ = pole_segment_constraints("drawing_step_poles", "drawing_case_id")
+    __table_args__ = step_pole_constraints("drawing_step_poles", "drawing_case_id")
 
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())

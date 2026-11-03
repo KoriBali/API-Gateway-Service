@@ -9,30 +9,31 @@ from sqlalchemy import (
     String,
     Numeric,
     Integer,
+    UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.database.models.geometry import (
+    ArmColumnsMixin,
+    ArmObjectColumnsMixin,
     DirectObjectColumnsMixin,
-    PoleSegmentColumnsMixin,
+    StepPoleColumnsMixin,
+    arm_constraints,
+    arm_object_constraints,
     direct_object_constraints,
-    pole_segment_constraints,
+    step_pole_constraints,
 )
 
 if TYPE_CHECKING:
     from app.database.models.calculation import CalculationCase
 
-    from app.database.models.master import(
-        ObjectType
-    )
-
 
 
 # === Step Pole ===
-class StepPole(Base, PoleSegmentColumnsMixin):
+class StepPole(Base, StepPoleColumnsMixin):
     __tablename__ = "step_poles"
-    __table_args__ = pole_segment_constraints("step_poles", "calculation_case_id")
+    __table_args__ = step_pole_constraints("step_poles", "calculation_case_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -86,7 +87,11 @@ class DirectObject(Base, DirectObjectColumnsMixin):
 
 # === Overhead Wires ===
 class OverheadWire(Base):
+    """Isian user, tanpa katalog. Nama dan satuan kolom mengikuti kontrak Calculation Service."""
     __tablename__ = "overhead_wires"
+    __table_args__ = (
+        UniqueConstraint("calculation_case_id", "name", name="uq_overhead_wires_name"),
+    )
 
     id: Mapped[str] = mapped_column(
         String,
@@ -104,42 +109,43 @@ class OverheadWire(Base):
         nullable=False
     )
 
-    weight: Mapped[Decimal] = mapped_column(
+    mass_per_length_kg_m: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    diameter: Mapped[Decimal] = mapped_column(
+    diameter_mm: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    fix_height: Mapped[Decimal] = mapped_column(
+    elevation_m: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    span: Mapped[Decimal] = mapped_column(
+    span_length_m: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    sagging_ratio: Mapped[Decimal] = mapped_column(
+    # Persen, misalnya 3.
+    sag_ratio_percent: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    nnc: Mapped[Decimal] = mapped_column(
+    base_wind_coefficient: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    fix_angle: Mapped[Decimal] = mapped_column(
+    fixed_angle_deg: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
 
-    vertical_angle: Mapped[Decimal] = mapped_column(
+    vertical_angle_deg: Mapped[Decimal] = mapped_column(
         Numeric(10, 5),
         nullable=False
     )
@@ -148,7 +154,6 @@ class OverheadWire(Base):
     calculation_case: Mapped["CalculationCase"] = relationship(
         back_populates="overhead_wires"
     )
-
 
 
 # === Opening Type ===
@@ -332,8 +337,9 @@ class CalculationFoundation(Base, FoundationColumnsMixin):
 
 
 # === Arm ===
-class Arm(Base):
+class Arm(Base, ArmColumnsMixin):
     __tablename__ = "arms"
+    __table_args__ = arm_constraints("arms", "calculation_case_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -351,56 +357,6 @@ class Arm(Base):
         ForeignKey('materials.id', ondelete="RESTRICT", onupdate="CASCADE")
     )
 
-    name: Mapped[str] = mapped_column(
-        String,
-        nullable=False
-    )
-
-    diameter: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    thickness: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    length: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    exp_length: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    height: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    distance: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    nnc: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    fix_angle: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 5),
-        nullable=True
-    )
-
-    quantity: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True
-    )
-
     # Child
     calculation_case: Mapped["CalculationCase"] = relationship(
         back_populates="arms"
@@ -410,14 +366,16 @@ class Arm(Base):
     arm_objects: Mapped[list["ArmObject"]] = relationship(
         back_populates="arm",
         cascade="all, delete-orphan",
-        passive_deletes=True
+        passive_deletes=True,
+        order_by="ArmObject.name",
     )
 
 
 
 # === Arm Object ===
-class ArmObject(Base):
+class ArmObject(Base, ArmObjectColumnsMixin):
     __tablename__ = "arm_objects"
+    __table_args__ = arm_object_constraints("arm_objects", "arm_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -430,46 +388,7 @@ class ArmObject(Base):
         ForeignKey('arms.id', ondelete="CASCADE", onupdate="CASCADE")
     )
 
-    object_type_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey('object_types.id', ondelete="RESTRICT", onupdate="CASCADE")
-    )
-
-    name: Mapped[str] = mapped_column(
-        String,
-        nullable=False
-    )
-
-    front_area: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    weight: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    distance: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    nnc: Mapped[Decimal] = mapped_column(
-        Numeric(10, 5),
-        nullable=False
-    )
-
-    quantity: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False
-    )
-
     # Child
     arm: Mapped["Arm"] = relationship(
-        back_populates="arm_objects"
-    )
-
-    object_type: Mapped["ObjectType"] = relationship(
         back_populates="arm_objects"
     )

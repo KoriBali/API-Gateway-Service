@@ -39,7 +39,7 @@ async def _load_case(db: AsyncSession, request_id: str, case_id: str, actor: Cur
 
 
 async def case_detail(db: AsyncSession, case_id: str) -> CalculationCaseDetail:
-    """Case beserta segmen, objek langsung, dan keterangan beda katalog. Dipakai juga Simpan."""
+    """Case beserta step pole, objek langsung, dan keterangan beda katalog. Dipakai juga Simpan."""
     case = await CalculationCaseRepository.get_detail(db, case_id)
     detail = CalculationCaseDetail.model_validate(case)
     detail.geometry_differs_from_catalog = await CalculationCaseRepository.geometry_differs_from_catalog(db, case)

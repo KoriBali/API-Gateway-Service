@@ -17,20 +17,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.database.models.geometry import (
+    ArmColumnsMixin,
+    ArmObjectColumnsMixin,
     DirectObjectColumnsMixin,
-    PoleSegmentColumnsMixin,
+    StepPoleColumnsMixin,
+    arm_constraints,
+    arm_object_constraints,
     direct_object_constraints,
-    pole_segment_constraints,
+    step_pole_constraints,
 )
 
 if TYPE_CHECKING:
     from app.database.models.calculation import(
         CalculationCase,
         Report
-    )
-
-    from app.database.models.calculation_object import(
-        ArmObject,
     )
 
     from app.database.models.drawing import(
@@ -277,11 +277,11 @@ class PoleStandardHeight(Base):
         passive_deletes=True
     )
 
-    segments: Mapped[list["PoleStandardSegment"]] = relationship(
+    step_poles: Mapped[list["PoleStandardStepPole"]] = relationship(
         back_populates="pole_standard_height",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        order_by="PoleStandardSegment.top_elevation_m",
+        order_by="PoleStandardStepPole.top_elevation_m",
     )
 
     direct_objects: Mapped[list["PoleStandardDirectObject"]] = relationship(
@@ -290,18 +290,25 @@ class PoleStandardHeight(Base):
         passive_deletes=True,
         order_by="PoleStandardDirectObject.name",
     )
+    
+    arms: Mapped[list["PoleStandardArm"]] = relationship(
+        back_populates="pole_standard_height",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PoleStandardArm.name",
+    )
 
     @property
     def is_calculable(self) -> bool:
-        """Turunan, bukan kolom. Relasi segments wajib sudah di-load."""
-        return bool(self.segments) and bool(self.evaluated_positions_m)
+        """Turunan, bukan kolom. Relasi step_poles wajib sudah di-load."""
+        return bool(self.step_poles) and bool(self.evaluated_positions_m)
 
 
 
-# === Pole Standard Segment ===
-class PoleStandardSegment(Base, PoleSegmentColumnsMixin):
-    __tablename__ = 'pole_standard_segments'
-    __table_args__ = pole_segment_constraints("pole_standard_segments", "pole_standard_height_id")
+# === Pole Standard Step Pole ===
+class PoleStandardStepPole(Base, StepPoleColumnsMixin):
+    __tablename__ = 'pole_standard_step_poles'
+    __table_args__ = step_pole_constraints("pole_standard_step_poles", "pole_standard_height_id")
 
     id: Mapped[str] = mapped_column(
         String,
@@ -323,7 +330,7 @@ class PoleStandardSegment(Base, PoleSegmentColumnsMixin):
 
     # Child
     pole_standard_height: Mapped["PoleStandardHeight"] = relationship(
-        back_populates="segments"
+        back_populates="step_poles"
     )
 
     material: Mapped["Material"] = relationship()
@@ -352,6 +359,69 @@ class PoleStandardDirectObject(Base, DirectObjectColumnsMixin):
         back_populates="direct_objects"
     )
 
+
+
+# === Pole Standard Arm ===
+class PoleStandardArm(Base, ArmColumnsMixin):
+    __tablename__ = 'pole_standard_arms'
+    __table_args__ = arm_constraints("pole_standard_arms", "pole_standard_height_id")
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    pole_standard_height_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('pole_standard_heights.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    material_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('materials.id', ondelete='RESTRICT', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    # Child
+    pole_standard_height: Mapped["PoleStandardHeight"] = relationship(
+        back_populates="arms"
+    )
+
+    material: Mapped["Material"] = relationship()
+
+    # Parent
+    arm_objects: Mapped[list["PoleStandardArmObject"]] = relationship(
+        back_populates="arm",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PoleStandardArmObject.name",
+    )
+
+
+
+# === Pole Standard Arm Object ===
+class PoleStandardArmObject(Base, ArmObjectColumnsMixin):
+    __tablename__ = 'pole_standard_arm_objects'
+    __table_args__ = arm_object_constraints("pole_standard_arm_objects", "pole_standard_arm_id")
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    pole_standard_arm_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey('pole_standard_arms.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False
+    )
+
+    # Child
+    arm: Mapped["PoleStandardArm"] = relationship(
+        back_populates="arm_objects"
+    )
 
 
 
@@ -509,7 +579,6 @@ class RegionCode(Base):
     # Parent
     reports: Mapped[list["Report"]] = relationship(
         back_populates="region_code",
-        cascade="all, delete-orphan",
         passive_deletes=True
     )
 
@@ -542,7 +611,6 @@ class DepartmentCode(Base):
     # Parent
     reports: Mapped[list["Report"]] = relationship(
         back_populates="department_code",
-        cascade="all, delete-orphan",
         passive_deletes=True
     )
 
@@ -575,7 +643,6 @@ class AuthorCode(Base):
     # Parent
     reports: Mapped[list["Report"]] = relationship(
         back_populates="author_code",
-        cascade="all, delete-orphan",
         passive_deletes=True
     )
 
@@ -634,11 +701,6 @@ class ObjectType(Base):
         default=True
     )
 
-    # Parent
-    arm_objects: Mapped[list["ArmObject"]] = relationship(
-        back_populates="object_type",
-        passive_deletes=True
-    )
 
 
 

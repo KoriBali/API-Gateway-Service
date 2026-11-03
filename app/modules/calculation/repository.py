@@ -11,14 +11,18 @@ from app.database.models.calculation import (
     CalculationRunType,
     PoleFamily,
     PoleKind,
+    Report,
     StatusCalculationRun,
 )
-from app.database.models.calculation_object import DirectObject, StepPole
+from app.database.models.calculation_object import Arm, ArmObject, DirectObject, OverheadWire, StepPole
 from app.database.models.master import (
+    AuthorCode,
+    DepartmentCode,
     DesignStandard,
     Material,
     PoleStandardHeight,
-    PoleStandardSegment,
+    PoleStandardStepPole,
+    RegionCode,
 )
 
 # Field header yang boleh ditulis create dan PATCH (whitelist). Isian perhitungan
@@ -57,13 +61,15 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def get_detail(db: AsyncSession, case_id: str) -> CalculationCase:
-        """Case beserta segmen dan objek langsung, untuk CalculationCaseDetail."""
+        """Case beserta step pole, objek langsung, kawat, dan lengan, untuk CalculationCaseDetail."""
         stmt = (
             select(CalculationCase)
             .where(CalculationCase.id == case_id)
             .options(
                 selectinload(CalculationCase.step_poles),
                 selectinload(CalculationCase.direct_objects),
+                selectinload(CalculationCase.overhead_wires),
+                selectinload(CalculationCase.arms).selectinload(Arm.arm_objects),
             )
             .execution_options(populate_existing=True)
         )
@@ -71,13 +77,13 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def get_height_for_calculation(db: AsyncSession, height_id: str) -> PoleStandardHeight | None:
-        """Pilihan tinggi aktif beserta standar, segmen (dengan material), dan objek katalog."""
+        """Pilihan tinggi aktif beserta standar, step pole (dengan material), dan objek katalog."""
         stmt = (
             select(PoleStandardHeight)
             .where(PoleStandardHeight.id == height_id, PoleStandardHeight.is_active == True)
             .options(
                 selectinload(PoleStandardHeight.pole_standard),
-                selectinload(PoleStandardHeight.segments).selectinload(PoleStandardSegment.material),
+                selectinload(PoleStandardHeight.step_poles).selectinload(PoleStandardStepPole.material),
                 selectinload(PoleStandardHeight.direct_objects),
             )
         )
@@ -98,7 +104,7 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def geometry_differs_from_catalog(db: AsyncSession, case: CalculationCase) -> bool | None:
-        """Keterangan DD BAB 13: segmen dan posisi cek case dibanding katalog saat ini.
+        """step pole dan posisi cek case dibanding katalog saat ini.
         case.step_poles wajib sudah di-load (get_detail)."""
         if case.pole_kind != PoleKind.standard or case.pole_standard_height_id is None:
             return None
@@ -114,7 +120,7 @@ class CalculationCaseRepository:
             )
 
         return (
-            shape(case.step_poles) != shape(height.segments)
+            shape(case.step_poles) != shape(height.step_poles)
             or list(case.evaluated_positions_m or []) != list(height.evaluated_positions_m or [])
         )
 
@@ -166,9 +172,9 @@ class CalculationCaseRepository:
     async def _sync_catalog_geometry(
         db: AsyncSession, case: CalculationCase, *, previous_height_id: str | None, force: bool = False,
     ) -> None:
-        """Salin segmen dan posisi cek dari pilihan tinggi ke case tiang standard (G1).
+        """Salin step pole dan posisi cek dari pilihan tinggi ke case tiang standard (G1).
 
-        Hanya saat tinggi diisi atau diganti, saat case belum punya segmen, atau bila
+        Hanya saat tinggi diisi atau diganti, saat case belum punya step pole, atau bila
         diminta (force). Simpan dengan tinggi yang sama tidak menyalin ulang, sehingga
         perubahan katalog tidak merambat diam-diam. Tidak commit: ikut transaksi pemanggil.
         """
@@ -176,10 +182,10 @@ class CalculationCaseRepository:
             return
         height_id = case.pole_standard_height_id
         if not force and height_id == previous_height_id:
-            has_segments = await db.scalar(
+            has_step_poles = await db.scalar(
                 select(StepPole.id).where(StepPole.calculation_case_id == case.id).limit(1)
             )
-            if has_segments is not None or height_id is None:
+            if has_step_poles is not None or height_id is None:
                 return
 
         await db.execute(delete(StepPole).where(StepPole.calculation_case_id == case.id))
@@ -189,17 +195,17 @@ class CalculationCaseRepository:
         height = await CalculationCaseRepository.get_height_for_calculation(db, height_id)
         if height is None:
             return
-        for segment in height.segments:
+        for step_pole in height.step_poles:
             db.add(StepPole(
                 calculation_case_id=case.id,
-                material_id=segment.material_id,
-                name=segment.name,
-                pole_type=segment.pole_type,
-                top_elevation_m=segment.top_elevation_m,
-                diameter_lower_mm=segment.diameter_lower_mm,
-                diameter_upper_mm=segment.diameter_upper_mm,
-                thickness_lower_mm=segment.thickness_lower_mm,
-                thickness_upper_mm=segment.thickness_upper_mm,
+                material_id=step_pole.material_id,
+                name=step_pole.name,
+                pole_type=step_pole.pole_type,
+                top_elevation_m=step_pole.top_elevation_m,
+                diameter_lower_mm=step_pole.diameter_lower_mm,
+                diameter_upper_mm=step_pole.diameter_upper_mm,
+                thickness_lower_mm=step_pole.thickness_lower_mm,
+                thickness_upper_mm=step_pole.thickness_upper_mm,
                 quantity=1,
             ))
         if height.evaluated_positions_m is not None:
@@ -209,7 +215,8 @@ class CalculationCaseRepository:
     @staticmethod
     async def save_input(db: AsyncSession, case: CalculationCase, height: PoleStandardHeight, data) -> None:
         """Simpan isian perhitungan tiang standard. Pemanggil sudah mengunci case.
-        data: CalculationInput. Objek langsung ditulis ulang (hapus lalu insert)."""
+        data: CalculationInput. Objek langsung, kawat, dan lengan ditulis ulang (hapus lalu
+        insert). Objek lengan ikut terhapus lewat ON DELETE CASCADE."""
         previous_height_id = case.pole_standard_height_id
         case.pole_standard_id = height.pole_standard_id
         case.pole_standard_height_id = height.id
@@ -221,22 +228,37 @@ class CalculationCaseRepository:
         await CalculationCaseRepository._sync_catalog_geometry(
             db, case, previous_height_id=previous_height_id, force=data.recopy_catalog,
         )
-
+        
         await db.execute(delete(DirectObject).where(DirectObject.calculation_case_id == case.id))
         for obj in data.direct_objects:
             db.add(DirectObject(calculation_case_id=case.id, **obj.model_dump()))
+
+        await db.execute(delete(OverheadWire).where(OverheadWire.calculation_case_id == case.id))
+        for wire in data.overhead_wires:
+            db.add(OverheadWire(calculation_case_id=case.id, **wire.model_dump()))
+
+        await db.execute(delete(Arm).where(Arm.calculation_case_id == case.id))
+        for arm in data.arms:
+            db.add(Arm(
+                calculation_case_id=case.id,
+                arm_objects=[ArmObject(**obj.model_dump()) for obj in arm.objects],
+                **arm.model_dump(exclude={"objects"}),
+            ))
+
         await db.commit()
 
     # ===== Run =====
     @staticmethod
     async def create_run(
         db: AsyncSession, *, case_id: str, run_by_user_id: str, status: StatusCalculationRun,
-        input_snapshot: dict, result_snapshot: dict | None, error_snapshot: dict | None,
+        utilization_ratio: float | None, input_snapshot: dict, result_snapshot: dict | None,
+        error_snapshot: dict | None,
     ) -> CalculationRun:
         run = CalculationRun(
             calculation_case_id=case_id,
             run_type=CalculationRunType.pole,
             status=status,
+            utilization_ratio=utilization_ratio,
             input_snapshot=input_snapshot,
             result_snapshot=result_snapshot,
             error_snapshot=error_snapshot,
@@ -269,3 +291,57 @@ class CalculationCaseRepository:
             CalculationRun.calculation_case_id == case_id,
         )
         return (await db.execute(stmt)).scalar_one_or_none()
+
+
+# Field kode header dan master yang dirujuknya.
+_REPORT_CODE_FIELDS = (
+    ("region_code_id", RegionCode),
+    ("department_code_id", DepartmentCode),
+    ("author_code_id", AuthorCode),
+)
+
+
+class ReportHeaderRepository:
+    """Header laporan: satu per calculation case (tabel reports)."""
+
+    @staticmethod
+    async def get(db: AsyncSession, case_id: str) -> Report | None:
+        stmt = (
+            select(Report)
+            .where(Report.calculation_case_id == case_id)
+            .options(
+                selectinload(Report.region_code),
+                selectinload(Report.department_code),
+                selectinload(Report.author_code),
+            )
+            .execution_options(populate_existing=True)
+        )
+        return (await db.execute(stmt)).scalar_one_or_none()
+
+    @staticmethod
+    async def inactive_code_fields(db: AsyncSession, data: dict) -> list[str]:
+        """Field kode yang terisi tetapi tidak menunjuk kode master yang aktif."""
+        invalid = []
+        for field, model in _REPORT_CODE_FIELDS:
+            if data[field] is None:
+                continue
+            stmt = select(exists().where(model.id == data[field], model.is_active == True))
+            if not await db.scalar(stmt):
+                invalid.append(field)
+        return invalid
+
+    @staticmethod
+    async def put(db: AsyncSession, case_id: str, data: dict) -> tuple[Report, bool]:
+        """Buat atau ganti seluruh header. Pemanggil sudah mengunci baris case (for_update),
+        jadi dua PUT bersamaan diantrikan dan tidak sama-sama meng-insert."""
+        header = (await db.execute(
+            select(Report).where(Report.calculation_case_id == case_id)
+        )).scalar_one_or_none()
+        created = header is None
+        if created:
+            header = Report(calculation_case_id=case_id)
+            db.add(header)
+        for field, value in data.items():
+            setattr(header, field, value)
+        await db.commit()
+        return await ReportHeaderRepository.get(db, case_id), created

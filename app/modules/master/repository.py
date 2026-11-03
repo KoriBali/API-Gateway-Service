@@ -20,8 +20,9 @@ from app.database.models import (
     PoleDiameter,
     PoleCombination,
     PoleStandardHeight,
-    PoleStandardSegment,
-
+    PoleStandardStepPole,
+    PoleStandardArm,
+    
     # Coupling
     Region,
     ExternalObjectAvailability,
@@ -120,9 +121,9 @@ class MasterRepository:
             select(PoleStandard)
             .where(PoleStandard.is_active == True)
             .options(
-                # segments di-load untuk is_calculable
+                # step_poles di-load untuk is_calculable
                 selectinload(PoleStandard.pole_standard_heights)
-                .selectinload(PoleStandardHeight.segments),
+                .selectinload(PoleStandardHeight.step_poles),
                 selectinload(PoleStandard.pole_diameters)
                 .selectinload(PoleDiameter.pole_combinations)
                 .selectinload(PoleCombination.pole_thicknesses)
@@ -149,9 +150,13 @@ class MasterRepository:
                 PoleStandardHeight.is_active == True,
             )
             .options(
-                selectinload(PoleStandardHeight.segments)
-                .selectinload(PoleStandardSegment.material),
+                selectinload(PoleStandardHeight.step_poles)
+                .selectinload(PoleStandardStepPole.material),
                 selectinload(PoleStandardHeight.direct_objects),
+                selectinload(PoleStandardHeight.arms)
+                .selectinload(PoleStandardArm.material),
+                selectinload(PoleStandardHeight.arms)
+                .selectinload(PoleStandardArm.arm_objects),
             )
         )
         return (await db.execute(stmt)).scalar_one_or_none()

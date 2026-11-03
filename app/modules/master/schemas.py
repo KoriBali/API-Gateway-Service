@@ -76,7 +76,7 @@ class PoleStandardSchema(CamelBaseModel):
     
     
 # ===== Geometri per pilihan tinggi (prefill form perhitungan) =====
-class PoleStandardSegmentSchema(CamelBaseModel):
+class PoleStandardStepPoleSchema(CamelBaseModel):
     id : str
     name : str
     material : MaterialSchema
@@ -98,6 +98,31 @@ class PoleStandardDirectObjectSchema(CamelBaseModel):
     elevation_m : float
     base_wind_coefficient : float
     quantity : int
+    
+class PoleStandardArmObjectSchema(CamelBaseModel):
+    id : str
+    name : str
+    object_kind : str
+    front_area_m2 : float
+    side_area_m2 : float | None
+    mass_per_unit_kg : float
+    horizontal_load_distance_m : float
+    base_wind_coefficient : float
+    quantity : int
+
+class PoleStandardArmSchema(CamelBaseModel):
+    id : str
+    name : str
+    material : MaterialSchema
+    diameter_mm : float
+    thickness_mm : float
+    total_length_m : float
+    exposed_length_m : float
+    installation_height_m : float
+    fixed_angle_deg : float
+
+    # Dinamai sama dengan kontrak Calculation Service. Dibaca dari relasi arm_objects.
+    objects : List[PoleStandardArmObjectSchema] = Field(default=[], validation_alias="arm_objects")
 
 class PoleStandardHeightGeometrySchema(CamelBaseModel):
     id : str
@@ -108,10 +133,10 @@ class PoleStandardHeightGeometrySchema(CamelBaseModel):
     evaluated_positions_m : List[float] | None
     is_calculable : bool
     
-    # Dinamai sama dengan step_poles case, karena isinya disalin ke sana saat Simpan.
-    # Dibaca dari relasi PoleStandardHeight.segments.
-    step_poles : List[PoleStandardSegmentSchema] = Field(default=[], validation_alias="segments")
+    #  Sama dengan step_poles case, karena isinya disalin ke sana saat Simpan.
+    step_poles : List[PoleStandardStepPoleSchema] = []
     direct_objects : List[PoleStandardDirectObjectSchema] = []
+    arms : List[PoleStandardArmSchema] = []
 
 
 

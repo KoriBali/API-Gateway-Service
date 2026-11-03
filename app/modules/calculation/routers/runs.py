@@ -8,7 +8,7 @@ from app.utils.response import success_response
 from app.modules.intake.repository import RequestRepository
 from app.modules.case import permissions as case_permissions
 from app.modules.calculation import builder, display, report
-from app.modules.calculation.repository import CalculationCaseRepository
+from app.modules.calculation.repository import CalculationCaseRepository, ReportHeaderRepository
 from app.modules.calculation.routers.cases import case_detail
 from app.modules.calculation.schemas import (
     CalculateResult,
@@ -16,6 +16,7 @@ from app.modules.calculation.schemas import (
     CalculationRunRead,
     CalculationRunSummary,
     CalculationSaveResult,
+    ReportHeaderRead,
     RunNotCreated,
 )
 from app.services.calculation import POLE_CALCULATE_PATH, EngineUnavailable, post_engine
@@ -58,6 +59,14 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
             status_code=status.HTTP_409_CONFLICT,
             detail="Only taper standard poles can be calculated yet",
         )
+    
+    arm_material_ids = {arm.material_id for arm in payload.arms}
+    known_materials = await CalculationCaseRepository.material_names(db, arm_material_ids)
+    if arm_material_ids - known_materials.keys():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="arms materialId does not reference an existing material",
+        )
 
     conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     design_standard = await CalculationCaseRepository.get_design_standard(db, conditions.design_standard_id)
@@ -68,9 +77,7 @@ def _run_read(run) -> CalculationRunRead:
     """Run beserta tampilan hasilnya, disusun saat dibaca."""
     read = CalculationRunRead.model_validate(run)
     if run.result_snapshot is not None:
-        read.display = display.format_display(
-            run.result_snapshot, run.input_snapshot["context"]["design_standard_code"],
-        )
+        read.display = display.format_display(run.result_snapshot)
     return read
 
 
@@ -104,11 +111,18 @@ async def calculate_case(
     # Belum ada salinan untuk Hitung: geometri dibaca dari katalog saat itu juga.
     engine_request = builder.build_pole_request(
         design_standard_code=design_standard.code,
-        segments=height.segments,
-        material_names={s.material_id: s.material.name for s in height.segments},
+        wind_speed=conditions.wind_speed,
+        air_density=conditions.air_density,
+        step_poles=height.step_poles,
+        material_names=await CalculationCaseRepository.material_names(
+            db, [s.material_id for s in height.step_poles] + [a.material_id for a in payload.arms],
+        ),
         direct_objects=payload.direct_objects,
+        overhead_wires=payload.overhead_wires,
+        arms=payload.arms,
         evaluated_positions_m=height.evaluated_positions_m,
     )
+
     try:
         response = await post_engine(POLE_CALCULATE_PATH, engine_request)
         if response.status_code == 422:
@@ -116,8 +130,8 @@ async def calculate_case(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"reason": "engine_rejected", "engineResponse": response.body},
             )
-        run_status = builder.derive_status(response.body)
-        result_display = display.format_display(response.body, design_standard.code)
+        run_status, _ = builder.read_summary(response.body)
+        result_display = display.format_display(response.body)
     except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
         logger.error(f"Calculate failed for case {case.id}: {e!r}")
         reason = builder.RunSkipReason.engine_unavailable
@@ -166,11 +180,18 @@ async def save_and_run(
     # Payload disusun ulang dari data yang baru disimpan, bukan dari body.
     engine_request = builder.build_pole_request(
         design_standard_code=design_standard.code,
-        segments=detail.step_poles,
-        material_names=await CalculationCaseRepository.material_names(db, [s.material_id for s in detail.step_poles]),
+        wind_speed=conditions.wind_speed,
+        air_density=conditions.air_density,
+        step_poles=detail.step_poles,
+        material_names=await CalculationCaseRepository.material_names(
+            db, [s.material_id for s in detail.step_poles] + [a.material_id for a in detail.arms],
+        ),
         direct_objects=detail.direct_objects,
+        overhead_wires=detail.overhead_wires,
+        arms=detail.arms,
         evaluated_positions_m=detail.evaluated_positions_m,
     )
+
     input_snapshot = {
         "engine_request": engine_request,
         "context": builder.build_context(
@@ -181,10 +202,11 @@ async def save_and_run(
     try:
         response = await post_engine(POLE_CALCULATE_PATH, engine_request)
         if response.status_code == 422:
-            run_status, result_snapshot = StatusCalculationRun.failed, None
+            run_status, utilization_ratio, result_snapshot = StatusCalculationRun.failed, None, None
             error_snapshot = {"status_code": 422, "body": response.body}
         else:
-            run_status, result_snapshot, error_snapshot = builder.derive_status(response.body), response.body, None
+            run_status, utilization_ratio = builder.read_summary(response.body)
+            result_snapshot, error_snapshot = response.body, None
     except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
         logger.error(f"Run not created for case {case.id}: {e!r}")
         return not_created(builder.RunSkipReason.engine_unavailable)
@@ -192,8 +214,10 @@ async def save_and_run(
     # Transaksi 2: run immutable.
     run = await CalculationCaseRepository.create_run(
         db, case_id=case.id, run_by_user_id=actor.id, status=run_status,
-        input_snapshot=input_snapshot, result_snapshot=result_snapshot, error_snapshot=error_snapshot,
+        utilization_ratio=utilization_ratio, input_snapshot=input_snapshot,
+        result_snapshot=result_snapshot, error_snapshot=error_snapshot,
     )
+
     return success_response(
         data=CalculationSaveResult(case=detail, run=_run_read(run)),
         status_code=status.HTTP_201_CREATED,
@@ -261,4 +285,6 @@ async def get_run_report(
                 "message": "The design standard of this run has no report template yet",
             },
         )
+    header = await ReportHeaderRepository.get(db, case.id)
+    data.header = ReportHeaderRead.model_validate(header) if header is not None else None
     return success_response(data=data, message="Calculation report retrieved")
