@@ -61,8 +61,10 @@ class CalculationCaseRead(CamelBaseModel):
     pole_family: PoleFamily | None = None
     ground_position: GroundPosition | None = None
     lowest_height: float | None = None
-    embedment_length: float | None = None
+    embedment_length_mm: float | None = None
     overdesign_factor: float | None = None
+    # Terakhir kali Simpan menyimpan isian. Run yang lebih tua sudah basi.
+    input_saved_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -154,14 +156,24 @@ class ArmInput(CamelBaseModel):
 
 class CalculationInput(CamelBaseModel):
     """Isian satu halaman perhitungan tiang standard: pilihan tinggi dan beban tiang.
-    Selain tiang, semuanya boleh kosong. Step pole dan ground position tidak diterima:
-    keduanya dari katalog pilihan tinggi."""
+    Selain tiang, semuanya boleh kosong. Step pole tidak diterima: dari katalog pilihan tinggi."""
     pole_standard_height_id: str
     direct_objects: list[DirectObjectInput]
     overhead_wires: list[OverheadWireInput] = []
     arms: list[ArmInput] = []
+    # Kosong = bawaan baris katalog. embedment = tanpa baseplate, hanya untuk baris on_gl
+    # (builder.GROUND_POSITION_CHOICES). Keduanya tidak dikirim ke Calculation Service.
+    ground_position: GroundPosition | None = None
+    embedment_length_mm: float | None = Field(default=None, gt=0)
     # Simpan saja: salin ulang step pole dan posisi cek dari katalog walau tinggi tidak berubah (G1).
     recopy_catalog: bool = False
+
+    @model_validator(mode="after")
+    def _embedment_length(self):
+        # Sama dengan CHECK embedment_length_mm, supaya ditolak 422 sebelum ke DB.
+        if self.embedment_length_mm is not None and self.ground_position != GroundPosition.embedment:
+            raise ValueError("embedmentLengthMm is only allowed when groundPosition is embedment")
+        return self
 
     @model_validator(mode="after")
     def _unique_names(self):
@@ -428,6 +440,8 @@ class ReportGeometry(CamelBaseModel):
     pole_standard_height: float
     ground_position: GroundPosition
     gl_elevation_m: float | None = None
+    # Isian laporan, bukan bagian payload. None bila bukan embedment atau tidak diisi.
+    embedment_length_mm: float | None = None
     # Urut dari puncak tertinggi, sama dengan payload Calculation Service.
     step_poles: list[ReportStepPole]
     # Urut nama, sama dengan payload Calculation Service.
@@ -588,6 +602,26 @@ class CalculationSaveResult(CamelBaseModel):
     case: CalculationCaseDetail
     run: CalculationRunRead | None = None
     run_not_created: RunNotCreated | None = None
+
+
+# ===== Draft isian perhitungan =====
+# Kunci yang boleh ada di draft: field CalculationInput dalam camelCase, tanpa recopyCatalog
+# (aksi Simpan, bukan isian). Nilainya tidak divalidasi: draft boleh setengah jadi.
+CALCULATION_DRAFT_KEYS = frozenset({
+    "poleStandardHeightId",
+    "directObjects",
+    "overheadWires",
+    "arms",
+    "groundPosition",
+    "embedmentLengthMm",
+})
+# Batas ukuran draft dalam byte JSON.
+CALCULATION_DRAFT_MAX_BYTES = 256 * 1024
+
+
+class CalculationDraftRead(CamelBaseModel):
+    input: dict[str, Any]
+    saved_at: datetime
 
 
 class CalculateResult(CamelBaseModel):

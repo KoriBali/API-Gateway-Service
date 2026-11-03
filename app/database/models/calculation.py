@@ -81,6 +81,16 @@ class CalculationCase(Base):
     __table_args__ = (
         # Untuk Foreign Key Composit
         UniqueConstraint("id", "request_id", name="uq_calculation_cases_id_request_id"),
+        # Draft dan waktu simpannya selalu berpasangan.
+        CheckConstraint(
+            "(input_draft IS NULL) = (input_draft_saved_at IS NULL)",
+            name="input_draft_saved_at",
+        ),
+        # Panjang tanam hanya untuk tiang tanpa baseplate (ground position embedment).
+        CheckConstraint(
+            "embedment_length_mm IS NULL OR (ground_position = 'embedment' AND embedment_length_mm > 0)",
+            name="embedment_length_mm",
+        ),
     )
 
     id: Mapped[str] = mapped_column(
@@ -137,7 +147,8 @@ class CalculationCase(Base):
         nullable=True
     )
 
-    embedment_length: Mapped[Decimal | None] = mapped_column(
+    # Panjang bagian tiang yang tertanam. Tidak dikirim ke Calculation Service; hanya laporan.
+    embedment_length_mm: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 5),
         nullable=True
     )
@@ -166,6 +177,26 @@ class CalculationCase(Base):
     pole_kind: Mapped[PoleKind] = mapped_column(
         Enum(PoleKind),
         nullable=False
+    )
+
+    # Terakhir kali Simpan menyimpan isian perhitungan. Run yang lebih tua sudah basi.
+    # NULL = belum pernah disimpan sejak kolom ini ada.
+    input_saved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    # Isian halaman perhitungan yang belum di-Simpan, apa adanya dari frontend (camelCase).
+    # Tidak dibaca builder, report, maupun G1. Dikosongkan saat Simpan menyimpan isian.
+    # none_as_null: None disimpan sebagai SQL NULL supaya CHECK input_draft_saved_at berlaku.
+    input_draft: Mapped[dict | None] = mapped_column(
+        JSONB(none_as_null=True),
+        nullable=True
+    )
+
+    input_draft_saved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(

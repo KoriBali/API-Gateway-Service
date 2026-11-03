@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: cd8249a063c1
+Revision ID: 9037929ea105
 Revises: 
-Create Date: 2026-11-03 09:39:05.124753
+Create Date: 2026-11-03 16:38:19.390455
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'cd8249a063c1'
+revision: str = '9037929ea105'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -490,14 +490,19 @@ def upgrade() -> None:
     sa.Column('pole_family', sa.Enum('taper', 'straight', name='polefamily'), nullable=True),
     sa.Column('ground_position', sa.Enum('embedment', 'on_gl', 'upper_gl', 'under_gl', name='groundposition'), nullable=True),
     sa.Column('lowest_height', sa.Numeric(precision=10, scale=5), nullable=True),
-    sa.Column('embedment_length', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('embedment_length_mm', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('overdesign_factor', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('evaluated_positions_m', postgresql.ARRAY(sa.Numeric(precision=10, scale=5)), nullable=True),
     sa.Column('title', sa.String(), nullable=False),
     sa.Column('case_label', sa.String(), nullable=True),
     sa.Column('pole_kind', sa.Enum('standard', 'custom', name='polekind'), nullable=False),
+    sa.Column('input_saved_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('input_draft', postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True),
+    sa.Column('input_draft_saved_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("embedment_length_mm IS NULL OR (ground_position = 'embedment' AND embedment_length_mm > 0)", name=op.f('ck_calculation_cases_embedment_length_mm')),
+    sa.CheckConstraint('(input_draft IS NULL) = (input_draft_saved_at IS NULL)', name=op.f('ck_calculation_cases_input_draft_saved_at')),
     sa.ForeignKeyConstraint(['created_by_user_id'], ['users.id'], name=op.f('fk_calculation_cases_created_by_user_id_users'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], name=op.f('fk_calculation_cases_owner_user_id_users'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['pole_combination_id'], ['pole_combinations.id'], name=op.f('fk_calculation_cases_pole_combination_id_pole_combinations'), onupdate='CASCADE', ondelete='RESTRICT'),

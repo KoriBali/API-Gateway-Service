@@ -90,6 +90,8 @@ def _geometry(run: CalculationRun) -> ReportGeometry:
         pole_standard_height=context["pole_standard_height"],
         ground_position=context["ground_position"],
         gl_elevation_m=context["gl_elevation_m"],
+        # Run sebelum kolom ini ada tidak membawa kuncinya.
+        embedment_length_mm=context.get("embedment_length_mm"),
         step_poles=[_step_pole(p) for p in engine_request["poles"]],
         direct_objects=[_direct_object(o) for o in engine_request["direct_objects"]],
         overhead_wires=[ReportOverheadWire.model_validate(w) for w in engine_request["overhead_wires"]],

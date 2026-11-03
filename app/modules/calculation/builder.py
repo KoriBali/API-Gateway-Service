@@ -22,13 +22,22 @@ CALCULABLE_DESIGN_STANDARDS = frozenset({3})
 # Elevasi diukur dari dasar tiang.
 BASE_ELEVATION_M = 0.0
 
-# Ground position case diturunkan dari baris katalog tinggi yang dipilih. under_gl =
-# baseplate di bawah GL. embedment (baris katalog yang sama, tanpa baseplate) belum bisa
-# dipilih sampai ada langkah baseplate/foundation. upper_gl tidak punya baris katalog.
-CASE_GROUND_POSITION = {
-    PoleHeightGroundPosition.on_gl: GroundPosition.on_gl,
-    PoleHeightGroundPosition.under_gl: GroundPosition.under_gl,
+# Ground position case yang boleh dipilih per baris katalog tinggi; yang pertama dipakai
+# bila body tidak mengirim groundPosition. Dengan baseplate: on_gl atau under_gl. Tanpa
+# baseplate: embedment, hanya dari baris on_gl, dan dihitung sama persis dengan on_gl karena
+# ground position tidak dikirim ke Calculation Service. upper_gl tidak punya baris katalog.
+GROUND_POSITION_CHOICES = {
+    PoleHeightGroundPosition.on_gl: (GroundPosition.on_gl, GroundPosition.embedment),
+    PoleHeightGroundPosition.under_gl: (GroundPosition.under_gl,),
 }
+
+
+def resolve_ground_position(height, requested: GroundPosition | None) -> GroundPosition | None:
+    """Ground position case untuk pilihan tinggi ini. None = pilihan tidak tersedia."""
+    choices = GROUND_POSITION_CHOICES[height.ground_position]
+    if requested is None:
+        return choices[0]
+    return requested if requested in choices else None
 
 # Nama jenis di kontrak Calculation Service. Dipakai juga laporan untuk membaca balik snapshot.
 ENGINE_POLE_TYPES = {PoleType.taper: "Taper", PoleType.straight: "Straight"}
@@ -179,8 +188,12 @@ def build_pole_request(
     }
 
 
-def build_context(*, conditions, design_standard, height) -> dict:
-    """Bagian context input_snapshot: data gateway yang dipakai menyusun payload."""
+def build_context(
+    *, conditions, design_standard, height, ground_position: GroundPosition,
+    embedment_length_mm: float | None,
+) -> dict:
+    """Bagian context input_snapshot: data gateway yang dipakai menyusun payload, ditambah
+    isian laporan yang tidak dikirim (ground position, panjang tanam)."""
     return {
         "design_standard_id": design_standard.id,
         "design_standard_name": design_standard.name,
@@ -191,9 +204,27 @@ def build_context(*, conditions, design_standard, height) -> dict:
         "pole_standard_name": height.pole_standard.name,
         "pole_standard_height_id": height.id,
         "pole_standard_height": _num(height.height),
-        "ground_position": CASE_GROUND_POSITION[height.ground_position].value,
+        "ground_position": ground_position.value,
         "gl_elevation_m": _num(height.gl_elevation_m) if height.gl_elevation_m is not None else None,
+        "embedment_length_mm": embedment_length_mm,
     }
+
+
+def run_stale_causes(case, run, conditions) -> list[str]:
+    """Alasan run tidak lagi menggambarkan isian yang tersimpan. Kosong = run masih berlaku.
+    input: Simpan menyimpan isian sesudah run dibuat (misalnya run tidak dibuat, AG17).
+    conditions: kondisi perhitungan request sekarang berbeda dari yang dipakai run."""
+    causes = []
+    if case.input_saved_at is not None and run.run_at < case.input_saved_at:
+        causes.append("input")
+    context = run.input_snapshot["context"]
+    if conditions is None or (
+        conditions.design_standard_id != context["design_standard_id"]
+        or _num_or_none(conditions.wind_speed) != context["wind_speed"]
+        or _num(conditions.air_density) != context["air_density"]
+    ):
+        causes.append("conditions")
+    return causes
 
 
 # Status keseluruhan dari Calculation Service ke status run.
