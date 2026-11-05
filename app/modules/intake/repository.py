@@ -238,13 +238,13 @@ class RequestRepository:
             # Lintas department, hanya request yang pernah di-submit (V7)
             stmt = stmt.where(RequestEventRepository.ever_submitted_clause())
         else:
-            # Pembuat, atau pernah di-assign (aktif maupun released). drafter_checker juga
-            # seluruh request departemennya. Sama dengan is_readable.
+            # drafter / drafter_checker: seluruh request departemennya, ditambah buatannya
+            # atau yang pernah di-assign (aktif maupun released). Sama dengan is_readable.
             scope = [
                 Request.created_by_user_id == actor_id,
                 AssignmentRepository.assigned_clause(actor_id),
             ]
-            if role == "drafter_checker" and actor_department_id is not None:
+            if actor_department_id is not None:
                 scope.append(Request.responsible_department_id == actor_department_id)
             stmt = stmt.where(or_(*scope))
 

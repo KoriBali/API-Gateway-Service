@@ -54,8 +54,8 @@ def can_read_request(
     """Read-scoping request (dipakai router intake, calculation, drawing, case, workflow, assignment).
     superadmin: semua; admin_department: hanya departemen penanggung jawab-nya;
     yoshimoto_reviewer: request yang pernah di-submit, lintas department;
-    drafter_checker: seluruh request departemennya, karena pemeriksaan tidak memerlukan
-    assignment; selain itu: record miliknya, atau request tempat ia pernah punya assignment.
+    drafter / drafter_checker: seluruh request departemennya, ditambah record miliknya atau
+    request tempat ia pernah punya assignment (tetap terbaca bila ia pindah department).
     ever_submitted dan assigned dihitung is_readable; pemanggil sinkron cukup memakai default."""
     if actor.role == "superadmin":
         return True
@@ -64,7 +64,7 @@ def can_read_request(
             request.responsible_department_id == actor.department_id
     if actor.role == "yoshimoto_reviewer":
         return ever_submitted
-    if actor.role == "drafter_checker" and actor.department_id is not None \
+    if actor.department_id is not None \
             and request.responsible_department_id == actor.department_id:
         return True
     return request.created_by_user_id == actor.id or assigned
@@ -81,6 +81,7 @@ async def is_readable(db: AsyncSession, actor: CurrentUser, request: Request) ->
     )
     assigned = (
         actor.role in ("drafter", "drafter_checker")
+        and request.responsible_department_id != actor.department_id
         and request.created_by_user_id != actor.id
         and await AssignmentRepository.has_any(db, request.id, actor.id)
     )
