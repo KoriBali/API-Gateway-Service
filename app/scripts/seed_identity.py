@@ -27,6 +27,7 @@ EMPLOYEES = [
     # YSG: 2 drafter + 1 admin_department + 1 drafter_checker
     {"username": "budi", "email": "budi@corp.id", "full_name": "Budi Santoso", "role": "drafter", "department_code": "YSG"},
     {"username": "andi", "email": "andi@corp.id", "full_name": "Andi Nugroho", "role": "drafter", "department_code": "YSG"},
+    {"username": "guest", "email": "guest@gmail.com", "full_name": "guest account", "role": "drafter", "department_code": "YSG"},
     {"username": "sari", "email": "sari@corp.id", "full_name": "Sari Dewi",    "role": "admin_department", "department_code": "YSG"},
     {"username": "rina", "email": "rina@corp.id", "full_name": "Rina Kusuma",  "role": "drafter_checker", "department_code": "YSG"},
     # YSC: 1 drafter + 1 admin_department (uji scope lintas-department)
