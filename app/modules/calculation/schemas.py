@@ -7,7 +7,6 @@ from app.utils.base_schema import CamelBaseModel, snake_to_camel
 from datetime import datetime
 
 from app.database.models.calculation import (
-    CalculationRunType,
     GroundPosition,
     PoleFamily,
     PoleKind,
@@ -574,23 +573,41 @@ class CalculationReport(CamelBaseModel):
 
 
 # ===== Run =====
-class CalculationRunSummary(CamelBaseModel):
+class CalculationRunContext(CamelBaseModel):
+    """input_snapshot.context: nilai yang dipakai saat run dibuat, bukan nilai sekarang.
+    Pasangan staleCauses: menunjukkan apa yang berbeda dari isian dan kondisi sekarang."""
+    design_standard_id: str
+    design_standard_name: str
+    design_standard_code: int
+    wind_speed: float | None = None
+    air_density: float
+    pole_standard_id: str
+    pole_standard_name: str
+    pole_standard_height_id: str
+    pole_standard_height: float
+    ground_position: GroundPosition
+    gl_elevation_m: float | None = None
+    embedment_length_mm: float | None = None
+
+
+# Alasan run terbaru tidak lagi menggambarkan isian atau kondisi request (builder.run_stale_causes).
+StaleCause = Literal["input", "conditions"]
+
+
+class CalculationRunRead(CamelBaseModel):
+    """GET .../runs: run terbaru case. Snapshot mentah tetap di database dan dibaca laporan."""
     id: str
-    calculation_case_id: str
-    run_type: CalculationRunType
-    parent_run_id: str | None = None
     status: StatusCalculationRun
     utilization_ratio: float | None = None
-    run_by_user_id: str
     run_at: datetime
-
-
-class CalculationRunRead(CalculationRunSummary):
-    input_snapshot: dict[str, Any]
-    result_snapshot: dict[str, Any] | None = None
-    error_snapshot: dict[str, Any] | None = None
+    run_by_user_id: str
+    context: CalculationRunContext
     # Disusun saat dibaca, tidak disimpan. None untuk run failed.
     display: CalculationDisplay | None = None
+    # Jawaban penolakan Calculation Service. Hanya terisi untuk run failed.
+    error_snapshot: dict[str, Any] | None = None
+    # Kosong = run masih menggambarkan isian dan kondisi sekarang.
+    stale_causes: list[StaleCause]
 
 
 class RunNotCreated(CamelBaseModel):
@@ -599,8 +616,9 @@ class RunNotCreated(CamelBaseModel):
 
 
 class CalculationSaveResult(CamelBaseModel):
-    case: CalculationCaseDetail
-    run: CalculationRunRead | None = None
+    """Jawaban Simpan. Run dibuat: run_id dan status terisi. Tidak dibuat: run_not_created."""
+    run_id: str | None = None
+    status: StatusCalculationRun | None = None
     run_not_created: RunNotCreated | None = None
 
 
