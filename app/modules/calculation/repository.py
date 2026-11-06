@@ -286,17 +286,8 @@ class CalculationCaseRepository:
         return bool(await db.scalar(stmt))
 
     @staticmethod
-    async def list_runs(db: AsyncSession, case_id: str) -> list[CalculationRun]:
-        stmt = (
-            select(CalculationRun)
-            .where(CalculationRun.calculation_case_id == case_id)
-            .order_by(CalculationRun.run_at.desc(), CalculationRun.id)
-        )
-        return list((await db.execute(stmt)).scalars().all())
-
-    @staticmethod
     async def latest_run(db: AsyncSession, case_id: str) -> CalculationRun | None:
-        """Run terbaru case, urutan sama dengan list_runs. Termasuk run failed."""
+        """Run terbaru case: run_at terbaru, id sebagai penentu bila sama. Termasuk run failed."""
         stmt = (
             select(CalculationRun)
             .where(CalculationRun.calculation_case_id == case_id)
@@ -318,14 +309,6 @@ class CalculationCaseRepository:
         case.input_draft = None
         case.input_draft_saved_at = None
         await db.commit()
-
-    @staticmethod
-    async def get_run(db: AsyncSession, case_id: str, run_id: str) -> CalculationRun | None:
-        stmt = select(CalculationRun).where(
-            CalculationRun.id == run_id,
-            CalculationRun.calculation_case_id == case_id,
-        )
-        return (await db.execute(stmt)).scalar_one_or_none()
 
 
 # Field kode header dan master yang dirujuknya.

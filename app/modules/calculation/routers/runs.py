@@ -13,8 +13,8 @@ from app.modules.calculation.routers.cases import case_detail
 from app.modules.calculation.schemas import (
     CalculateResult,
     CalculationInput,
+    CalculationRunContext,
     CalculationRunRead,
-    CalculationRunSummary,
     CalculationSaveResult,
     ReportHeaderRead,
     RunNotCreated,
@@ -80,19 +80,19 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
     return height, ground_position, conditions, design_standard
 
 
-def _run_read(run) -> CalculationRunRead:
-    """Run beserta tampilan hasilnya, disusun saat dibaca."""
-    read = CalculationRunRead.model_validate(run)
-    if run.result_snapshot is not None:
-        read.display = display.format_display(run.result_snapshot)
-    return read
-
-
-async def _load_run(db: AsyncSession, case, run_id: str):
-    run = await CalculationCaseRepository.get_run(db, case.id, run_id)
-    if run is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Calculation run not found")
-    return run
+def _run_read(run, stale_causes: list[str]) -> CalculationRunRead:
+    """Run beserta tampilan hasilnya, disusun saat dibaca. Snapshot mentah tidak dikirim."""
+    return CalculationRunRead(
+        id=run.id,
+        status=run.status,
+        utilization_ratio=run.utilization_ratio,
+        run_at=run.run_at,
+        run_by_user_id=run.run_by_user_id,
+        context=CalculationRunContext.model_validate(run.input_snapshot["context"]),
+        display=display.format_display(run.result_snapshot) if run.result_snapshot is not None else None,
+        error_snapshot=run.error_snapshot,
+        stale_causes=stale_causes,
+    )
 
 
 
@@ -170,12 +170,12 @@ async def save_and_run(
 
     # Transaksi 1: input. Tetap tersimpan apa pun hasil perhitungannya (AG17).
     await CalculationCaseRepository.save_input(db, case, height, payload, ground_position)
+    # Dibaca ulang untuk menyusun payload engine, tidak dikirim ke frontend.
     detail = await case_detail(db, case.id)
 
     def not_created(reason: builder.RunSkipReason):
         return success_response(
             data=CalculationSaveResult(
-                case=detail,
                 run_not_created=RunNotCreated(reason=reason.value, message=builder.RUN_SKIP_MESSAGES[reason]),
             ),
             message="Calculation input saved; no run was created",
@@ -228,71 +228,37 @@ async def save_and_run(
     )
 
     return success_response(
-        data=CalculationSaveResult(case=detail, run=_run_read(run)),
+        data=CalculationSaveResult(run_id=run.id, status=run.status),
         status_code=status.HTTP_201_CREATED,
         message="Calculation input saved and run created",
     )
 
 
 
-# ===== Riwayat run =====
+# ===== Run terbaru =====
+# Isian bentuk form dibaca dari GET .../calculation-cases/{caseId}. Endpoint ini hanya hasil.
 @routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/runs")
-async def list_runs(
+async def get_latest_run(
     request_id: str,
     case_id: str,
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_READ_ROLE),
 ):
     case = await _load_case(db, request_id, case_id, actor)
-    rows = await CalculationCaseRepository.list_runs(db, case.id)
+    run = await CalculationCaseRepository.latest_run(db, case.id)
+    if run is None:
+        return success_response(data=None, message="The case has no calculation run yet")
+    conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     return success_response(
-        data=[CalculationRunSummary.model_validate(r) for r in rows],
-        message="Calculation runs retrieved",
-    )
-
-
-@routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/runs/{run_id}")
-async def get_run(
-    request_id: str,
-    case_id: str,
-    run_id: str,
-    db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_READ_ROLE),
-):
-    case = await _load_case(db, request_id, case_id, actor)
-    run = await _load_run(db, case, run_id)
-    return success_response(
-        data=_run_read(run),
-        message="Calculation run retrieved",
+        data=_run_read(run, builder.run_stale_causes(case, run, conditions)),
+        message="Latest calculation run retrieved",
     )
 
 
 
 # ===== Data laporan =====
-async def _report_response(db: AsyncSession, case, run):
-    """Data laporan satu run beserta header case saat dibaca."""
-    if run.status == StatusCalculationRun.failed:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"reason": "run_failed", "message": "A failed run has no report"},
-        )
-    try:
-        data = report.format_report(run)
-    except report.ReportTemplateUnavailable:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "reason": "report_template_unavailable",
-                "message": "The design standard of this run has no report template yet",
-            },
-        )
-    header = await ReportHeaderRepository.get(db, case.id)
-    data.header = ReportHeaderRead.model_validate(header) if header is not None else None
-    return success_response(data=data, message="Calculation report retrieved")
-
-
-# Laporan case: selalu dari run terbaru, dan hanya bila run itu masih menggambarkan isian
-# dan kondisi yang tersimpan. Tidak mundur ke run lama.
+# Selalu dari run terbaru, dan hanya bila run itu masih menggambarkan isian dan kondisi
+# yang tersimpan. Tidak mundur ke run lama.
 @routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/report")
 async def get_case_report(
     request_id: str,
@@ -319,18 +285,21 @@ async def get_case_report(
                 "runId": run.id,
             },
         )
-    return await _report_response(db, case, run)
-
-
-# Riwayat: laporan run tertentu, tanpa pemeriksaan basi.
-@routerCalculationRun.get("/{request_id}/calculation-cases/{case_id}/runs/{run_id}/report")
-async def get_run_report(
-    request_id: str,
-    case_id: str,
-    run_id: str,
-    db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_READ_ROLE),
-):
-    case = await _load_case(db, request_id, case_id, actor)
-    run = await _load_run(db, case, run_id)
-    return await _report_response(db, case, run)
+    if run.status == StatusCalculationRun.failed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": "run_failed", "message": "A failed run has no report"},
+        )
+    try:
+        data = report.format_report(run)
+    except report.ReportTemplateUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "report_template_unavailable",
+                "message": "The design standard of this run has no report template yet",
+            },
+        )
+    header = await ReportHeaderRepository.get(db, case.id)
+    data.header = ReportHeaderRead.model_validate(header) if header is not None else None
+    return success_response(data=data, message="Calculation report retrieved")
