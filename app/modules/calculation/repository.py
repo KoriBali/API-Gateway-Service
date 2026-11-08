@@ -170,12 +170,12 @@ class CalculationCaseRepository:
         await db.commit()
 
 
-    # ===== G1: salinan katalog =====
+    # ===== Salinan geometri katalog ke case =====
     @staticmethod
     async def _sync_catalog_geometry(
         db: AsyncSession, case: CalculationCase, *, previous_height_id: str | None, force: bool = False,
     ) -> None:
-        """Salin step pole dan posisi cek dari pilihan tinggi ke case tiang standard (G1).
+        """Salin step pole dan posisi cek dari pilihan tinggi ke case tiang standard.
 
         Hanya saat tinggi diisi atau diganti, saat case belum punya step pole, atau bila
         diminta (force). Simpan dengan tinggi yang sama tidak menyalin ulang, sehingga
@@ -214,7 +214,7 @@ class CalculationCaseRepository:
         if height.evaluated_positions_m is not None:
             case.evaluated_positions_m = list(height.evaluated_positions_m)
 
-    # ===== Simpan (G15), bagian input =====
+    # ===== Simpan, bagian input =====
     @staticmethod
     async def save_input(
         db: AsyncSession, case: CalculationCase, height: PoleStandardHeight, data,

@@ -153,7 +153,7 @@ def _run_read(run, stale_causes: list[str]) -> CalculationRunRead:
 
 
 
-# ===== Hitung (G14): tanpa menulis apa pun =====
+# ===== Hitung: tanpa menulis apa pun =====
 @routerCalculationRun.post("/{request_id}/calculation-cases/{case_id}/calculate")
 async def calculate_case(
     request_id: str,
@@ -180,7 +180,7 @@ async def calculate_case(
 
 
 
-# ===== Simpan (G15): input tersimpan, lalu run baru =====
+# ===== Simpan: input tersimpan, lalu run baru =====
 @routerCalculationRun.post("/{request_id}/calculation-cases/{case_id}/runs")
 async def save_and_run(
     request_id: str,
@@ -193,7 +193,7 @@ async def save_and_run(
     case_permissions.ensure_owner(actor, case)
     height, ground_position, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
 
-    # Transaksi 1: input. Tetap tersimpan apa pun hasil perhitungannya (AG17).
+    # Transaksi 1: input. Tetap tersimpan apa pun hasil perhitungannya.
     await CalculationCaseRepository.save_input(db, case, height, payload, ground_position)
     # Dibaca ulang untuk menyusun payload engine, tidak dikirim ke frontend.
     detail = await case_detail(db, case.id)

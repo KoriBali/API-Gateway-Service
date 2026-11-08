@@ -32,7 +32,7 @@ _ADMIN_DEPARTMENT = require_roles("admin_department")
 # Tampilan gerbang: pihak Koribali. yoshimoto_reviewer tidak melihat pekerjaan di dalam department.
 _KORIBALI_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
-# Empat aksi pihak Yoshimoto (V6, V8).
+# Empat aksi pihak Yoshimoto: feedback, clear, reopen, cancel.
 _REVIEWER = require_roles("yoshimoto_reviewer")
 
 

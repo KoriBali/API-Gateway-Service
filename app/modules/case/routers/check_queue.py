@@ -9,7 +9,7 @@ from app.modules.case.schemas import CheckQueueItemRead
 
 routerCheckQueue = APIRouter(prefix="/api/check-queue", tags=["Case Workflow"])
 
-# Yang boleh memberi check, ditambah superadmin untuk membaca (S-1).
+# Yang boleh memberi check, ditambah superadmin untuk membaca.
 _QUEUE_ROLE = require_roles("superadmin", "admin_department", "drafter_checker")
 
 

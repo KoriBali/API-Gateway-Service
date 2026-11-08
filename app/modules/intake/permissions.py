@@ -30,7 +30,6 @@ def ensure_can_manage_request(actor: CurrentUser, request: Request) -> None:
         - admin_department di departemen penanggung jawab request
         - pembuat request itu sendiri (record miliknya)
     """
-    # TODO(workflow): izin lengkap per peran menyusul di plan workflow.
     if not _can_manage(actor, request):
         raise _forbidden()
 

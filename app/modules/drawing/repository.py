@@ -52,7 +52,7 @@ class DrawingCaseRepository:
     async def create(
         db: AsyncSession, req: Request, *, owner_user_id: str, data: dict,
     ) -> DrawingCase:
-        """Pembuat case = owner pertamanya. data sudah memuat title (G5) dan drawing_type (G8)."""
+        """Pembuat case = owner pertamanya. data sudah memuat title dan drawing_type."""
         case = DrawingCase(
             request_id=req.id,
             created_by_user_id=owner_user_id,

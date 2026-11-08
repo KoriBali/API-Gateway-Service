@@ -187,7 +187,7 @@ class CalculationCase(Base):
     )
 
     # Isian halaman perhitungan yang belum di-Simpan, apa adanya dari frontend (camelCase).
-    # Tidak dibaca builder, report, maupun G1. Dikosongkan saat Simpan menyimpan isian.
+    # Tidak dibaca builder, report, maupun salinan katalog. Dikosongkan saat Simpan menyimpan isian.
     # none_as_null: None disimpan sebagai SQL NULL supaya CHECK input_draft_saved_at berlaku.
     input_draft: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True),

@@ -49,7 +49,7 @@ def ensure_can_manage_user(actor: CurrentUser, target_user: User) -> None:
 
 def ensure_can_change_role_or_department(actor: CurrentUser, new_role, department_changed: bool) -> None:
     """superadmin: bebas. admin_department: hanya menukar drafter <-> drafter_checker,
-    tanpa memindahkan department (V5). Target sudah lolos ensure_can_manage_user."""
+    tanpa memindahkan department. Target sudah lolos ensure_can_manage_user."""
     if actor.role == "superadmin":
         return
     if actor.role == "admin_department":

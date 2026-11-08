@@ -235,7 +235,7 @@ class RequestRepository:
                 return [], 0
             stmt = stmt.where(Request.responsible_department_id == actor_department_id)
         elif role == "yoshimoto_reviewer":
-            # Lintas department, hanya request yang pernah di-submit (V7)
+            # Lintas department, hanya request yang pernah di-submit
             stmt = stmt.where(RequestEventRepository.ever_submitted_clause())
         else:
             # drafter / drafter_checker: seluruh request departemennya, ditambah buatannya

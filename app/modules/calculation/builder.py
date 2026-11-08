@@ -60,7 +60,7 @@ RUN_SKIP_MESSAGES = {
 
 
 def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None:
-    """Prasyarat run (G15). Diperiksa sesudah input tersimpan."""
+    """Alasan run tidak bisa dibuat, None bila bisa. Simpan case memeriksanya sesudah input tersimpan."""
     if conditions.wind_speed is None:
         return RunSkipReason.wind_speed_missing
     if design_standard.code not in CALCULABLE_DESIGN_STANDARDS:
@@ -212,7 +212,7 @@ def build_context(
 
 def run_stale_causes(case, run, conditions) -> list[str]:
     """Alasan run tidak lagi menggambarkan isian yang tersimpan. Kosong = run masih berlaku.
-    input: Simpan menyimpan isian sesudah run dibuat (misalnya run tidak dibuat, AG17).
+    input: isian disimpan lagi sesudah run dibuat (misalnya Simpan yang tidak membuat run).
     conditions: kondisi perhitungan request sekarang berbeda dari yang dipakai run."""
     causes = []
     if case.input_saved_at is not None and run.run_at < case.input_saved_at:

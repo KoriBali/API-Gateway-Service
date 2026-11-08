@@ -24,9 +24,8 @@ from app.modules.master.schemas import (
 )
 
 
-# NOTE (review 2026-09-07): endpoint /api/master/* SENGAJA dibiarkan PUBLIK
-# (tanpa auth) untuk mempermudah tahap development — keputusan stakeholder,
-# BUKAN kelalaian. Ini utang teknis yang HARUS ditutup sebelum rilis produksi:
+# NOTE: endpoint /api/master/* SENGAJA dibiarkan PUBLIK (tanpa auth) selama
+# development, BUKAN kelalaian. Ini utang teknis yang HARUS ditutup sebelum rilis produksi:
 # semua endpoint identity sudah pakai RBAC, master belum.
 #
 # Cara mengaktifkan RBAC nanti (produksi):

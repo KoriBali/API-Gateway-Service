@@ -1,7 +1,7 @@
 """
 Seed CONTOH daftar induk NC Prevention Checklist (nc_checklist_item_masters).
 
-Isi asli daftar induk per work type belum diterima dari stakeholder (butir R-3). Item di sini
+Isi asli daftar induk per work type belum diterima dari stakeholder. Item di sini
 hanya contoh supaya checklist bisa dibuat dan diuji. Semua teks diawali "[Contoh]", supaya
 checklist yang menyalinnya mudah dikenali. Isi asli dimasukkan superadmin lewat
 POST /api/nc-checklist-item-masters, lalu item contoh dinonaktifkan (isActive false).

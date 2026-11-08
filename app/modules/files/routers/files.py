@@ -32,7 +32,7 @@ def _unprocessable(detail: str) -> HTTPException:
 
 def resolve_file_name(file_name: str | None, upload: UploadFile) -> str:
     """Nama sebagaimana didefinisikan worker, atau nama berkas unggahan bila kosong.
-    Tidak divalidasi terhadap standar penamaan apa pun (larangan 2)."""
+    Tidak divalidasi terhadap standar penamaan apa pun."""
     name = (file_name or "").strip() or (upload.filename or "").strip()
     if not name:
         raise _unprocessable("fileName is required when the uploaded file has no name")

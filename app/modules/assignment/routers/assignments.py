@@ -13,7 +13,7 @@ from app.modules.assignment.schemas import AssignmentCreate, AssignmentRead
 
 routerAssignment = APIRouter(prefix="/api/requests", tags=["Request Assignment"])
 
-# Pihak Koribali saja. yoshimoto_reviewer tidak membaca maupun mengatur pengerja (V6).
+# Pihak Koribali saja. yoshimoto_reviewer tidak membaca maupun mengatur pengerja.
 _WORKER_ROLE = require_roles("superadmin", "admin_department", "drafter_checker", "drafter")
 
 
