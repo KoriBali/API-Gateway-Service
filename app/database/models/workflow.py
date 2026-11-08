@@ -2,7 +2,7 @@
 dan versinya, assignment dan jam kerja, serta NC Prevention Checklist.
 
 Tabel di sini hanya menyimpan data. Aturan turunan (siklus submit, gate submit,
-status prevention_check, G4, G6, G9) hidup di lapisan aplikasi.
+status prevention_check, penyalinan item checklist) hidup di lapisan aplikasi.
 """
 import uuid
 import enum

@@ -249,7 +249,7 @@ class PoleStandardHeight(Base):
         nullable=False
     )
 
-    # Posisi cek penampang (m dari dasar tiang), disalin ke case lewat G1.
+    # Posisi cek penampang (m dari dasar tiang), disalin ke case saat tinggi dipilih.
     evaluated_positions_m: Mapped[list[Decimal] | None] = mapped_column(
         ARRAY(Numeric(10, 5)),
         nullable=True

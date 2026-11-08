@@ -91,8 +91,8 @@ async def create_drawing_case(
         )
 
     data = payload.model_dump(exclude_unset=True)
-    # Isian awal satu arah, hanya saat create: judul dari subject (G5),
-    # tipe drawing dari drawing conditions (G8), bukan dari referensi sharedDetails.
+    # Isian awal satu arah, hanya saat create: judul dari subject,
+    # tipe drawing dari drawing conditions, bukan dari referensi sharedDetails.
     data["title"] = payload.title or req.subject
     if not data["title"]:
         raise _unprocessable("title is required because the request has no subject")

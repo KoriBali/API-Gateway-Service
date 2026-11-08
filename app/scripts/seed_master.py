@@ -119,8 +119,8 @@ TAPER_HEIGHTS_A = {
 }
 
 # ===== Geometri katalog taper =====
-# Sumber: 44 payload uji di services/docs/calculation-engine/taper-pole-payloads, yang
-# hasilnya sudah dicocokkan dengan python_calc_V2. Disusun mekanis dari file JSON.
+# Disusun mekanis dari 44 payload uji taper (JSON) yang hasilnya sudah dicocokkan
+# dengan perhitungan referensi.
 # Kunci = (ground position, height label dalam mm). Tiap step pole dari yang teratas:
 # (bentuk, top elevation mm, diameter bawah mm, diameter atas mm; None untuk straight).
 # evaluated_mm = posisi cek, urut seperti payload (tipe A: puncak taper lalu dasar tiang).
@@ -252,8 +252,7 @@ EXTERNAL_OBJECTS = [
 
 # ===== Matriks availability External Object =====
 # (region_code, external_object_code, avail_when_zero, avail_when_nonzero)
-# West: keputusan stakeholder (adopsi matriks FE) — menimpa KB lama. Lihat memory
-# coupling-west-availability-conflict. West = bushing@≠0, terminal_cap@0, nipple tak pernah.
+# West: bushing hanya bila nilai bukan 0, terminal_cap hanya bila 0, nipple tidak pernah.
 EXTERNAL_OBJECT_AVAILABILITY = [
     ("east_japan", "yupilon_bushing", False, True),
     ("east_japan", "nipple",          True,  True),

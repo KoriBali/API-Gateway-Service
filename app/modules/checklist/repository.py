@@ -120,8 +120,8 @@ class ChecklistRepository:
 
     @staticmethod
     async def _copy_items(db: AsyncSession, checklist_id: str, work_types) -> None:
-        """G6: salin item master aktif. step, item, work_type, dan sort_order disalin;
-        sesudah ini item tidak pernah membaca master lagi (larangan 18)."""
+        """Salin item master aktif. step, item, work_type, dan sort_order disalin;
+        sesudah ini item tidak pernah membaca master lagi."""
         for work_type in work_types:
             masters = await MasterItemRepository.list_items(db, work_type=work_type)
             for master in masters:

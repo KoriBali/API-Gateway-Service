@@ -15,7 +15,7 @@ class RequestEventRepository:
 
     @staticmethod
     def ever_submitted_clause():
-        """Kondisi SQL 'request ini punya minimal satu peristiwa submit' (V7).
+        """Kondisi SQL 'request ini punya minimal satu peristiwa submit'.
         Berkorelasi ke Request.id, dipakai di WHERE query daftar request."""
         return exists().where(
             RequestEvent.request_id == Request.id,

@@ -147,7 +147,7 @@ async def evaluate(db: AsyncSession, req: Request) -> GateState:
             .where(model.request_id == req.id)
             .order_by(model.created_at, model.id)
         )).all()
-        # Syarat 2: keberadaan minimal satu case, bukan perbandingan jumlah (larangan 1).
+        # Syarat 2: keberadaan minimal satu case, bukan perbandingan jumlah.
         if not rows and work_type in WORK_TYPES_OF[req.design_type]:
             state.missing_work_types.append(work_type)
         for case_id, title, is_checked, deliverable, manual, with_result in rows:
@@ -166,7 +166,7 @@ async def evaluate(db: AsyncSession, req: Request) -> GateState:
 async def apply_prevention_status(db: AsyncSession, req: Request) -> None:
     """Isi requests.status dari rumus prevention_check. Tidak commit: dipanggil
     di dalam transaksi aksi yang mengubah bahannya, dengan baris request sudah dikunci.
-    Status submitted, cleared, dan canceled tidak pernah disentuh (larangan 9)."""
+    Status submitted, cleared, dan canceled tidak pernah disentuh: hanya berubah lewat peristiwa."""
     if req.status not in PRE_SUBMIT_STATUSES:
         return
     state = await evaluate(db, req)

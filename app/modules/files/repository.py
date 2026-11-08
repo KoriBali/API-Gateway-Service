@@ -96,7 +96,7 @@ class FileRepository:
     @staticmethod
     def cover_clause():
         """Kondisi SQL 'request ini punya berkas reference jenis request_cover'.
-        Berkorelasi ke Request.id, dipakai di WHERE query daftar request (invariant intake 6)."""
+        Berkorelasi ke Request.id, dipakai penyaring hasCover di daftar request."""
         return exists().where(
             RequestFile.request_id == Request.id,
             RequestFile.file_role == FileRole.reference,
@@ -152,7 +152,7 @@ class FileRepository:
         ref_kind: RefKind | None = None,
         request_event_id: str | None = None,
     ) -> RequestFile:
-        """Role tidak berversi: lokasi fisik di request_files.storage_ref (invariant berkas 5)."""
+        """Role tidak berversi: lokasi fisik di request_files.storage_ref."""
         row = RequestFile(
             request_id=request_id,
             uploaded_by_user_id=uploader_id,
@@ -180,7 +180,7 @@ class FileRepository:
         deliverable_subtype: DeliverableSubtype | None = None,
     ) -> RequestFile:
         """Satu transaksi: identitas berkas dan versi pertamanya. Lokasi fisik dicatat di versi,
-        request_files.storage_ref dibiarkan kosong (invariant berkas 5)."""
+        request_files.storage_ref dibiarkan kosong: lokasi fisik hanya di satu tempat."""
         row = RequestFile(
             request_id=request_id,
             uploaded_by_user_id=uploader_id,

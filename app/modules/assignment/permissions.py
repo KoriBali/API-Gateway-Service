@@ -41,7 +41,7 @@ async def ensure_assignable(
     assignee_user_id: str,
     work_type: WorkType,
 ) -> None:
-    """Syarat assignee sah (keputusan D). Dipakai saat create request dan saat menambah assignment.
+    """Syarat assignee sah. Dipakai saat create request dan saat menambah assignment.
     department_id dan design_type milik request, dioper terpisah karena saat create request belum ada."""
     if work_type not in WORK_TYPES_OF[design_type]:
         raise _unprocessable(f"workType '{work_type.value}' is not part of the request designType '{design_type.value}'")
@@ -76,7 +76,8 @@ async def resolve_assignable_department(
 
 
 async def ensure_can_add(db: AsyncSession, actor: CurrentUser, request: Request) -> None:
-    """Menambah assignment (keputusan A). Pemanggil sudah memastikan request terbaca (is_readable),
+    """Menambah assignment: pembuat request, pengerja aktif, admin_department, superadmin.
+    Pemanggil sudah memastikan request terbaca (is_readable),
     jadi admin_department di sini pasti admin department penanggung jawab."""
     if actor.role in ("superadmin", "admin_department"):
         return
@@ -89,7 +90,7 @@ async def ensure_can_add(db: AsyncSession, actor: CurrentUser, request: Request)
 
 
 def ensure_can_release(actor: CurrentUser, assignment: RequestAssignment) -> None:
-    """Melepas assignment (keputusan F): diri sendiri, atau admin_department di departemennya."""
+    """Melepas assignment: diri sendiri, atau admin_department di departemennya."""
     if actor.role in ("superadmin", "admin_department"):
         return
     if assignment.assignee_user_id == actor.id:
@@ -99,7 +100,7 @@ def ensure_can_release(actor: CurrentUser, assignment: RequestAssignment) -> Non
 
 
 def ensure_owns_assignment(actor: CurrentUser, assignment: RequestAssignment) -> None:
-    """Jam kerja hanya dicatat, diubah, dan dihapus pemilik assignment (keputusan G)."""
+    """Jam kerja hanya dicatat, diubah, dan dihapus pemilik assignment."""
     if assignment.assignee_user_id != actor.id:
         raise _forbidden("Only the assignee can record work hours on this assignment")
 
@@ -110,7 +111,7 @@ def resolve_create_assignments(
     design_type: DesignType,
     requested: list[tuple[str, WorkType]],
 ) -> list[tuple[str, WorkType]]:
-    """Daftar assignment saat request dibuat (keputusan C).
+    """Daftar assignment saat request dibuat.
     drafter / drafter_checker: selalu ikut. Bila tidak mencantumkan dirinya, di-assign ke
     semua work type di design_type. admin_department: wajib mengisi, tidak di-assign otomatis."""
     if len(set(requested)) != len(requested):

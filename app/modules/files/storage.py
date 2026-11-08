@@ -1,4 +1,4 @@
-"""Penyimpanan fisik berkas request (V2). Dua backend, dipilih lewat STORAGE_BACKEND:
+"""Penyimpanan fisik berkas request. Dua backend, dipilih lewat STORAGE_BACKEND:
 supabase untuk cloud, local untuk dev dan skrip regresi (tanpa kredensial).
 
 Kode lain hanya memanggil get_storage(), store_upload(), dan discard(). Tidak ada kode

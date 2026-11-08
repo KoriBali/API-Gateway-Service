@@ -35,7 +35,7 @@ EMPLOYEES = [
     {"username": "citra", "email": "citra@corp.id", "full_name": "Citra Wijaya", "role": "admin_department", "department_code": "YSC"},
     # YSF: 1 drafter
     {"username": "eko", "email": "eko@corp.id", "full_name": "Eko Prasetyo",   "role": "drafter", "department_code": "YSF"},
-    # Pihak Yoshimoto: tidak terikat department (V6)
+    # Pihak Yoshimoto: tidak terikat department
     {"username": "kenji", "email": "kenji@corp.id", "full_name": "Kenji Sato",  "role": "yoshimoto_reviewer", "department_code": None},
 ]
 

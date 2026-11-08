@@ -164,7 +164,7 @@ class CalculationInput(CamelBaseModel):
     # (builder.GROUND_POSITION_CHOICES). Keduanya tidak dikirim ke Calculation Service.
     ground_position: GroundPosition | None = None
     embedment_length_mm: float | None = Field(default=None, gt=0)
-    # Simpan saja: salin ulang step pole dan posisi cek dari katalog walau tinggi tidak berubah (G1).
+    # Simpan saja: salin ulang step pole dan posisi cek dari katalog walau tinggi tidak berubah.
     recopy_catalog: bool = False
 
     @model_validator(mode="after")

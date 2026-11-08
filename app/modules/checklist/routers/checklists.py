@@ -103,7 +103,7 @@ async def get_current_checklist(
 
 
 
-# ===== Buat checklist siklus berjalan (G6) =====
+# ===== Buat checklist siklus berjalan =====
 @routerChecklist.post("/{request_id}/nc-checklists")
 async def create_checklist(
     request_id: str,

@@ -26,7 +26,7 @@ routerUsers = APIRouter(prefix="/api/users", tags=["Users"])
 
 
 def _ensure_reviewer_without_department(role, department_id: str | None) -> None:
-    """yoshimoto_reviewer tidak terikat department (V6)."""
+    """yoshimoto_reviewer tidak terikat department."""
     if role == UserRole.yoshimoto_reviewer and department_id is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

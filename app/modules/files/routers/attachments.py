@@ -92,7 +92,7 @@ async def upload_check_result(
     actor: CurrentUser = Depends(_CHECKER_ROLE),
 ):
     """Satu berkas coretan pemeriksaan untuk satu case atau lebih. Pemeriksa memilih peristiwa
-    check case yang tercakup; sistem membuat satu baris berkas per peristiwa (invariant berkas 7)."""
+    check case yang tercakup; sistem membuat satu baris berkas per peristiwa."""
     await case_permissions.load_readable_request(db, request_id, actor)
     event_ids = list(dict.fromkeys(i for i in check_event_ids if i))
     if not event_ids:
