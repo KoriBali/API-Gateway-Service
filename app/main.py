@@ -45,6 +45,9 @@ from app.modules.checklist.routers import router as checklistRouter
 # Berkas request: unggah, versi, lampiran peristiwa, unduh
 from app.modules.files.routers import router as filesRouter
 
+# Project Tools: calculation pole tanpa request, Simpan satu alur ke request
+from app.modules.project_tools.routers import router as projectToolsRouter
+
 # setup logging saat app start
 setup_logging()
 
@@ -111,6 +114,9 @@ app.include_router(checklistRouter)
 
 # Berkas request
 app.include_router(filesRouter)
+
+# Project Tools
+app.include_router(projectToolsRouter)
 
 
 

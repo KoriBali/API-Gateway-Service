@@ -549,7 +549,8 @@ class ReportHeaderRead(CamelBaseModel):
 
 
 class CalculationReport(CamelBaseModel):
-    run_id: str
+    # None untuk preview Project Tools: dihitung tanpa run tersimpan.
+    run_id: str | None = None
     # Header milik case saat dibaca (tabel reports), bukan bagian run. None bila belum diisi.
     header: ReportHeaderRead | None = None
     template: str

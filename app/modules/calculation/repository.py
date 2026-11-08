@@ -128,10 +128,11 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def create(
-        db: AsyncSession, req: Request, *, owner_user_id: str, data: dict,
+        db: AsyncSession, req: Request, *, owner_user_id: str, data: dict, commit: bool = True,
     ) -> CalculationCase:
-        """Pembuat case = owner pertamanya. created_by_user_id tidak pernah berganti
-        data sudah memuat title hasil isian awal G5."""
+        """Pembuat case = owner pertamanya; created_by_user_id tidak pernah berganti.
+        data sudah memuat title (bawaan: subject request).
+        commit=False: hanya flush, pemanggil yang commit (Simpan Project Tools)."""
         case = CalculationCase(
             request_id=req.id,
             created_by_user_id=owner_user_id,
@@ -144,9 +145,9 @@ class CalculationCaseRepository:
         await db.flush()
         # Case baru belum diperiksa: status bisa turun dari prevention_check
         await apply_prevention_status(db, req)
-        await db.commit()
-
-        await db.refresh(case)
+        if commit:
+            await db.commit()
+            await db.refresh(case)
         return case
 
     @staticmethod
@@ -217,7 +218,7 @@ class CalculationCaseRepository:
     @staticmethod
     async def save_input(
         db: AsyncSession, case: CalculationCase, height: PoleStandardHeight, data,
-        ground_position: GroundPosition,
+        ground_position: GroundPosition, *, commit: bool = True,
     ) -> None:
         """Simpan isian perhitungan tiang standard. Pemanggil sudah mengunci case.
         data: CalculationInput. Objek langsung, kawat, dan lengan ditulis ulang (hapus lalu
@@ -255,7 +256,10 @@ class CalculationCaseRepository:
                 **arm.model_dump(exclude={"objects"}),
             ))
 
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
 
     # ===== Run =====
     @staticmethod

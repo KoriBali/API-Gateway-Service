@@ -41,13 +41,9 @@ async def _load_case(db: AsyncSession, request_id: str, case_id: str, actor: Cur
     return case
 
 
-async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationInput):
-    """Validasi bersama Hitung dan Simpan. Gagal di sini = tidak ada yang disimpan."""
-    if case.pole_kind != PoleKind.standard:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Only standard poles can be calculated yet",
-        )
+async def validate_pole_input(db: AsyncSession, payload: CalculationInput):
+    """Validasi isian tiang standard yang tidak bergantung pada case: pilihan tinggi taper,
+    material lengan, ground position. Dipakai Hitung/Simpan case dan Project Tools."""
     height = await CalculationCaseRepository.get_height_for_calculation(db, payload.pole_standard_height_id)
     if height is None:
         raise HTTPException(
@@ -74,10 +70,71 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"groundPosition {payload.ground_position.value} is not available for this pole standard height",
         )
+    return height, ground_position
 
+
+async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationInput):
+    """Validasi bersama Hitung dan Simpan. Gagal di sini = tidak ada yang disimpan."""
+    if case.pole_kind != PoleKind.standard:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only standard poles can be calculated yet",
+        )
+    height, ground_position = await validate_pole_input(db, payload)
     conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     design_standard = await CalculationCaseRepository.get_design_standard(db, conditions.design_standard_id)
     return height, ground_position, conditions, design_standard
+
+
+def ensure_calculable(conditions, design_standard, height) -> None:
+    """Prasyarat menghitung sebagai penolakan 409. Simpan case memakai run_skip_reason langsung,
+    karena di sana input tetap disimpan walau run tidak dibuat."""
+    reason = builder.run_skip_reason(conditions, design_standard, height)
+    if reason is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": reason.value, "message": builder.RUN_SKIP_MESSAGES[reason]},
+        )
+
+
+async def catalog_pole_request(db: AsyncSession, *, conditions, design_standard, height, payload: CalculationInput) -> dict:
+    """Payload engine untuk Hitung tanpa salinan case: geometri dibaca dari katalog saat itu juga."""
+    return builder.build_pole_request(
+        design_standard_code=design_standard.code,
+        wind_speed=conditions.wind_speed,
+        air_density=conditions.air_density,
+        step_poles=height.step_poles,
+        material_names=await CalculationCaseRepository.material_names(
+            db, [s.material_id for s in height.step_poles] + [a.material_id for a in payload.arms],
+        ),
+        direct_objects=payload.direct_objects,
+        overhead_wires=payload.overhead_wires,
+        arms=payload.arms,
+        evaluated_positions_m=height.evaluated_positions_m,
+    )
+
+
+async def calculate_on_engine(engine_request: dict, ref: str):
+    """Hitung di Calculation Service tanpa menyimpan apa pun.
+    Mengembalikan (status run, utilization_ratio, jawaban mentah, tampilan hasil).
+    Engine menolak: 422 engine_rejected. Engine tidak tersedia atau jawaban tidak dikenali: 503."""
+    try:
+        response = await post_engine(POLE_CALCULATE_PATH, engine_request)
+        if response.status_code == 422:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"reason": "engine_rejected", "engineResponse": response.body},
+            )
+        run_status, utilization_ratio = builder.read_summary(response.body)
+        result_display = display.format_display(response.body)
+    except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
+        logger.error(f"Calculate failed for {ref}: {e!r}")
+        reason = builder.RunSkipReason.engine_unavailable
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"reason": reason.value, "message": builder.RUN_SKIP_MESSAGES[reason]},
+        )
+    return run_status, utilization_ratio, response.body, result_display
 
 
 def _run_read(run, stale_causes: list[str]) -> CalculationRunRead:
@@ -108,45 +165,13 @@ async def calculate_case(
     case = await _load_case(db, request_id, case_id, actor)
     # Ground position dan panjang tanam divalidasi tetapi tidak dipakai: tidak dikirim ke engine.
     height, _, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
-
-    reason = builder.run_skip_reason(conditions, design_standard, height)
-    if reason is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"reason": reason.value, "message": builder.RUN_SKIP_MESSAGES[reason]},
-        )
+    ensure_calculable(conditions, design_standard, height)
 
     # Belum ada salinan untuk Hitung: geometri dibaca dari katalog saat itu juga.
-    engine_request = builder.build_pole_request(
-        design_standard_code=design_standard.code,
-        wind_speed=conditions.wind_speed,
-        air_density=conditions.air_density,
-        step_poles=height.step_poles,
-        material_names=await CalculationCaseRepository.material_names(
-            db, [s.material_id for s in height.step_poles] + [a.material_id for a in payload.arms],
-        ),
-        direct_objects=payload.direct_objects,
-        overhead_wires=payload.overhead_wires,
-        arms=payload.arms,
-        evaluated_positions_m=height.evaluated_positions_m,
+    engine_request = await catalog_pole_request(
+        db, conditions=conditions, design_standard=design_standard, height=height, payload=payload,
     )
-
-    try:
-        response = await post_engine(POLE_CALCULATE_PATH, engine_request)
-        if response.status_code == 422:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"reason": "engine_rejected", "engineResponse": response.body},
-            )
-        run_status, _ = builder.read_summary(response.body)
-        result_display = display.format_display(response.body)
-    except (EngineUnavailable, KeyError, TypeError, ValueError) as e:
-        logger.error(f"Calculate failed for case {case.id}: {e!r}")
-        reason = builder.RunSkipReason.engine_unavailable
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"reason": reason.value, "message": builder.RUN_SKIP_MESSAGES[reason]},
-        )
+    run_status, _, _, result_display = await calculate_on_engine(engine_request, f"case {case.id}")
 
     return success_response(
         data=CalculateResult(status=run_status, display=result_display),
