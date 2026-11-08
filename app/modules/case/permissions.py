@@ -8,6 +8,7 @@ from app.modules.assignment.permissions import WORK_TYPES_OF
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.intake import permissions as intake_permissions
 from app.modules.intake.repository import RequestRepository
+from app.modules.workflow.gate import PRE_SUBMIT_STATUSES
 from app.modules.workflow.repository import RequestEventRepository
 
 
@@ -41,9 +42,25 @@ async def load_readable_request(
 
 
 
+def ensure_request_open(request: Request) -> None:
+    """Case baru hanya masuk ke request yang masih dikerjakan Koribali (internal atau
+    prevention_check). Dipakai create case dan Simpan Project Tools."""
+    if request.status not in PRE_SUBMIT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "request_not_open",
+                "status": request.status.value,
+                "message": f"A case cannot be added while the request is {request.status.value}",
+            },
+        )
+
+
+
 async def ensure_can_create(db: AsyncSession, actor: CurrentUser, request: Request, work_type: WorkType) -> None:
-    """Pengerja membuat case sendiri: actor wajib punya
+    """Pengerja membuat case sendiri: request masih terbuka, dan actor wajib punya
     assignment aktif di work type itu. Pembuat case menjadi owner pertamanya."""
+    ensure_request_open(request)
     if work_type not in WORK_TYPES_OF[request.design_type]:
         raise _unprocessable(
             f"workType '{work_type.value}' is not part of the request designType '{request.design_type.value}'"

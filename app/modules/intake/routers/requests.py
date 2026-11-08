@@ -278,12 +278,9 @@ async def get_request(
 
 
 # ===== Create / intake (semua role kecuali reviewer, beserta assignment awal) =====
-@routerRequest.post("")
-async def create_request(
-    payload: RequestCreate,
-    db: AsyncSession = Depends(get_db),
-    actor: CurrentUser = Depends(_ANY_ROLE),
-):
+async def validate_create_payload(db: AsyncSession, actor: CurrentUser, payload: RequestCreate) -> None:
+    """Pemeriksaan create request selain assignment. Dipakai create request dan Simpan
+    Project Tools dengan request baru, supaya kedua pintu menolak hal yang sama."""
     # responsible_department_id dikunci ke departemen pembuat
     if actor.department_id is None:
         raise HTTPException(
@@ -297,6 +294,15 @@ async def create_request(
         raise _unprocessable("poleCategoryId does not reference an existing pole category")
     if payload.ys_details is not None:
         await _ensure_material_exists(db, payload.ys_details.material_id)
+
+
+@routerRequest.post("")
+async def create_request(
+    payload: RequestCreate,
+    db: AsyncSession = Depends(get_db),
+    actor: CurrentUser = Depends(_ANY_ROLE),
+):
+    await validate_create_payload(db, actor, payload)
 
     assignments = assignment_permissions.resolve_create_assignments(
         actor,

@@ -301,9 +301,11 @@ class RequestRepository:
         created_by_user_id: str,
         responsible_department_id: str,
         assignments: list[tuple[str, WorkType]],
+        commit: bool = True,
     ) -> Request:
         """Intake dalam SATU transaksi: request + tabel shared + ekstensi form
-        + finish. Semua baris anak lahir walau isiannya kosong"""
+        + finish. Semua baris anak lahir walau isiannya kosong.
+        commit=False: hanya flush, pemanggil yang commit (Simpan Project Tools)."""
         req = Request(
             brand_line=payload.brand_line,
             responsible_department_id=responsible_department_id,
@@ -331,7 +333,10 @@ class RequestRepository:
                 assignment_status=AssignmentStatus.active,
             ))
 
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return req
 
     @staticmethod
@@ -405,9 +410,14 @@ class RequestRepository:
     async def create_conditions(
         db: AsyncSession, work_type: WorkType, req: Request,
         payload: CalculationConditionsCreate | DrawingConditionsCreate,
+        *,
+        commit: bool = True,
     ) -> None:
         db.add(CONDITION_MODEL[work_type](request_id=req.id, **payload.model_dump()))
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
 
     @staticmethod
     async def update_conditions(

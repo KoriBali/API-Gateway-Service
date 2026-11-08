@@ -127,7 +127,9 @@ class AssignmentRepository:
         assignee_user_id: str,
         work_type: WorkType,
         assigned_by_user_id: str,
+        commit: bool = True,
     ) -> RequestAssignment:
+        """commit=False: hanya flush, pemanggil yang commit (Simpan Project Tools)."""
         row = RequestAssignment(
             request_id=request_id,
             assignee_user_id=assignee_user_id,
@@ -137,7 +139,10 @@ class AssignmentRepository:
         )
         db.add(row)
         try:
-            await db.commit()
+            if commit:
+                await db.commit()
+            else:
+                await db.flush()
         except IntegrityError as exc:
             # Dua penambahan bersamaan untuk orang dan work type yang sama:
             # index uq_request_assignments_active_per_worker menolak yang kedua.
