@@ -1,6 +1,7 @@
 from datetime import date
 
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,12 +17,21 @@ from app.database.models.intake import (
     RequestYpDetails,
     RequestYsDetails,
     RequestFinish,
+    CoverUpload,
+    CoverSourceKind,
 )
 from app.database.models.calculation import CalculationCondition
 from app.database.models.drawing import DrawingCondition
-from app.database.models.master import PoleCategory, Region, DesignStandard, Material
+from app.database.models.master import PoleCategory, Region, DesignStandard
 from app.modules.workflow.repository import RequestEventRepository
-from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
+from app.database.models.workflow import (
+    AssignmentStatus,
+    FileRole,
+    RefKind,
+    RequestAssignment,
+    RequestFile,
+    WorkType,
+)
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.case.repository import CaseRepository
 from app.modules.files.repository import FileRepository
@@ -183,11 +193,6 @@ class RequestRepository:
         found = await db.scalar(
             select(DesignStandard.id).where(DesignStandard.id == design_standard_id)
         )
-        return found is not None
-
-    @staticmethod
-    async def material_exists(db: AsyncSession, material_id: str) -> bool:
-        found = await db.scalar(select(Material.id).where(Material.id == material_id))
         return found is not None
 
     @staticmethod
@@ -430,4 +435,75 @@ class RequestRepository:
     @staticmethod
     async def delete(db: AsyncSession, req: Request) -> None:
         await db.delete(req)
+        await db.commit()
+
+
+# ===== Cover Upload =====
+class StagedCoverConflict(Exception):
+    """Dua cover-extract dari user yang sama berjalan bersamaan; yang kedua kalah."""
+
+
+class CoverUploadRepository:
+
+    @staticmethod
+    async def replace_staged(
+        db: AsyncSession,
+        *,
+        user_id: str,
+        source_kind: CoverSourceKind,
+        file_name: str,
+        storage_ref: str,
+        extracted: dict,
+    ) -> tuple[CoverUpload, str | None]:
+        """Ganti cover upload staged milik user dengan yang baru, dalam satu transaksi.
+        Kembalikan baris baru dan storage_ref lama, yang dibuang pemanggil sesudah commit."""
+        old = await db.scalar(
+            select(CoverUpload)
+            .where(CoverUpload.uploaded_by_user_id == user_id, CoverUpload.request_id.is_(None))
+            .with_for_update()
+        )
+        old_ref = None
+        if old is not None:
+            old_ref = old.storage_ref
+            await db.delete(old)
+            # Hapus dulu, supaya baris baru tidak bentrok dengan index staged per user.
+            await db.flush()
+        row = CoverUpload(
+            uploaded_by_user_id=user_id,
+            source_kind=source_kind,
+            file_name=file_name,
+            storage_ref=storage_ref,
+            extracted=extracted,
+        )
+        db.add(row)
+        try:
+            await db.commit()
+        except IntegrityError as exc:
+            await db.rollback()
+            if "uq_cover_uploads_staged_per_user" in str(exc.orig):
+                raise StagedCoverConflict() from exc
+            raise
+        return row, old_ref
+
+    @staticmethod
+    async def get_for_save(db: AsyncSession, cover_upload_id: str) -> CoverUpload | None:
+        """Kunci baris sampai transaksi create request selesai. Simpan kedua dengan id yang
+        sama menunggu, lalu melihat request_id yang sudah terisi."""
+        return await db.scalar(
+            select(CoverUpload).where(CoverUpload.id == cover_upload_id).with_for_update()
+        )
+
+    @staticmethod
+    async def attach(db: AsyncSession, cover: CoverUpload, req: Request, *, uploader_id: str) -> None:
+        """Cover menjadi berkas reference request_cover milik request baru, tanpa unggah ulang:
+        storage_ref menunjuk file yang sama. Menutup transaksi create request."""
+        db.add(RequestFile(
+            request_id=req.id,
+            uploaded_by_user_id=uploader_id,
+            file_role=FileRole.reference,
+            ref_kind=RefKind.request_cover,
+            file_name=cover.file_name,
+            storage_ref=cover.storage_ref,
+        ))
+        cover.request_id = req.id
         await db.commit()

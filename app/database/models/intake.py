@@ -20,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -483,21 +484,17 @@ class RequestYsDetails(Base):
     # Identitas: 受付No, external reference.
     receipt_no: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Referensi: apa adanya dari cover, tidak pernah disalin ke case. Nilai yang dipakai
+    # bekerja diisi di sisi calculation (step pole, pondasi, conditions).
     material_text: Mapped[str | None] = mapped_column(String, nullable=True)
-    material_id: Mapped[str | None] = mapped_column(          # default -> step_poles.material_id
-        ForeignKey("materials.id", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=True,
-    )
-    foundation_type: Mapped[FoundationType | None] = mapped_column(   # default -> calculation_foundations.type
+    foundation_type: Mapped[FoundationType | None] = mapped_column(
         Enum(FoundationType),
         nullable=True,
     )
-    # Pondasi bulat: diameter disimpan di foundation_width_x.
-    foundation_width_x: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  # default, square saja
-    foundation_width_y: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  # default, square saja
-    embedment_depth: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)     # default
-
-    # Referensi: apa adanya dari cover, tidak pernah memasok default.
+    # Ukuran pondasi dalam mm, seperti tertulis di cover. Pondasi bulat: diameter di foundation_width_x.
+    foundation_width_x: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    foundation_width_y: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    embedment_depth: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
     design_standard_text: Mapped[str | None] = mapped_column(String, nullable=True)
     wind_speed_text: Mapped[str | None] = mapped_column(String, nullable=True)
     opening_height: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -547,4 +544,53 @@ class RequestFinish(Base):
     # Child
     request: Mapped["Request"] = relationship(
         back_populates="finish",
+    )
+
+
+# ===== Cover Upload =====
+class CoverSourceKind(str, enum.Enum):
+    pdf = "pdf"
+    excel = "excel"
+
+
+class CoverUpload(Base):
+    """File cover yang dibaca cover-extract. Staged (request_id kosong) sampai dipakai
+    membuat request, lalu tetap disimpan beserta hasil ekstraksi aslinya. Satu user paling
+    banyak punya satu cover upload staged; cover-extract berikutnya menggantikannya."""
+    __tablename__ = "cover_uploads"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    uploaded_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("requests.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=True,
+        unique=True,
+    )
+    source_kind: Mapped[CoverSourceKind] = mapped_column(
+        Enum(CoverSourceKind),
+        nullable=False,
+    )
+    file_name: Mapped[str] = mapped_column(String, nullable=False)
+    storage_ref: Mapped[str] = mapped_column(String, nullable=False)
+    # Hasil ekstraksi asli: source, draft, warnings, raw, dan semua flag pembaca.
+    extracted: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_cover_uploads_staged_per_user",
+            "uploaded_by_user_id",
+            unique=True,
+            postgresql_where=text("request_id IS NULL")),
     )

@@ -1,5 +1,5 @@
 from .identity import Department, User,RefreshToken
-from .intake import Request, DatabankProject, RequestSharedDetails, RequestYpDetails, RequestYsDetails, RequestFinish
+from .intake import Request, DatabankProject, RequestSharedDetails, RequestYpDetails, RequestYsDetails, RequestFinish, CoverUpload
 from .calculation import CalculationCase, CalculationCondition, CalculationRun, CalculationRunType, StatusCalculationRun
 from .calculation_object import StepPole, DirectObject, OverheadWire, Arm, ArmObject, CalculationFoundation, CalculationOpening, CalculationBasePlate
 from .drawing import DrawingCase, DrawingCondition, DrawingBasePlate, DrawingFoundation, DrawingOpening, DrawingStepPole, DrawingCoupling, DrawingCouplingGroup, DrawingCouplingGroupExternalObject, DrawingCouplingHeight, SurfaceTreatmentOption, PlatingType, PaintingType, DrawingSurface

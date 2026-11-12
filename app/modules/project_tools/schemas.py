@@ -57,6 +57,13 @@ class PoleToolNewRequest(RequestCreate):
             raise ValueError("assignments cannot be sent; the user who saves is assigned to calculation")
         return data
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_cover_upload(cls, data):
+        if isinstance(data, dict) and ({"coverUploadId", "cover_upload_id"} & data.keys()):
+            raise ValueError("coverUploadId cannot be sent here; save the cover with POST /api/requests")
+        return data
+
     @model_validator(mode="after")
     def _includes_calculation(self):
         if self.design_type == DesignType.drawing:

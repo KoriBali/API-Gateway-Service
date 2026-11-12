@@ -12,7 +12,7 @@ from app.modules.workflow.repository import RequestEventRepository
 from app.modules.workflow.gate import PRE_SUBMIT_STATUSES, current_checklist
 from app.modules.checklist.repository import ChecklistRepository, MasterItemRepository
 from app.modules.intake.request_no import RequestNoWarning, parse_request_no, tail_matches_brand
-from app.modules.intake.repository import ProjectRepository, RequestRepository
+from app.modules.intake.repository import CoverUploadRepository, ProjectRepository, RequestRepository
 from app.modules.files.repository import FileRepository
 from app.modules.files import storage
 from app.database.models.workflow import WorkType
@@ -70,11 +70,6 @@ async def _ensure_project_matches(
 async def _ensure_region_exists(db: AsyncSession, region_id: str | None) -> None:
     if region_id is not None and not await RequestRepository.region_exists(db, region_id):
         raise _unprocessable("regionId does not reference an existing region")
-
-
-async def _ensure_material_exists(db: AsyncSession, material_id: str | None) -> None:
-    if material_id is not None and not await RequestRepository.material_exists(db, material_id):
-        raise _unprocessable("ysDetails.materialId does not reference an existing material")
 
 
 async def _ensure_checklist_can_widen(db: AsyncSession, req, design_type: DesignType) -> None:
@@ -292,8 +287,6 @@ async def validate_create_payload(db: AsyncSession, actor: CurrentUser, payload:
         await _ensure_project_matches(db, payload.project_id, payload.brand_line, payload.pj_no)
     if not await RequestRepository.pole_category_exists(db, payload.pole_category_id):
         raise _unprocessable("poleCategoryId does not reference an existing pole category")
-    if payload.ys_details is not None:
-        await _ensure_material_exists(db, payload.ys_details.material_id)
 
 
 @routerRequest.post("")
@@ -318,15 +311,44 @@ async def create_request(
             work_type=work_type,
         )
 
+    cover = None
+    if payload.cover_upload_id is not None:
+        cover = await _load_cover_for_save(db, actor, payload.cover_upload_id)
+
     req = await RequestRepository.create(
         db,
         payload,
         created_by_user_id=actor.id,
         responsible_department_id=actor.department_id,
         assignments=assignments,
+        commit=cover is None,
     )
+    if cover is not None:
+        await CoverUploadRepository.attach(db, cover, req, uploader_id=actor.id)
 
     return await _detail_response(db, req.id, "Request created", status.HTTP_201_CREATED)
+
+
+async def _load_cover_for_save(db: AsyncSession, actor: CurrentUser, cover_upload_id: str):
+    """Cover upload milik actor yang masih staged, dikunci sampai request tersimpan.
+    Satu cover hanya untuk satu request: yang sudah dipakai dijawab 409 beserta requestId-nya."""
+    cover = await CoverUploadRepository.get_for_save(db, cover_upload_id)
+    # Tidak ada, sudah digantikan, atau milik user lain: jawaban sama, supaya id orang lain
+    # tidak bisa ditebak.
+    if cover is None or cover.uploaded_by_user_id != actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"reason": "cover_upload_unavailable",
+                    "message": "coverUploadId does not reference your latest extracted cover; extract the cover again"},
+        )
+    if cover.request_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": "cover_upload_used",
+                    "message": "This cover was already saved as a request",
+                    "requestId": cover.request_id},
+        )
+    return cover
 
 
 
@@ -401,7 +423,6 @@ async def update_ys_details(
     if req.brand_line != BrandLine.ys:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="ysDetails only apply to a YS request")
-    await _ensure_material_exists(db, payload.material_id)
     await RequestRepository.update_ys_details(db, req, payload)
     return await _detail_response(db, request_id, "YS details updated")
 
