@@ -72,11 +72,6 @@ async def _ensure_region_exists(db: AsyncSession, region_id: str | None) -> None
         raise _unprocessable("regionId does not reference an existing region")
 
 
-async def _ensure_material_exists(db: AsyncSession, material_id: str | None) -> None:
-    if material_id is not None and not await RequestRepository.material_exists(db, material_id):
-        raise _unprocessable("ysDetails.materialId does not reference an existing material")
-
-
 async def _ensure_checklist_can_widen(db: AsyncSession, req, design_type: DesignType) -> None:
     """designType yang melebar menyalin item work type baru ke checklist siklus berjalan.
     Tanpa item master aktif untuk work type itu, checklist akan lolos gerbang tanpa memeriksanya."""
@@ -292,8 +287,6 @@ async def validate_create_payload(db: AsyncSession, actor: CurrentUser, payload:
         await _ensure_project_matches(db, payload.project_id, payload.brand_line, payload.pj_no)
     if not await RequestRepository.pole_category_exists(db, payload.pole_category_id):
         raise _unprocessable("poleCategoryId does not reference an existing pole category")
-    if payload.ys_details is not None:
-        await _ensure_material_exists(db, payload.ys_details.material_id)
 
 
 @routerRequest.post("")
@@ -401,7 +394,6 @@ async def update_ys_details(
     if req.brand_line != BrandLine.ys:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="ysDetails only apply to a YS request")
-    await _ensure_material_exists(db, payload.material_id)
     await RequestRepository.update_ys_details(db, req, payload)
     return await _detail_response(db, request_id, "YS details updated")
 

@@ -19,7 +19,7 @@ from app.database.models.intake import (
 )
 from app.database.models.calculation import CalculationCondition
 from app.database.models.drawing import DrawingCondition
-from app.database.models.master import PoleCategory, Region, DesignStandard, Material
+from app.database.models.master import PoleCategory, Region, DesignStandard
 from app.modules.workflow.repository import RequestEventRepository
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.repository import AssignmentRepository
@@ -183,11 +183,6 @@ class RequestRepository:
         found = await db.scalar(
             select(DesignStandard.id).where(DesignStandard.id == design_standard_id)
         )
-        return found is not None
-
-    @staticmethod
-    async def material_exists(db: AsyncSession, material_id: str) -> bool:
-        found = await db.scalar(select(Material.id).where(Material.id == material_id))
         return found is not None
 
     @staticmethod

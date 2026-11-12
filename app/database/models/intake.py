@@ -483,21 +483,17 @@ class RequestYsDetails(Base):
     # Identitas: 受付No, external reference.
     receipt_no: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Referensi: apa adanya dari cover, tidak pernah disalin ke case. Nilai yang dipakai
+    # bekerja diisi di sisi calculation (step pole, pondasi, conditions).
     material_text: Mapped[str | None] = mapped_column(String, nullable=True)
-    material_id: Mapped[str | None] = mapped_column(          # default -> step_poles.material_id
-        ForeignKey("materials.id", ondelete="RESTRICT", onupdate="CASCADE"),
-        nullable=True,
-    )
-    foundation_type: Mapped[FoundationType | None] = mapped_column(   # default -> calculation_foundations.type
+    foundation_type: Mapped[FoundationType | None] = mapped_column(
         Enum(FoundationType),
         nullable=True,
     )
-    # Pondasi bulat: diameter disimpan di foundation_width_x.
-    foundation_width_x: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  # default, square saja
-    foundation_width_y: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)  # default, square saja
-    embedment_depth: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)     # default
-
-    # Referensi: apa adanya dari cover, tidak pernah memasok default.
+    # Ukuran pondasi dalam mm, seperti tertulis di cover. Pondasi bulat: diameter di foundation_width_x.
+    foundation_width_x: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    foundation_width_y: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
+    embedment_depth: Mapped[Decimal | None] = mapped_column(Numeric(10, 5), nullable=True)
     design_standard_text: Mapped[str | None] = mapped_column(String, nullable=True)
     wind_speed_text: Mapped[str | None] = mapped_column(String, nullable=True)
     opening_height: Mapped[str | None] = mapped_column(String, nullable=True)

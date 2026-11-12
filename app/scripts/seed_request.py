@@ -50,7 +50,7 @@ from app.database.models.intake import (
 from app.database.models.calculation import CalculationCondition
 from app.database.models.calculation_object import FoundationType
 from app.database.models.drawing import DrawingCondition, DrawingType, SurfaceTreatmentOption, PlatingType, PaintingType
-from app.database.models.master import PoleCategory, DesignStandard, Material, Region
+from app.database.models.master import PoleCategory, DesignStandard, Region
 from app.database.models.workflow import AssignmentStatus, RequestAssignment, WorkType
 from app.modules.assignment.permissions import WORK_TYPES_OF
 
@@ -73,8 +73,7 @@ PROJECTS = [
 # creator = username pembuat; pole_category = nama kategori; design_standard = nama
 # standar di kategori itu (lihat seed_master). project = indeks PROJECTS atau None
 # (request berkepala General Affairs, tanpa project). drawing_conditions.region = kode di
-# master regions (diubah jadi region_id); ys_details.material = nama di master materials
-# (diubah jadi material_id). assignments = daftar (username, work type); bila tidak ada,
+# master regions (diubah jadi region_id). assignments = daftar (username, work type); bila tidak ada,
 # pembuat di-assign ke semua work type di design_type.
 REQUESTS = [
     # budi (drafter/YSG)
@@ -148,7 +147,7 @@ REQUESTS = [
         },
         "ys_details": {
             "receipt_no": "26-0034",
-            "material_text": "STK400", "material": "STK400",
+            "material_text": "STK400",
             "foundation_type": FoundationType.square,
             "foundation_width_x": 800, "foundation_width_y": 800, "embedment_depth": 1500,
             "design_standard_text": "未定", "wind_speed_text": "40m/s", "opening_height": "GL+750",
@@ -232,18 +231,6 @@ async def _drawing_conditions(db, spec: dict) -> dict:
     return data
 
 
-async def _ys_details(db, spec: dict) -> dict:
-    """Salin dict spec, lalu ganti nama material menjadi material_id."""
-    data = dict(spec)
-    material_name = data.pop("material", None)
-    if material_name is not None:
-        material_id = await db.scalar(select(Material.id).where(Material.name == material_name))
-        if material_id is None:
-            raise ValueError(f"Material '{material_name}' tidak ada. Jalankan seed_master dulu.")
-        data["material_id"] = material_id
-    return data
-
-
 async def _seed_requests(db, projects: list[DatabankProject]) -> int:
     users = {u.username: u for u in (await db.execute(select(User))).scalars().all()}
     created = 0
@@ -293,9 +280,7 @@ async def _seed_requests(db, projects: list[DatabankProject]) -> int:
         if spec["brand_line"] == BrandLine.yp:
             db.add(RequestYpDetails(request_id=req.id, brand_line=BrandLine.yp, **spec["yp_details"]))
         else:
-            db.add(RequestYsDetails(
-                request_id=req.id, brand_line=BrandLine.ys, **await _ys_details(db, spec.get("ys_details", {})),
-            ))
+            db.add(RequestYsDetails(request_id=req.id, brand_line=BrandLine.ys, **spec.get("ys_details", {})))
         db.add(RequestFinish(request_id=req.id, **spec.get("finish", {})))
         work_types = WORK_TYPES_OF[spec["design_type"]]
         if WorkType.calculation in work_types:

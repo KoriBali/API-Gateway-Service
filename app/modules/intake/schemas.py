@@ -113,20 +113,30 @@ class YpDetailsWrite(CamelBaseModel):
 
 class YsDetailsWrite(CamelBaseModel):
     receipt_no: str | None = Field(default=None, max_length=100)
-    # Field intake
+    # Referensi dari cover. Ukuran pondasi dalam mm.
     material_text: str | None = Field(default=None, max_length=200)
-    material_id: str | None = Field(default=None, min_length=1)
     foundation_type: FoundationType | None = None
     foundation_width_x: float | None = Field(default=None, gt=0)
     foundation_width_y: float | None = Field(default=None, gt=0)
     embedment_depth: float | None = Field(default=None, gt=0)
-    # Referensi
     design_standard_text: str | None = Field(default=None, max_length=200)
     wind_speed_text: str | None = Field(default=None, max_length=200)
     opening_height: str | None = Field(default=None, max_length=100)
     concrete_strength: str | None = Field(default=None, max_length=200)
     # Catatan
     opening_direction_note: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_material_id(cls, data):
+        # Field tak dikenal biasanya diabaikan diam-diam. materialId ditolak eksplisit,
+        # supaya client lama tidak mengira material tersimpan di sini.
+        if isinstance(data, dict) and ({"materialId", "material_id"} & data.keys()):
+            raise ValueError(
+                "materialId is no longer part of ysDetails; "
+                "keep the cover text in materialText and choose the material in the calculation input"
+            )
+        return data
 
 
 class FinishWrite(CamelBaseModel):
@@ -313,7 +323,6 @@ class YsDetailsRead(CamelBaseModel):
     id: str
     receipt_no: str | None = None
     material_text: str | None = None
-    material_id: str | None = None
     foundation_type: FoundationType | None = None
     foundation_width_x: float | None = None
     foundation_width_y: float | None = None
