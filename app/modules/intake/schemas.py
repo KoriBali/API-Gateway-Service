@@ -10,6 +10,7 @@ from app.database.models.intake import (
     DesignType,
     RequestClassification,
     DesignOrigin,
+    CoverSourceKind,
 )
 from app.database.models.calculation_object import FoundationType
 from app.modules.assignment.schemas import AssignmentCreate
@@ -222,6 +223,8 @@ class RequestCreate(CamelBaseModel):
     ys_details: YsDetailsWrite | None = None
     finish: FinishWrite | None = None
     assignments: list[AssignmentCreate] = Field(default_factory=list, max_length=20)
+    # File dari POST /api/requests/cover-extract, disimpan sebagai cover request ini.
+    cover_upload_id: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="before")
     @classmethod
@@ -240,6 +243,8 @@ class RequestCreate(CamelBaseModel):
 
         if self.brand_line == BrandLine.yp and self.ys_details is not None:
             raise ValueError("ysDetails is only allowed for a YS request")
+        if self.brand_line == BrandLine.yp and self.cover_upload_id is not None:
+            raise ValueError("coverUploadId is only allowed for a YS request")
         if self.brand_line == BrandLine.ys and self.yp_details is not None:
             raise ValueError("ypDetails is only allowed for a YP request")
         if self.brand_line == BrandLine.yp and (
@@ -416,3 +421,74 @@ class RequestNoCheckRead(CamelBaseModel):
     warnings: list[str]
     duplicate_count: int
     duplicates: list[RequestNoDuplicate]
+
+
+# ===== Cover extract =====
+class CoverSource(CamelBaseModel):
+    kind: CoverSourceKind
+    template: str
+    page: int | None = None
+    sheet: str | None = None
+    file_name: str
+
+
+class CoverSharedDetailsDraft(CamelBaseModel):
+    scheduled_delivery_date: str | None = None
+    delivery_quantity: int | None = None
+    requester_pic_name: str | None = None
+    drawing_type: DrawingType | None = None
+    paper_size: str | None = None
+    is_cad_data_requested: bool | None = None
+    cad_format: str | None = None
+
+
+class CoverYsDetailsDraft(CamelBaseModel):
+    receipt_no: str | None = None
+    material_text: str | None = None
+    foundation_type: FoundationType | None = None
+    foundation_width_x: float | None = None
+    foundation_width_y: float | None = None
+    embedment_depth: float | None = None
+    design_standard_text: str | None = None
+    wind_speed_text: str | None = None
+    opening_height: str | None = None
+    concrete_strength: str | None = None
+    opening_direction_note: str | None = None
+
+
+class CoverDraft(CamelBaseModel):
+    """Isi cover dalam bentuk body POST /api/requests. Semua boleh kosong; field yang tidak
+    tercetak di cover (projectId, poleCategoryId, assignments, finish) tidak ada di sini."""
+    brand_line: BrandLine
+    request_no: str | None = None
+    pj_no: str | None = None
+    request_type: RequestType | None = None
+    design_type: DesignType | None = None
+    request_classification: RequestClassification | None = None
+    subject: str | None = None
+    request_date: date | None = None
+    due_date: date | None = None
+    requesting_department_name: str | None = None
+    notes: str | None = None
+    shared_details: CoverSharedDetailsDraft
+    ys_details: CoverYsDetailsDraft
+
+
+class CoverWarning(CamelBaseModel):
+    code: str
+    field: str
+
+
+class CoverHints(CamelBaseModel):
+    project_id: str | None = None
+    request_no_duplicate_count: int
+    request_no_duplicates: list[RequestNoDuplicate]
+
+
+class CoverExtractRead(CamelBaseModel):
+    cover_upload_id: str
+    source: CoverSource
+    draft: CoverDraft
+    warnings: list[CoverWarning]
+    raw: dict[str, str]
+    hints: CoverHints

@@ -1,7 +1,7 @@
 """Penyimpanan fisik berkas request. Dua backend, dipilih lewat STORAGE_BACKEND:
 supabase untuk cloud, local untuk dev dan skrip regresi (tanpa kredensial).
 
-Kode lain hanya memanggil get_storage(), store_upload(), dan discard(). Tidak ada kode
+Kode lain hanya memanggil get_storage(), store_upload(), store_cover(), dan discard(). Tidak ada kode
 lain yang tahu backend mana yang aktif. Kolom storage_ref berisi path objek yang sama
 untuk kedua backend."""
 import hashlib
@@ -29,6 +29,12 @@ def new_object_path(request_id: str) -> str:
     """Path objek baru. Tanpa nama file: nama tampilan hidup di request_files.file_name,
     dan nama ketikan worker bisa berisi karakter yang tidak aman untuk path."""
     return f"requests/{request_id}/{uuid.uuid4()}"
+
+
+def new_cover_path() -> str:
+    """Path objek cover dari cover-extract. Request-nya belum ada, jadi tidak di bawah
+    requests/{id}/; storage_ref request_files tetap menunjuk path ini sesudah disimpan."""
+    return f"covers/{uuid.uuid4()}"
 
 
 
@@ -153,6 +159,18 @@ async def store_upload(request_id: str, upload: UploadFile) -> str:
     path = new_object_path(request_id)
     try:
         await get_storage().put(path, data, upload.content_type or "application/octet-stream")
+    except StorageError as exc:
+        logger.error(f"Storage put failed for {path}: {exc}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="File storage is unavailable") from exc
+    return path
+
+
+async def store_cover(data: bytes, content_type: str) -> str:
+    """Simpan bytes cover yang sudah dibaca dan kembalikan path objeknya. Dipanggil
+    SEBELUM baris DB ditulis; bila penulisan DB gagal, pemanggil memanggil discard."""
+    path = new_cover_path()
+    try:
+        await get_storage().put(path, data, content_type)
     except StorageError as exc:
         logger.error(f"Storage put failed for {path}: {exc}")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="File storage is unavailable") from exc

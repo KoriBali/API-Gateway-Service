@@ -20,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -543,4 +544,53 @@ class RequestFinish(Base):
     # Child
     request: Mapped["Request"] = relationship(
         back_populates="finish",
+    )
+
+
+# ===== Cover Upload =====
+class CoverSourceKind(str, enum.Enum):
+    pdf = "pdf"
+    excel = "excel"
+
+
+class CoverUpload(Base):
+    """File cover yang dibaca cover-extract. Staged (request_id kosong) sampai dipakai
+    membuat request, lalu tetap disimpan beserta hasil ekstraksi aslinya. Satu user paling
+    banyak punya satu cover upload staged; cover-extract berikutnya menggantikannya."""
+    __tablename__ = "cover_uploads"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    uploaded_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("requests.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=True,
+        unique=True,
+    )
+    source_kind: Mapped[CoverSourceKind] = mapped_column(
+        Enum(CoverSourceKind),
+        nullable=False,
+    )
+    file_name: Mapped[str] = mapped_column(String, nullable=False)
+    storage_ref: Mapped[str] = mapped_column(String, nullable=False)
+    # Hasil ekstraksi asli: source, draft, warnings, raw, dan semua flag pembaca.
+    extracted: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_cover_uploads_staged_per_user",
+            "uploaded_by_user_id",
+            unique=True,
+            postgresql_where=text("request_id IS NULL")),
     )
