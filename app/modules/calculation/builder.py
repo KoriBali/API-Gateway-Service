@@ -17,7 +17,13 @@ ENGINE_SCHEMA_VERSION = "2.2"
 
 # design_standards.code yang diterima Calculation Service kontrak 2.2. Code lain ditolak
 # 422 oleh Calculation Service, jadi Simpan tidak membuat run untuknya.
-CALCULABLE_DESIGN_STANDARDS = frozenset({3})
+CALCULABLE_DESIGN_STANDARDS = frozenset({3, 7})
+
+# Kondisi seismik per design standard: kolom calculation_conditions -> field payload.
+# Design standard yang tidak tercantum dihitung tanpa input seismik dari gateway.
+SEISMIC_CONDITIONS = {
+    7: {"horizontal_acceleration": "horizontal_acceleration_m_s2", "response_ratio": "response_ratio"},
+}
 
 # Elevasi diukur dari dasar tiang.
 BASE_ELEVATION_M = 0.0
@@ -47,6 +53,7 @@ class RunSkipReason(str, enum.Enum):
     """Alasan Simpan tidak membuat run. Input tetap tersimpan."""
     wind_speed_missing = "wind_speed_missing"
     design_standard_not_calculable = "design_standard_not_calculable"
+    seismic_conditions_missing = "seismic_conditions_missing"
     pole_height_not_calculable = "pole_height_not_calculable"
     engine_unavailable = "engine_unavailable"
 
@@ -54,9 +61,19 @@ class RunSkipReason(str, enum.Enum):
 RUN_SKIP_MESSAGES = {
     RunSkipReason.wind_speed_missing: "Calculation conditions have no wind speed",
     RunSkipReason.design_standard_not_calculable: "The design standard cannot be calculated yet",
+    RunSkipReason.seismic_conditions_missing: "Calculation conditions have no seismic values for this design standard",
     RunSkipReason.pole_height_not_calculable: "The selected pole height has no catalog geometry yet",
     RunSkipReason.engine_unavailable: "Calculation Service is unavailable; try again later",
 }
+
+
+def seismic_conditions(design_standard_code: int, conditions) -> dict:
+    """Kondisi seismik yang dipakai design standard ini, per kolom calculation_conditions.
+    Kosong bila design standard tidak memakainya. Nilai kosong tetap None."""
+    return {
+        column: _num_or_none(getattr(conditions, column))
+        for column in SEISMIC_CONDITIONS.get(design_standard_code, {})
+    }
 
 
 def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None:
@@ -65,6 +82,9 @@ def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None
         return RunSkipReason.wind_speed_missing
     if design_standard.code not in CALCULABLE_DESIGN_STANDARDS:
         return RunSkipReason.design_standard_not_calculable
+    # Tidak memakai nilai bawaan Calculation Service: nilai yang dipakai harus terlihat di kondisi.
+    if None in seismic_conditions(design_standard.code, conditions).values():
+        return RunSkipReason.seismic_conditions_missing
     if not height.is_calculable:
         return RunSkipReason.pole_height_not_calculable
     return None
@@ -81,8 +101,7 @@ def _num_or_none(value: Decimal | float | int | None) -> float | None:
 def build_pole_request(
     *,
     design_standard_code: int,
-    wind_speed,
-    air_density,
+    conditions,
     step_poles,
     material_names: dict[str, str],
     direct_objects,
@@ -90,7 +109,8 @@ def build_pole_request(
     arms,
     evaluated_positions_m,
 ) -> dict:
-    """wind_speed, air_density: dari calculation_conditions request, wajib terisi.
+    """conditions: calculation_conditions request (atau conditions sesi Project Tools). Wind speed
+    dan kondisi seismik yang dipakai design standard wajib terisi (run_skip_reason).
     step_poles: baris berbentuk StepPoleColumnsMixin + material_id.
     direct_objects: baris atau input berbentuk DirectObjectColumnsMixin.
     overhead_wires: baris atau input berkolom sama dengan overhead_wires.
@@ -172,13 +192,18 @@ def build_pole_request(
     ]
 
     # Tinggi struktur dihitung Calculation Service dari puncak step pole tertinggi.
-    # overdesign_factor dan include_oblique_wind tidak dikirim: Calculation Service
-    # memakai 1.0 dan arah lurus. Wind speed dan air density tidak punya default
-    # di Calculation Service, jadi selalu dikirim.
+    # overdesign_factor tidak dikirim: Calculation Service memakai 1.0. include_oblique_wind
+    # (hanya design standard 3) tidak dikirim: arah lurus saja. Wind speed, air density, dan
+    # kondisi seismik selalu dikirim, supaya nilai bawaan Calculation Service tidak pernah dipakai.
+    seismic = {
+        field: _num(getattr(conditions, column))
+        for column, field in SEISMIC_CONDITIONS.get(design_standard_code, {}).items()
+    }
     return {
         "design_standard": design_standard_code,
-        "wind_speed_m_s": _num(wind_speed),
-        "air_density_kg_m3": _num(air_density),
+        "wind_speed_m_s": _num(conditions.wind_speed),
+        "air_density_kg_m3": _num(conditions.air_density),
+        **seismic,
         "base_elevation_m": BASE_ELEVATION_M,
         "poles": poles,
         "direct_objects": objects,
@@ -194,12 +219,16 @@ def build_context(
 ) -> dict:
     """Bagian context input_snapshot: data gateway yang dipakai menyusun payload, ditambah
     isian laporan yang tidak dikirim (ground position, panjang tanam)."""
+    seismic = seismic_conditions(design_standard.code, conditions)
     return {
         "design_standard_id": design_standard.id,
         "design_standard_name": design_standard.name,
         "design_standard_code": design_standard.code,
         "wind_speed": _num(conditions.wind_speed) if conditions.wind_speed is not None else None,
         "air_density": _num(conditions.air_density),
+        # Nilai yang dikirim; None untuk design standard yang tidak memakainya.
+        "horizontal_acceleration": seismic.get("horizontal_acceleration"),
+        "response_ratio": seismic.get("response_ratio"),
         "pole_standard_id": height.pole_standard_id,
         "pole_standard_name": height.pole_standard.name,
         "pole_standard_height_id": height.id,
@@ -213,7 +242,8 @@ def build_context(
 def run_stale_causes(case, run, conditions) -> list[str]:
     """Alasan run tidak lagi menggambarkan isian yang tersimpan. Kosong = run masih berlaku.
     input: isian disimpan lagi sesudah run dibuat (misalnya Simpan yang tidak membuat run).
-    conditions: kondisi perhitungan request sekarang berbeda dari yang dipakai run."""
+    conditions: kondisi perhitungan request sekarang berbeda dari yang dipakai run. Kondisi
+    seismik hanya dibandingkan bila design standard run memakainya."""
     causes = []
     if case.input_saved_at is not None and run.run_at < case.input_saved_at:
         causes.append("input")
@@ -222,6 +252,10 @@ def run_stale_causes(case, run, conditions) -> list[str]:
         conditions.design_standard_id != context["design_standard_id"]
         or _num_or_none(conditions.wind_speed) != context["wind_speed"]
         or _num(conditions.air_density) != context["air_density"]
+        or any(
+            value != context.get(column)
+            for column, value in seismic_conditions(context["design_standard_code"], conditions).items()
+        )
     ):
         causes.append("conditions")
     return causes

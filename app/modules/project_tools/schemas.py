@@ -14,7 +14,7 @@ from app.modules.calculation.schemas import CalculationCaseFields, CalculationIn
 from app.modules.intake.schemas import RequestCreate
 from app.utils.base_schema import CamelBaseModel
 
-# Skala kolom calculation_conditions.wind_speed dan air_density: Numeric(10, 5).
+# Skala kolom angka calculation_conditions: Numeric(10, 5).
 _CONDITION_SCALE = Decimal("0.00001")
 
 
@@ -25,10 +25,15 @@ class PoleToolConditions(CamelBaseModel):
     design_standard_id: str = Field(min_length=1)
     wind_speed: float = Field(gt=0)
     air_density: float = Field(gt=0)
+    # Wajib untuk design standard yang memakai kondisi seismik (New JIL), selain itu boleh kosong.
+    horizontal_acceleration: float | None = Field(default=None, gt=0)
+    response_ratio: float | None = Field(default=None, gt=0)
 
-    @field_validator("wind_speed", "air_density")
+    @field_validator("wind_speed", "air_density", "horizontal_acceleration", "response_ratio")
     @classmethod
-    def _column_scale(cls, value: float) -> float:
+    def _column_scale(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
         rounded = Decimal(str(value)).quantize(_CONDITION_SCALE, rounding=ROUND_HALF_UP)
         if rounded <= 0:
             raise ValueError("must be greater than 0 after rounding to 5 decimals")

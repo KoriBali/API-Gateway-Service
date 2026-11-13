@@ -328,6 +328,19 @@ class CalculationCondition(Base):
         nullable=False
     )
 
+    # Kondisi seismik, hanya dikirim untuk design standard yang memakainya (New JIL).
+    # Untuk design standard lain nilainya tetap tersimpan tetapi tidak dipakai menghitung.
+    # Horizontal acceleration (EQa) dalam m/s²; response ratio (EQr) tanpa satuan.
+    horizontal_acceleration: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
+
+    response_ratio: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
+
     # Child
     request: Mapped["Request"] = relationship(
         back_populates="calculation_conditions"

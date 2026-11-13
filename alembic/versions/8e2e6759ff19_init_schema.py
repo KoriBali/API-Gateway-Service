@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: 9037929ea105
+Revision ID: 8e2e6759ff19
 Revises: 
-Create Date: 2026-11-03 16:38:19.390455
+Create Date: 2026-11-13 09:49:13.220379
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '9037929ea105'
+revision: str = '8e2e6759ff19'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -176,6 +176,8 @@ def upgrade() -> None:
     sa.Column('code', sa.Integer(), nullable=True),
     sa.Column('default_wind_speed', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('default_air_density', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('default_horizontal_acceleration', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('default_response_ratio', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['pole_category_id'], ['pole_categories.id'], name=op.f('fk_design_standards_pole_category_id_pole_categories'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_design_standards'))
@@ -292,11 +294,28 @@ def upgrade() -> None:
     sa.Column('design_standard_id', sa.String(), nullable=False),
     sa.Column('wind_speed', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('air_density', sa.Numeric(precision=10, scale=5), nullable=False),
+    sa.Column('horizontal_acceleration', sa.Numeric(precision=10, scale=5), nullable=True),
+    sa.Column('response_ratio', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.ForeignKeyConstraint(['design_standard_id'], ['design_standards.id'], name=op.f('fk_calculation_conditions_design_standard_id_design_standards'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_calculation_conditions_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_calculation_conditions')),
     sa.UniqueConstraint('request_id', name=op.f('uq_calculation_conditions_request_id'))
     )
+    op.create_table('cover_uploads',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('uploaded_by_user_id', sa.String(), nullable=False),
+    sa.Column('request_id', sa.String(), nullable=True),
+    sa.Column('source_kind', sa.Enum('pdf', 'excel', name='coversourcekind'), nullable=False),
+    sa.Column('file_name', sa.String(), nullable=False),
+    sa.Column('storage_ref', sa.String(), nullable=False),
+    sa.Column('extracted', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['request_id'], ['requests.id'], name=op.f('fk_cover_uploads_request_id_requests'), onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['uploaded_by_user_id'], ['users.id'], name=op.f('fk_cover_uploads_uploaded_by_user_id_users'), onupdate='CASCADE', ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_cover_uploads')),
+    sa.UniqueConstraint('request_id', name=op.f('uq_cover_uploads_request_id'))
+    )
+    op.create_index('uq_cover_uploads_staged_per_user', 'cover_uploads', ['uploaded_by_user_id'], unique=True, postgresql_where=sa.text('request_id IS NULL'))
     op.create_table('drawing_conditions',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('request_id', sa.String(), nullable=False),
@@ -449,7 +468,6 @@ def upgrade() -> None:
     sa.Column('brand_line', sa.Enum('yp', 'ys', name='brandline'), nullable=False),
     sa.Column('receipt_no', sa.String(), nullable=True),
     sa.Column('material_text', sa.String(), nullable=True),
-    sa.Column('material_id', sa.String(), nullable=True),
     sa.Column('foundation_type', sa.Enum('square', 'circle', name='foundationtype'), nullable=True),
     sa.Column('foundation_width_x', sa.Numeric(precision=10, scale=5), nullable=True),
     sa.Column('foundation_width_y', sa.Numeric(precision=10, scale=5), nullable=True),
@@ -460,7 +478,6 @@ def upgrade() -> None:
     sa.Column('concrete_strength', sa.String(), nullable=True),
     sa.Column('opening_direction_note', sa.Text(), nullable=True),
     sa.CheckConstraint("brand_line = 'ys'", name=op.f('ck_request_ys_details_brand_line_ys')),
-    sa.ForeignKeyConstraint(['material_id'], ['materials.id'], name=op.f('fk_request_ys_details_material_id_materials'), onupdate='CASCADE', ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['request_id', 'brand_line'], ['requests.id', 'requests.brand_line'], name='fk_request_ys_details_request_id_requests', onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_request_ys_details')),
     sa.UniqueConstraint('request_id', name=op.f('uq_request_ys_details_request_id'))
@@ -532,7 +549,7 @@ def upgrade() -> None:
     sa.Column('horizontal_load_distance_m', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('base_wind_coefficient', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.CheckConstraint("(object_kind = 'omni' AND side_area_m2 IS NULL) OR (object_kind = 'directional' AND side_area_m2 IS NOT NULL)", name=op.f('ck_pole_standard_arm_objects_object_kind_dimensions')),
+    sa.CheckConstraint("object_kind = 'omni' OR side_area_m2 IS NOT NULL", name=op.f('ck_pole_standard_arm_objects_object_kind_dimensions')),
     sa.ForeignKeyConstraint(['pole_standard_arm_id'], ['pole_standard_arms.id'], name=op.f('fk_pole_standard_arm_objects_pole_standard_arm_id_pole_standard_arms'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_pole_standard_arm_objects')),
     sa.UniqueConstraint('pole_standard_arm_id', 'name', name='uq_pole_standard_arm_objects_name')
@@ -775,7 +792,7 @@ def upgrade() -> None:
     sa.Column('horizontal_load_distance_m', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('base_wind_coefficient', sa.Numeric(precision=10, scale=5), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.CheckConstraint("(object_kind = 'omni' AND side_area_m2 IS NULL) OR (object_kind = 'directional' AND side_area_m2 IS NOT NULL)", name=op.f('ck_arm_objects_object_kind_dimensions')),
+    sa.CheckConstraint("object_kind = 'omni' OR side_area_m2 IS NOT NULL", name=op.f('ck_arm_objects_object_kind_dimensions')),
     sa.ForeignKeyConstraint(['arm_id'], ['arms.id'], name=op.f('fk_arm_objects_arm_id_arms'), onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_arm_objects')),
     sa.UniqueConstraint('arm_id', 'name', name='uq_arm_objects_name')
@@ -1004,6 +1021,8 @@ def downgrade() -> None:
     op.drop_table('pole_standard_arms')
     op.drop_table('pole_combinations')
     op.drop_table('drawing_conditions')
+    op.drop_index('uq_cover_uploads_staged_per_user', table_name='cover_uploads', postgresql_where=sa.text('request_id IS NULL'))
+    op.drop_table('cover_uploads')
     op.drop_table('calculation_conditions')
     op.drop_table('requests')
     op.drop_table('refresh_tokens')

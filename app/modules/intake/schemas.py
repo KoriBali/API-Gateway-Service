@@ -155,12 +155,17 @@ class CalculationConditionsCreate(CamelBaseModel):
     design_standard_id: str = Field(min_length=1)
     wind_speed: float | None = Field(default=None, gt=0)
     air_density: float = Field(gt=0)
+    # Kondisi seismik. Wajib terisi untuk menghitung design standard yang memakainya (New JIL).
+    horizontal_acceleration: float | None = Field(default=None, gt=0)
+    response_ratio: float | None = Field(default=None, gt=0)
 
 
 class CalculationConditionsUpdate(CamelBaseModel):
     design_standard_id: str | None = Field(default=None, min_length=1)
     wind_speed: float | None = Field(default=None, gt=0)
     air_density: float | None = Field(default=None, gt=0)
+    horizontal_acceleration: float | None = Field(default=None, gt=0)
+    response_ratio: float | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _not_null(self):
@@ -355,6 +360,8 @@ class CalculationConditionsRead(CamelBaseModel):
     design_standard_id: str
     wind_speed: float | None = None
     air_density: float
+    horizontal_acceleration: float | None = None
+    response_ratio: float | None = None
 
 
 class DrawingConditionsRead(CamelBaseModel):

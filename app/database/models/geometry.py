@@ -113,10 +113,9 @@ class ArmObjectColumnsMixin:
 
 def arm_object_constraints(table_name: str, parent_column: str) -> tuple:
     return (
-        # Omni: tanpa luas samping. Directional: wajib ada.
+        # Directional: luas samping wajib. Omni: boleh kosong; bila diisi, dipakai torsi lengan.
         CheckConstraint(
-            "(object_kind = 'omni' AND side_area_m2 IS NULL)"
-            " OR (object_kind = 'directional' AND side_area_m2 IS NOT NULL)",
+            "object_kind = 'omni' OR side_area_m2 IS NOT NULL",
             name="object_kind_dimensions",
         ),
         UniqueConstraint(parent_column, "name", name=f"uq_{table_name}_name"),

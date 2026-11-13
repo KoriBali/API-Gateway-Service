@@ -36,6 +36,8 @@ def _calculation_conditions_read(row: CalculationCondition) -> dict:
         "designStandardId": row.design_standard_id,
         "windSpeed": float(row.wind_speed) if row.wind_speed is not None else None,
         "airDensity": float(row.air_density),
+        "horizontalAcceleration": float(row.horizontal_acceleration) if row.horizontal_acceleration is not None else None,
+        "responseRatio": float(row.response_ratio) if row.response_ratio is not None else None,
     }
 
 
@@ -45,7 +47,13 @@ def ensure_calculation_conditions_match(existing: CalculationCondition | None, t
     if existing is None:
         return
     current = _calculation_conditions_read(existing)
-    sent = {"designStandardId": tool.design_standard_id, "windSpeed": tool.wind_speed, "airDensity": tool.air_density}
+    sent = {
+        "designStandardId": tool.design_standard_id,
+        "windSpeed": tool.wind_speed,
+        "airDensity": tool.air_density,
+        "horizontalAcceleration": tool.horizontal_acceleration,
+        "responseRatio": tool.response_ratio,
+    }
     different = [field for field in sent if current[field] != sent[field]]
     if different:
         raise HTTPException(
