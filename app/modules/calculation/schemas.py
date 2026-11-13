@@ -571,6 +571,244 @@ class CalculationReport(CamelBaseModel):
     overhead_wires: list[ReportOverheadWireResult]
 
 
+# ===== Laporan New JIL =====
+# Nilai apa adanya dari jawaban Calculation Service (sudah dibulatkan), satuan Calculation
+# Service. Formatter hanya memilih arah dan menyusun.
+NewJilGroup = Literal["straight_a", "straight_b", "oblique"]
+
+
+class NewJilConditions(CamelBaseModel):
+    wind_speed_m_s: float
+    wind_pressure_n_m2: float
+    horizontal_acceleration_m_s2: float
+    response_ratio: float
+
+
+class NewJilPoleSpecification(CamelBaseModel):
+    """Satu step pole. Nilai seluruh step pole, tidak bergantung posisi cek."""
+    name: str
+    pole_type: PoleType
+    material_name: str
+    diameter_mm: float
+    thickness_mm: float
+    cross_section_area_cm2: float
+    moment_of_inertia_cm4: float
+    radius_of_gyration_cm: float
+    section_modulus_cm3: float
+    unit_weight_kg_m: float
+    length_m: float
+    mass_kg: float
+    fix_load_n: float
+    fix_load_per_meter_n_m: float
+    projected_area_m2: float
+
+
+class NewJilDirectObject(CamelBaseModel):
+    """Beban satu objek langsung, tidak bergantung arah. Omni: samping = depan."""
+    name: str
+    quantity: int
+    mass_kg: float
+    front_wind_load_n: float
+    side_wind_load_n: float
+
+
+class NewJilWireWind(CamelBaseModel):
+    """Beban garis dan tegangan kawat pada sudut serang tetap."""
+    combined_wind_line_load_n_m: float
+    wind_tension_n: float
+
+
+class NewJilOverheadWire(CamelBaseModel):
+    name: str
+    wind_coefficient: float
+    fix_load_per_length_n_m: float
+    fixed_tension_n: float
+    mass_kg: float
+    front_wind_load_n: float
+    # Angin tegak lurus kawat (90 derajat) dan miring (45 derajat).
+    straight_wind: NewJilWireWind
+    oblique_wind: NewJilWireWind
+    seismic_load_n: float
+    seismic_tension_n: float
+
+
+class NewJilCheck(CamelBaseModel):
+    check: str
+    moment_nm: float
+    stress_n_mm2: float
+    allowable_stress_n_mm2: float
+    utilization_ratio: float
+    status: CheckStatus
+    # Cek gabungan tiang saja.
+    maximum_shear_stress_n_mm2: float | None = None
+
+
+class NewJilArmSpecification(ReportArmSpecification):
+    fix_load_per_meter_n_m: float
+
+
+class NewJilArmLoad(ReportArmLoad):
+    """Satu baris beban lengan. Baris pertama badan lengan, lalu objek dari yang terjauh."""
+    mass_kg: float
+    side_wind_load_n: float
+    seismic_load_n: float
+    seismic_moment_nm: float
+
+
+class NewJilArmTotals(CamelBaseModel):
+    fix_load_n: float
+    fix_load_moment_nm: float
+    wind_moment_nm: float
+    front_wind_load_n: float
+    seismic_load_n: float
+    seismic_moment_nm: float
+
+
+class NewJilArm(CamelBaseModel):
+    """Hasil satu lengan. Tidak bergantung posisi cek maupun arah."""
+    name: str
+    specification: NewJilArmSpecification
+    loads: list[NewJilArmLoad]
+    totals: NewJilArmTotals
+    # Urutan Calculation Service: fix load, angin, seismik.
+    checks: list[NewJilCheck]
+
+
+class NewJilLoadRow(ReportLoadRow):
+    seismic_load_n: float | None = None
+    seismic_moment_nm: float | None = None
+    wind_torque_nm: float | None = None
+    seismic_torque_nm: float | None = None
+
+
+class NewJilPositionComponent(CamelBaseModel):
+    fix_load_n: float
+    seismic_load_n: float
+    seismic_moment_nm: float
+
+
+class NewJilPositionComponents(CamelBaseModel):
+    """Subtotal per jenis komponen di satu posisi cek, tidak bergantung arah."""
+    pole: NewJilPositionComponent
+    direct_object: NewJilPositionComponent
+    arm: NewJilPositionComponent
+    overhead_wire: NewJilPositionComponent
+
+
+class NewJilWindComponent(CamelBaseModel):
+    wind_load_n: float
+    wind_moment_nm: float
+
+
+class NewJilWindComponents(CamelBaseModel):
+    pole: NewJilWindComponent
+    direct_object: NewJilWindComponent
+    arm: NewJilWindComponent
+    overhead_wire: NewJilWindComponent
+
+
+class NewJilWindCaseTotals(CamelBaseModel):
+    wind_load_n: float
+    wind_load_x_n: float
+    wind_load_y_n: float
+    wind_tension_n: float
+    wind_tension_x_n: float
+    wind_tension_y_n: float
+    resultant_horizontal_load_n: float
+    resultant_horizontal_load_x_n: float
+    resultant_horizontal_load_y_n: float
+    fix_load_moment_x_nm: float
+    fix_load_moment_y_nm: float
+    fix_load_moment_nm: float
+    # Momen angin saja, tanpa fix load dan tegangan kawat.
+    wind_moment_nm: float
+    wind_moment_x_nm: float
+    wind_moment_y_nm: float
+    wind_tension_moment_x_nm: float
+    wind_tension_moment_y_nm: float
+    combined_moment_x_nm: float
+    combined_moment_y_nm: float
+    combined_moment_nm: float
+    wind_torsional_moment_nm: float
+    seismic_tension_moment_nm: float
+    combined_seismic_moment_nm: float
+    seismic_torsional_moment_nm: float
+
+
+class NewJilWindCase(CamelBaseModel):
+    """Satu arah angin di satu posisi cek, apa adanya."""
+    code: str
+    angle_deg: float
+    totals: NewJilWindCaseTotals
+    component_totals: NewJilWindComponents
+    load_rows: list[NewJilLoadRow]
+    # Urutan Calculation Service: fix load, angin (lentur, torsi, gabungan), seismik
+    # (lentur, torsi, gabungan).
+    checks: list[NewJilCheck]
+
+
+class NewJilDirectionGroup(CamelBaseModel):
+    """Satu kelompok arah formulir: straight_a = N dan S, straight_b = E dan W,
+    oblique = empat arah diagonal. Tiap tabel memakai arah terpilih keluarganya."""
+    group: NewJilGroup
+    # |Momen fix load| terbesar; sama besar: arah terakhir.
+    fix_load: NewJilWindCase
+    # Momen gabungan angin terbesar; sama besar: arah pertama. Dipakai juga tabel torsi
+    # dan geser gabungan angin.
+    wind: NewJilWindCase
+    # Momen gabungan seismik terbesar; sama besar: arah terakhir. Dipakai juga tabel
+    # torsi dan geser gabungan seismik.
+    seismic: NewJilWindCase
+
+
+class NewJilSectionProperties(CamelBaseModel):
+    material_name: str
+    diameter_mm: float
+    thickness_mm: float
+    section_modulus_cm3: float
+    moment_of_inertia_cm4: float
+    polar_moment_of_inertia_cm4: float
+
+
+class NewJilSection(CamelBaseModel):
+    """Satu posisi cek."""
+    evaluated_position_m: float
+    pole_name: str
+    section: NewJilSectionProperties
+    vertical_fix_load_n: float
+    seismic_load_n: float
+    seismic_moment_nm: float
+    seismic_tension_n: float
+    resultant_seismic_load_n: float
+    component_totals: NewJilPositionComponents
+    # Urutan straight_a, straight_b, oblique.
+    groups: list[NewJilDirectionGroup]
+
+
+class NewJilReport(CamelBaseModel):
+    # None untuk preview Project Tools: dihitung tanpa run tersimpan.
+    run_id: str | None = None
+    # Header milik case saat dibaca (tabel reports), bukan bagian run. None bila belum diisi.
+    header: ReportHeaderRead | None = None
+    template: str
+    design_standard_code: int
+    design_standard_name: str
+    # Tanggal sampul = waktu run dihitung. None untuk preview Project Tools.
+    run_at: datetime | None = None
+    # Sementara berisi nama pole standard; label jenis tiang belum didefinisikan.
+    pole_type_label: str
+    conditions: NewJilConditions
+    geometry: ReportGeometry
+    # Urutan Calculation Service, sama dengan geometry.step_poles.
+    pole_specifications: list[NewJilPoleSpecification]
+    direct_objects: list[NewJilDirectObject]
+    arms: list[NewJilArm]
+    overhead_wires: list[NewJilOverheadWire]
+    # Urut dari posisi cek tertinggi. Yang terakhir = dasar tiang (gaya di fondasi).
+    sections: list[NewJilSection]
+    overall: ReportOverallCheck
+
+
 # ===== Run =====
 class CalculationRunContext(CamelBaseModel):
     """input_snapshot.context: nilai yang dipakai saat run dibuat, bukan nilai sekarang.

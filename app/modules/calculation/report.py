@@ -25,7 +25,17 @@ from app.modules.calculation.schemas import (
     ReportArmObject,
     ReportArmResult,
     ReportOverheadWire,
-    ReportOverheadWireResult
+    ReportOverheadWireResult,
+    NewJilArm,
+    NewJilCheck,
+    NewJilConditions,
+    NewJilDirectionGroup,
+    NewJilLoadRow,
+    NewJilOverheadWire,
+    NewJilPoleSpecification,
+    NewJilReport,
+    NewJilSection,
+    NewJilWindCase,
 )
 
 
@@ -244,13 +254,123 @@ def _old_lighting_pole_report(run: CalculationRun) -> CalculationReport:
     )
 
 
+# ===== Design standard 7 (New JIL) =====
+NEW_JIL_TEMPLATE = "new_jil"
+# Kelompok arah formulir. Urutan arah di dalam kelompok menentukan pemenang saat nilai sama.
+NEW_JIL_GROUPS = (
+    ("straight_a", ("N", "S")),
+    ("straight_b", ("E", "W")),
+    ("oblique", ("NE", "SW", "NW", "SE")),
+)
+
+
+def _new_jil_check(check: dict) -> NewJilCheck:
+    return NewJilCheck.model_validate({**check, "status": check_status(check["status"])})
+
+
+def _fix_load_moment(wind_case: dict) -> float:
+    return abs(_by_key(wind_case["checks"], "check", "pole_fix_load_bending")["moment_nm"])
+
+
+def _combined_wind_moment(wind_case: dict) -> float:
+    return wind_case["totals"]["combined_moment_nm"]
+
+
+def _combined_seismic_moment(wind_case: dict) -> float:
+    return wind_case["totals"]["combined_seismic_moment_nm"]
+
+
+def _select(wind_cases: list[dict], codes: tuple[str, ...], key: Callable[[dict], float], last_wins: bool) -> dict:
+    """Arah dengan nilai key terbesar. Nilai sama: arah terakhir bila last_wins, selain itu
+    arah pertama. Hanya membandingkan, tidak mengubah nilai."""
+    best = None
+    for code in codes:
+        wind_case = _by_key(wind_cases, "code", code)
+        if best is None or (key(wind_case) >= key(best) if last_wins else key(wind_case) > key(best)):
+            best = wind_case
+    return best
+
+
+def _new_jil_wind_case(wind_case: dict) -> NewJilWindCase:
+    return NewJilWindCase.model_validate({
+        **wind_case,
+        "load_rows": [NewJilLoadRow.model_validate({**r, "kind": r["kind"].lower()}) for r in wind_case["load_rows"]],
+        "checks": [_new_jil_check(c) for c in wind_case["checks"]],
+    })
+
+
+def _new_jil_section(position: dict) -> NewJilSection:
+    wind_cases = position["wind_cases"]
+    groups = [
+        NewJilDirectionGroup(
+            group=group,
+            fix_load=_new_jil_wind_case(_select(wind_cases, codes, _fix_load_moment, last_wins=True)),
+            wind=_new_jil_wind_case(_select(wind_cases, codes, _combined_wind_moment, last_wins=False)),
+            seismic=_new_jil_wind_case(_select(wind_cases, codes, _combined_seismic_moment, last_wins=True)),
+        )
+        for group, codes in NEW_JIL_GROUPS
+    ]
+    section = position["section"]
+    return NewJilSection.model_validate({
+        **position,
+        "section": {**section, "material_name": section["material"]},
+        "groups": groups,
+    })
+
+
+def _new_jil_arm(arm: dict) -> NewJilArm:
+    return NewJilArm.model_validate({
+        **arm,
+        # Urutan apa adanya: badan lengan lalu objek dari yang terjauh.
+        "loads": arm["objects"],
+        "checks": [_new_jil_check(c) for c in arm["checks"]],
+    })
+
+
+def _new_jil_report(run: CalculationRun) -> NewJilReport:
+    data = run.result_snapshot["data"]
+    context = run.input_snapshot["context"]
+    conditions = data["conditions"]
+    positions = sorted(data["evaluated_positions"], key=lambda p: p["evaluated_position_m"], reverse=True)
+    return NewJilReport(
+        run_id=run.id,
+        template=NEW_JIL_TEMPLATE,
+        design_standard_code=context["design_standard_code"],
+        design_standard_name=context["design_standard_name"],
+        run_at=run.run_at,
+        # Label jenis tiang belum didefinisikan; sementara nama pole standard.
+        pole_type_label=context["pole_standard_name"],
+        conditions=NewJilConditions(
+            wind_speed_m_s=conditions["wind_speed_m_s"],
+            wind_pressure_n_m2=conditions["wind_pressure_n_m2"],
+            horizontal_acceleration_m_s2=conditions["seismic"]["horizontal_acceleration_m_s2"],
+            response_ratio=conditions["seismic"]["response_ratio"],
+        ),
+        geometry=_geometry(run),
+        pole_specifications=[
+            NewJilPoleSpecification.model_validate({
+                **p, "pole_type": _POLE_TYPES[p["pole_type"]], "material_name": p["material"],
+            })
+            for p in data["pole_sections"]
+        ],
+        direct_objects=data["direct_objects"],
+        arms=[_new_jil_arm(a) for a in data["arms"]],
+        overhead_wires=[NewJilOverheadWire.model_validate(w) for w in data["overhead_wires"]],
+        sections=[_new_jil_section(p) for p in positions],
+        overall=ReportOverallCheck.model_validate({**data["summary"]["governing"], "status": run.status}),
+    )
+
+
+Report = CalculationReport | NewJilReport
+
 # Kunci = design_standards.code yang tercatat di input_snapshot run.
-REPORT_TEMPLATES: dict[int, Callable[[CalculationRun], CalculationReport]] = {
+REPORT_TEMPLATES: dict[int, Callable[[CalculationRun], Report]] = {
     3: _old_lighting_pole_report,
+    7: _new_jil_report,
 }
 
 
-def format_report(run: CalculationRun) -> CalculationReport:
+def format_report(run: CalculationRun) -> Report:
     """Hanya untuk run ok atau ng. Run failed tidak punya result_snapshot."""
     code = run.input_snapshot["context"]["design_standard_code"]
     template = REPORT_TEMPLATES.get(code)
