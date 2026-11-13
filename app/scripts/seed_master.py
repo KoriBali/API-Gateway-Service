@@ -71,6 +71,8 @@ DESIGN_STANDARDS = {
             "name": "New JIL",
             "defaultWindSpeed": 60,
             "defaultAirDensity": 1.23,
+            "defaultHorizontalAcceleration": 4.71,
+            "defaultResponseRatio": 1.0,
         },
         {"name": "Haiden Kitei"},
     ],
@@ -203,8 +205,8 @@ TAPER_ARM = {
     "total_length_m": Decimal("0.18"),
     "exposed_length_m": Decimal("0.18"),
 }
-# Lampu yang sama, dipasang di ujung lengan
-TAPER_ARM_LAMP = {**TAPER_LAMP, "horizontal_load_distance_m": Decimal("0.18")}
+# Lampu yang sama, dipasang di ujung lengan. Luas samping Omni dipakai torsi lengan.
+TAPER_ARM_LAMP = {**TAPER_LAMP, "side_area_m2": Decimal("0.1"), "horizontal_load_distance_m": Decimal("0.18")}
 
 
 def _offset_heights(heights, delta):
@@ -441,7 +443,9 @@ async def _seed_design_standards(db):
                     name = standard["name"],
                     code = code,
                     default_wind_speed = standard.get("defaultWindSpeed"),
-                    default_air_density = standard.get("defaultAirDensity")
+                    default_air_density = standard.get("defaultAirDensity"),
+                    default_horizontal_acceleration = standard.get("defaultHorizontalAcceleration"),
+                    default_response_ratio = standard.get("defaultResponseRatio"),
                     ))
             elif row.code is None and code is not None:
                 # DB yang di-migrate tanpa reset: isi nomor yang masih kosong, tidak menimpa.

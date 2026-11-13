@@ -70,7 +70,7 @@ CONDITION_MODEL = {
     WorkType.drawing: DrawingCondition,
 }
 _CONDITION_EDITABLE = {
-    WorkType.calculation: ("design_standard_id", "wind_speed", "air_density"),
+    WorkType.calculation: ("design_standard_id", "wind_speed", "air_density", "horizontal_acceleration", "response_ratio"),
     WorkType.drawing: ("region_id", "drawing_type")
 }
 

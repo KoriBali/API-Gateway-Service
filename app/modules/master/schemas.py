@@ -40,6 +40,8 @@ class DesignStandardSchema(CamelBaseModel):
     code : int | None
     default_wind_speed : float | None
     default_air_density : float | None
+    default_horizontal_acceleration : float | None
+    default_response_ratio : float | None
     is_active : bool
 
 

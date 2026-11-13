@@ -132,6 +132,17 @@ class DesignStandard(Base):
         nullable=True
     )
 
+    # Nilai awal kondisi seismik di form kondisi. Kosong = design standard ini tidak memakainya.
+    default_horizontal_acceleration: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
+
+    default_response_ratio: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 5),
+        nullable=True
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True

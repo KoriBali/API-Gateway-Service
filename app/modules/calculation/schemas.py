@@ -112,7 +112,8 @@ class OverheadWireInput(CamelBaseModel):
 
 
 class ArmObjectInput(CamelBaseModel):
-    """Satu objek di lengan. Arah hadapnya mengikuti lengan."""
+    """Satu objek di lengan. Arah hadapnya mengikuti lengan. Directional wajib punya luas samping;
+    Omni boleh kosong, dan bila diisi dipakai Calculation Service untuk torsi lengan."""
     name: ObjectName
     object_kind: ObjectKind
     front_area_m2: float
@@ -125,10 +126,7 @@ class ArmObjectInput(CamelBaseModel):
     @model_validator(mode="after")
     def _kind_dimensions(self):
         # Sama dengan CHECK object_kind_dimensions, supaya ditolak 422 sebelum ke DB.
-        has_side = self.side_area_m2 is not None
-        if self.object_kind == ObjectKind.omni and has_side:
-            raise ValueError("omni arm objects cannot have sideAreaM2")
-        if self.object_kind == ObjectKind.directional and not has_side:
+        if self.object_kind == ObjectKind.directional and self.side_area_m2 is None:
             raise ValueError("directional arm objects require sideAreaM2")
         return self
 
@@ -582,6 +580,9 @@ class CalculationRunContext(CamelBaseModel):
     design_standard_code: int
     wind_speed: float | None = None
     air_density: float
+    # Hanya untuk design standard yang memakai kondisi seismik; selain itu None.
+    horizontal_acceleration: float | None = None
+    response_ratio: float | None = None
     pole_standard_id: str
     pole_standard_name: str
     pole_standard_height_id: str
