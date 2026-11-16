@@ -304,16 +304,17 @@ class CalculationDisplay(CamelBaseModel):
 # ===== Data laporan =====
 class ReportLoadRow(CamelBaseModel):
     """Satu baris tabel beban, apa adanya dari load_rows. Urutan Calculation Service:
-    lengan, objek langsung, kawat udara, lalu step pole dari atas."""
-    kind: Literal["arm", "direct_object", "overhead_wire", "pole"]
+    per lengan badan lengan (arm) lalu objeknya (arm_object), objek langsung, kawat
+    udara, lalu step pole dari atas. Baris arm ditambah arm_object = seluruh lengan."""
+    kind: Literal["arm", "arm_object", "direct_object", "overhead_wire", "pole"]
     name: str
     quantity: int
     fix_load_n: float
-    # Lengan: null; nilainya ada per objek lengan.
     projected_area_m2: float | None = None
     wind_coefficient: float | None = None
     wind_load_n: float
     load_center_height_m: float
+    # arm dan arm_object: null.
     wind_moment_nm: float | None = None
     # Kawat udara saja.
     wind_tension_n: float | None = None
