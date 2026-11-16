@@ -154,11 +154,11 @@ def _arm_specification(arm: dict, sent: dict) -> ReportSpecification:
 
 
 def _specifications(run: CalculationRun) -> list[ReportSpecification]:
-    """Step pole lalu lengan, urutan apa adanya dari Calculation Service (sama dengan payload)."""
+    """Lengan lalu step pole; di dalam kelompok urutan apa adanya dari Calculation Service."""
     data = run.result_snapshot["data"]
     sent_arms = {a["name"]: a for a in run.input_snapshot["engine_request"]["arms"]}
-    return [_pole_specification(p) for p in data["pole_sections"]] + [
-        _arm_specification(a, sent_arms[a["name"]]) for a in data["arms"]
+    return [_arm_specification(a, sent_arms[a["name"]]) for a in data["arms"]] + [
+        _pole_specification(p) for p in data["pole_sections"]
     ]
 
 
