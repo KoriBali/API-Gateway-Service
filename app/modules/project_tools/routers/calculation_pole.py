@@ -42,17 +42,23 @@ _SAVE_ROLE = require_roles("admin_department", "drafter_checker", "drafter")
 # ===== Helper =====
 async def _prepare(db: AsyncSession, payload: PoleToolSession):
     """Validasi sesi tool dan payload engine. Sama untuk Hitung, preview, dan Simpan."""
-    if not await RequestRepository.design_standard_exists(db, payload.conditions.design_standard_id):
+    design_standard = await CalculationCaseRepository.get_design_standard(db, payload.conditions.design_standard_id)
+    if design_standard is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="designStandardId does not reference an existing design standard",
+            detail="designStandardId does not reference an existing design standard"
         )
-    height, ground_position = await validate_pole_input(db, payload.input)
-    design_standard = await CalculationCaseRepository.get_design_standard(db, payload.conditions.design_standard_id)
+    
+    height, ground_position, material_names = await validate_pole_input(db, payload.input)
     ensure_calculable(payload.conditions, design_standard, height)
-    engine_request = await catalog_pole_request(
-        db, conditions=payload.conditions, design_standard=design_standard, height=height, payload=payload.input,
+    engine_request = catalog_pole_request(
+        conditions=payload.conditions,
+        design_standard=design_standard,
+        height=height,
+        payload=payload.input,
+        material_names=material_names
     )
+    
     return height, ground_position, design_standard, engine_request
 
 

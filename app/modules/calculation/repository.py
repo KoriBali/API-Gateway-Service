@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 from app.database.models.intake import Request
 from app.modules.workflow.gate import apply_prevention_status
 
@@ -23,7 +23,6 @@ from app.database.models.master import (
     DesignStandard,
     Material,
     PoleStandardHeight,
-    PoleStandardStepPole,
     RegionCode,
 )
 
@@ -79,23 +78,24 @@ class CalculationCaseRepository:
 
     @staticmethod
     async def get_height_for_calculation(db: AsyncSession, height_id: str) -> PoleStandardHeight | None:
-        """Pilihan tinggi aktif beserta standar, step pole (dengan material), dan objek katalog."""
+        """Pilihan tinggi aktif beserta standar-nya (satu query JOIN) dan step pole katalognya.
+        Relasi lain tidak dimuat"""
         stmt = (
             select(PoleStandardHeight)
             .where(PoleStandardHeight.id == height_id, PoleStandardHeight.is_active == True)
             .options(
-                selectinload(PoleStandardHeight.pole_standard),
-                selectinload(PoleStandardHeight.step_poles).selectinload(PoleStandardStepPole.material),
-                selectinload(PoleStandardHeight.direct_objects),
+                joinedload(PoleStandardHeight.pole_standard),
+                selectinload(PoleStandardHeight.step_poles)
             )
         )
         return (await db.execute(stmt)).scalar_one_or_none()
 
     @staticmethod
-    async def get_design_standard(db: AsyncSession, design_standard_id: str) -> DesignStandard:
+    async def get_design_standard(db: AsyncSession, design_standard_id: str) -> DesignStandard | None:
+        """None bila id tidak ada. Sekaligus menjadi pemeriksaan keberadaan design standard"""
         return (await db.execute(
             select(DesignStandard).where(DesignStandard.id == design_standard_id)
-        )).scalar_one()
+        )).scalar_one_or_none()
 
     @staticmethod
     async def material_names(db: AsyncSession, material_ids) -> dict[str, str]:

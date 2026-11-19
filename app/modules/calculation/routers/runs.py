@@ -43,7 +43,8 @@ async def _load_case(db: AsyncSession, request_id: str, case_id: str, actor: Cur
 
 async def validate_pole_input(db: AsyncSession, payload: CalculationInput):
     """Validasi isian tiang standard yang tidak bergantung pada case: pilihan tinggi taper,
-    material lengan, ground position. Dipakai Hitung/Simpan case dan Project Tools."""
+    material lengan, ground position. Dipakai Hitung/Simpan case dan Project Tools.
+    Mengambilkan juga nama material step pole katalog dan arm (satu query), untuk menyusun payload engine tanpa membaca material lagi"""
     height = await CalculationCaseRepository.get_height_for_calculation(db, payload.pole_standard_height_id)
     if height is None:
         raise HTTPException(
@@ -57,8 +58,10 @@ async def validate_pole_input(db: AsyncSession, payload: CalculationInput):
         )
     
     arm_material_ids = {arm.material_id for arm in payload.arms}
-    known_materials = await CalculationCaseRepository.material_names(db, arm_material_ids)
-    if arm_material_ids - known_materials.keys():
+    material_names = await CalculationCaseRepository.material_names(
+        db, [s.material_id for s in height.step_poles] + list(arm_material_ids),
+    )
+    if arm_material_ids - material_names.keys():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="arms materialId does not reference an existing material",
@@ -70,7 +73,7 @@ async def validate_pole_input(db: AsyncSession, payload: CalculationInput):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"groundPosition {payload.ground_position.value} is not available for this pole standard height",
         )
-    return height, ground_position
+    return height, ground_position, material_names
 
 
 async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationInput):
@@ -80,10 +83,10 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
             status_code=status.HTTP_409_CONFLICT,
             detail="Only standard poles can be calculated yet",
         )
-    height, ground_position = await validate_pole_input(db, payload)
+    height, ground_position, material_names = await validate_pole_input(db, payload)
     conditions = await RequestRepository.get_conditions(db, WorkType.calculation, case.request_id)
     design_standard = await CalculationCaseRepository.get_design_standard(db, conditions.design_standard_id)
-    return height, ground_position, conditions, design_standard
+    return height, ground_position, material_names, conditions, design_standard
 
 
 def ensure_calculable(conditions, design_standard, height) -> None:
@@ -97,15 +100,14 @@ def ensure_calculable(conditions, design_standard, height) -> None:
         )
 
 
-async def catalog_pole_request(db: AsyncSession, *, conditions, design_standard, height, payload: CalculationInput) -> dict:
-    """Payload engine untuk Hitung tanpa salinan case: geometri dibaca dari katalog saat itu juga."""
+def catalog_pole_request(*, conditions, design_standard, height, payload: CalculationInput, material_names) -> dict:
+    """Payload engine untuk Hitung tanpa salinan case: geometri dibaca dari katalog saat itu juga.
+    material_names = hasil validate_pole_input untuk height dan payload yang sama"""
     return builder.build_pole_request(
         design_standard_code=design_standard.code,
         conditions=conditions,
         step_poles=height.step_poles,
-        material_names=await CalculationCaseRepository.material_names(
-            db, [s.material_id for s in height.step_poles] + [a.material_id for a in payload.arms],
-        ),
+        material_names=material_names,
         direct_objects=payload.direct_objects,
         overhead_wires=payload.overhead_wires,
         arms=payload.arms,
@@ -163,12 +165,12 @@ async def calculate_case(
 ):
     case = await _load_case(db, request_id, case_id, actor)
     # Ground position dan panjang tanam divalidasi tetapi tidak dipakai: tidak dikirim ke engine.
-    height, _, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
+    height, _, material_names,conditions, design_standard = await _load_calculation_inputs(db, case, payload)
     ensure_calculable(conditions, design_standard, height)
 
     # Belum ada salinan untuk Hitung: geometri dibaca dari katalog saat itu juga.
-    engine_request = await catalog_pole_request(
-        db, conditions=conditions, design_standard=design_standard, height=height, payload=payload,
+    engine_request = catalog_pole_request(
+        conditions=conditions, design_standard=design_standard, height=height, payload=payload, material_names=material_names
     )
     run_status, _, _, result_display = await calculate_on_engine(engine_request, f"case {case.id}")
 
@@ -190,7 +192,7 @@ async def save_and_run(
 ):
     case = await _load_case(db, request_id, case_id, actor, for_update=True)
     case_permissions.ensure_owner(actor, case)
-    height, ground_position, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
+    height, ground_position, _, conditions, design_standard = await _load_calculation_inputs(db, case, payload)
 
     # Transaksi 1: input. Tetap tersimpan apa pun hasil perhitungannya.
     await CalculationCaseRepository.save_input(db, case, height, payload, ground_position)
