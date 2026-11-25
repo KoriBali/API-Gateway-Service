@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +16,19 @@ def catalog_shape(height, step_poles) -> tuple:
             for s in step_poles
         ),
         list(height.evaluated_positions_m or []),
+    )
+
+
+def comparable_shape(shape: tuple | None) -> tuple | None:
+    """catalog_shape dengan angka sebagai float dan posisi cek terurut, supaya geometri dari
+    body (float) bisa dibandingkan dengan katalog (Decimal). Urutan posisi tidak mengubah hasil."""
+    if shape is None:
+        return None
+    step_poles, positions = shape
+    to_float = lambda v: float(v) if isinstance(v, (Decimal, int, float)) and not isinstance(v, bool) else v
+    return (
+        sorted(tuple(to_float(v) for v in row) for row in step_poles),
+        sorted(float(p) for p in positions),
     )
 
 

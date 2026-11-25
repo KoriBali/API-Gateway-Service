@@ -8,7 +8,7 @@ Service); formatter hanya memilih dan menyusun.
 """
 from collections.abc import Callable
 
-from app.database.models.calculation import CalculationRun
+from app.database.models.calculation import CalculationRun, PoleKind
 from app.modules.calculation import builder
 from app.modules.calculation.display import check_status
 from app.modules.calculation.schemas import (
@@ -96,6 +96,8 @@ def _geometry(run: CalculationRun) -> ReportGeometry:
     engine_request = run.input_snapshot["engine_request"]
     context = run.input_snapshot["context"]
     return ReportGeometry(
+        # Run sebelum kunci pole_kind ada selalu standard.
+        pole_kind=context.get("pole_kind", PoleKind.standard.value),
         pole_standard_name=context["pole_standard_name"],
         pole_standard_height=context["pole_standard_height"],
         ground_position=context["ground_position"],

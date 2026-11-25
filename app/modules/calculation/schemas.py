@@ -151,6 +151,29 @@ class ArmInput(CamelBaseModel):
         return self
 
 
+class StepPoleInput(CamelBaseModel):
+    """Satu step pole yang dikirim di body (bukan disalin dari katalog). Kolom sama dengan
+    StepPoleColumnsMixin + material_id. Nilai numerik divalidasi Calculation Service."""
+    name: ObjectName
+    pole_type: PoleType
+    material_id: str = Field(min_length=1)
+    top_elevation_m: float
+    diameter_lower_mm: float
+    diameter_upper_mm: float | None = None
+    thickness_lower_mm: float
+    thickness_upper_mm: float | None = None
+
+    @model_validator(mode="after")
+    def _type_dimensions(self):
+        # Sama dengan CHECK pole_type_dimensions, supaya ditolak 422 sebelum ke engine/DB.
+        has_upper = (self.diameter_upper_mm is not None, self.thickness_upper_mm is not None)
+        if self.pole_type == PoleType.straight and any(has_upper):
+            raise ValueError("straight step poles cannot have diameterUpperMm or thicknessUpperMm")
+        if self.pole_type == PoleType.taper and not all(has_upper):
+            raise ValueError("taper step poles require diameterUpperMm and thicknessUpperMm")
+        return self
+
+
 class CalculationInput(CamelBaseModel):
     """Isian satu halaman perhitungan tiang standard: pilihan tinggi dan beban tiang.
     Selain tiang, semuanya boleh kosong. Step pole tidak diterima: dari katalog pilihan tinggi."""
@@ -434,8 +457,10 @@ class ReportArm(CamelBaseModel):
 
 class ReportGeometry(CamelBaseModel):
     """Tiang dan beban yang dihitung run, dari input_snapshot, bukan dari case saat ini."""
-    pole_standard_name: str
-    pole_standard_height: float
+    # custom = geometri dari body tanpa pilihan tinggi (Project Tools); kolom pole standard None.
+    pole_kind: PoleKind = PoleKind.standard
+    pole_standard_name: str | None = None
+    pole_standard_height: float | None = None
     ground_position: GroundPosition
     gl_elevation_m: float | None = None
     # Isian laporan, bukan bagian payload. None bila bukan embedment atau tidak diisi.
@@ -797,7 +822,8 @@ class NewJilReport(CamelBaseModel):
     # Tanggal sampul = waktu run dihitung. None untuk preview Project Tools.
     run_at: datetime | None = None
     # Sementara berisi nama pole standard; label jenis tiang belum didefinisikan.
-    pole_type_label: str
+    # None untuk tiang custom (tanpa pole standard).
+    pole_type_label: str | None = None
     conditions: NewJilConditions
     geometry: ReportGeometry
     # Urutan Calculation Service, sama dengan geometry.step_poles.
@@ -822,10 +848,13 @@ class CalculationRunContext(CamelBaseModel):
     # Hanya untuk design standard yang memakai kondisi seismik; selain itu None.
     horizontal_acceleration: float | None = None
     response_ratio: float | None = None
-    pole_standard_id: str
-    pole_standard_name: str
-    pole_standard_height_id: str
-    pole_standard_height: float
+    # Run lama tidak membawa kunci ini; semuanya standard.
+    pole_kind: PoleKind = PoleKind.standard
+    # None untuk tiang custom (tanpa pilihan tinggi).
+    pole_standard_id: str | None = None
+    pole_standard_name: str | None = None
+    pole_standard_height_id: str | None = None
+    pole_standard_height: float | None = None
     ground_position: GroundPosition
     gl_elevation_m: float | None = None
     embedment_length_mm: float | None = None

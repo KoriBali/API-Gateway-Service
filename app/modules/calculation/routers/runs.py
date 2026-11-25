@@ -89,10 +89,15 @@ async def _load_calculation_inputs(db: AsyncSession, case, payload: CalculationI
     return height, ground_position, material_names, conditions, design_standard
 
 
-def ensure_calculable(conditions, design_standard, height) -> None:
+def ensure_calculable(conditions, design_standard, height=None) -> None:
     """Prasyarat menghitung sebagai penolakan 409. Simpan case memakai run_skip_reason langsung,
-    karena di sana input tetap disimpan walau run tidak dibuat."""
-    reason = builder.run_skip_reason(conditions, design_standard, height)
+    karena di sana input tetap disimpan walau run tidak dibuat.
+    height None = geometri dari body (Project Tools): hanya prasyarat kondisi yang diperiksa."""
+    reason = (
+        builder.conditions_skip_reason(conditions, design_standard)
+        if height is None
+        else builder.run_skip_reason(conditions, design_standard, height)
+    )
     if reason is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

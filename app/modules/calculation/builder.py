@@ -7,7 +7,7 @@ bernama sama dengan kontrak Calculation Service, sehingga nilai cukup disalin.
 import enum
 from decimal import Decimal
 
-from app.database.models.calculation import GroundPosition, StatusCalculationRun
+from app.database.models.calculation import GroundPosition, PoleKind, StatusCalculationRun
 from app.database.models.geometry import ObjectKind, PoleType
 from app.database.models.master import PoleHeightGroundPosition
 
@@ -76,8 +76,9 @@ def seismic_conditions(design_standard_code: int, conditions) -> dict:
     }
 
 
-def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None:
-    """Alasan run tidak bisa dibuat, None bila bisa. Simpan case memeriksanya sesudah input tersimpan."""
+def conditions_skip_reason(conditions, design_standard) -> RunSkipReason | None:
+    """Prasyarat dari kondisi dan design standard saja, tanpa geometri. Dipakai sendiri oleh
+    Project Tools, yang geometrinya dari body, bukan dari katalog pilihan tinggi."""
     if conditions.wind_speed is None:
         return RunSkipReason.wind_speed_missing
     if design_standard.code not in CALCULABLE_DESIGN_STANDARDS:
@@ -85,6 +86,14 @@ def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None
     # Tidak memakai nilai bawaan Calculation Service: nilai yang dipakai harus terlihat di kondisi.
     if None in seismic_conditions(design_standard.code, conditions).values():
         return RunSkipReason.seismic_conditions_missing
+    return None
+
+
+def run_skip_reason(conditions, design_standard, height) -> RunSkipReason | None:
+    """Alasan run tidak bisa dibuat, None bila bisa. Simpan case memeriksanya sesudah input tersimpan."""
+    reason = conditions_skip_reason(conditions, design_standard)
+    if reason is not None:
+        return reason
     if not height.is_calculable:
         return RunSkipReason.pole_height_not_calculable
     return None
@@ -218,7 +227,8 @@ def build_context(
     embedment_length_mm: float | None,
 ) -> dict:
     """Bagian context input_snapshot: data gateway yang dipakai menyusun payload, ditambah
-    isian laporan yang tidak dikirim (ground position, panjang tanam)."""
+    isian laporan yang tidak dikirim (ground position, panjang tanam).
+    height None = tiang custom (Project Tools tanpa pilihan tinggi): kolom pole standard None."""
     seismic = seismic_conditions(design_standard.code, conditions)
     return {
         "design_standard_id": design_standard.id,
@@ -229,12 +239,16 @@ def build_context(
         # Nilai yang dikirim; None untuk design standard yang tidak memakainya.
         "horizontal_acceleration": seismic.get("horizontal_acceleration"),
         "response_ratio": seismic.get("response_ratio"),
-        "pole_standard_id": height.pole_standard_id,
-        "pole_standard_name": height.pole_standard.name,
-        "pole_standard_height_id": height.id,
-        "pole_standard_height": _num(height.height),
+        "pole_kind": (PoleKind.standard if height is not None else PoleKind.custom).value,
+        "pole_standard_id": height.pole_standard_id if height is not None else None,
+        "pole_standard_name": height.pole_standard.name if height is not None else None,
+        "pole_standard_height_id": height.id if height is not None else None,
+        "pole_standard_height": _num(height.height) if height is not None else None,
         "ground_position": ground_position.value,
-        "gl_elevation_m": _num(height.gl_elevation_m) if height.gl_elevation_m is not None else None,
+        "gl_elevation_m": (
+            _num(height.gl_elevation_m)
+            if height is not None and height.gl_elevation_m is not None else None
+        ),
         "embedment_length_mm": embedment_length_mm,
     }
 

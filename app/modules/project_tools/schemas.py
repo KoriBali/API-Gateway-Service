@@ -4,13 +4,14 @@ Sesi tool tidak pernah tersimpan: conditions dan isian dikirim utuh di setiap pa
 (Hitung, preview laporan, Simpan). Simpan menulis semuanya ke request dalam satu transaksi.
 """
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
 from app.database.models.calculation import StatusCalculationRun
 from app.database.models.intake import DesignType, RequestStatus
-from app.modules.calculation.schemas import CalculationCaseFields, CalculationInput
+from app.modules.calculation.builder import BASE_ELEVATION_M
+from app.modules.calculation.schemas import CalculationCaseFields, CalculationInput, StepPoleInput
 from app.modules.intake.schemas import RequestCreate
 from app.utils.base_schema import CamelBaseModel
 
@@ -41,9 +42,45 @@ class PoleToolConditions(CamelBaseModel):
 
 
 class PoleToolInput(CalculationInput):
-    """Isian tiang sama dengan Hitung/Simpan case. recopyCatalog tidak berlaku: case baru
-    selalu menyalin katalog."""
+    """Isian tiang Project Tools. Seluruh geometri yang dibutuhkan Calculation Service dikirim
+    di body (stepPoles, evaluatedPositionsM), jadi gateway cukup meneruskannya.
+
+    poleStandardHeightId hanya penanda asal geometri:
+    - terisi  = tiang standard. Geometri katalog pilihan tinggi itu (GET
+      /api/master/pole-standard-heights/{id}/geometry) dipakai frontend sebagai nilai awal
+      dan boleh diubah user.
+    - kosong  = tiang custom, tanpa katalog.
+
+    recopyCatalog tidak berlaku: case baru selalu menyalin katalog."""
+    pole_standard_height_id: str | None = Field(default=None, min_length=1)
+    step_poles: Annotated[list[StepPoleInput], Field(min_length=1)]
+    # Elevasi (m) penampang yang dicek, dari dasar tiang.
+    evaluated_positions_m: Annotated[list[float], Field(min_length=1)]
     recopy_catalog: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _step_poles_unique(self):
+        # Calculation Service menolak nama dan top elevation kembar (sama dengan unique constraint DB).
+        names = [s.name for s in self.step_poles]
+        if len(names) != len(set(names)):
+            raise ValueError("stepPoles names must be unique")
+        tops = [s.top_elevation_m for s in self.step_poles]
+        if len(tops) != len(set(tops)):
+            raise ValueError("stepPoles topElevationM must be unique")
+        return self
+
+    @model_validator(mode="after")
+    def _evaluated_positions(self):
+        # Aturan kontrak Calculation Service, ditolak di sini supaya pesannya jelas untuk user.
+        positions = self.evaluated_positions_m
+        if len(positions) != len(set(positions)):
+            raise ValueError("evaluatedPositionsM must be unique")
+        if any(p < BASE_ELEVATION_M for p in positions):
+            raise ValueError(f"evaluatedPositionsM cannot be below the pole base ({BASE_ELEVATION_M} m)")
+        top = max(s.top_elevation_m for s in self.step_poles)
+        if any(p >= top for p in positions):
+            raise ValueError(f"evaluatedPositionsM must be below the highest stepPoles topElevationM ({top} m)")
+        return self
 
 
 class PoleToolSession(CamelBaseModel):

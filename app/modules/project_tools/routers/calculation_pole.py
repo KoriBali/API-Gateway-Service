@@ -14,20 +14,16 @@ from app.modules.assignment import permissions as assignment_permissions
 from app.modules.assignment.repository import AssignmentRepository
 from app.modules.calculation import builder, report
 from app.modules.calculation.repository import CalculationCaseRepository
-from app.modules.calculation.routers.runs import (
-    calculate_on_engine,
-    catalog_pole_request,
-    ensure_calculable,
-    validate_pole_input,
-)
+from app.database.models.master import PoleStandardType
+from app.modules.calculation.routers.runs import calculate_on_engine, ensure_calculable
 from app.modules.calculation.schemas import CalculateResult
 from app.modules.case import permissions as case_permissions
 from app.modules.intake.repository import RequestRepository
 from app.modules.intake.routers.requests import validate_create_payload
 from app.modules.intake.schemas import CalculationConditionsCreate
 from app.modules.project_tools import permissions
-from app.modules.project_tools.repository import ProjectToolRepository, catalog_shape
-from app.modules.project_tools.schemas import PoleToolSave, PoleToolSaveResult, PoleToolSession
+from app.modules.project_tools.repository import ProjectToolRepository, catalog_shape, comparable_shape
+from app.modules.project_tools.schemas import PoleToolInput, PoleToolSave, PoleToolSaveResult, PoleToolSession
 from app.utils.response import success_response
 
 routerPoleTool = APIRouter(prefix="/api/project-tools/calculation/pole", tags=["Project Tools"])
@@ -39,26 +35,77 @@ _SAVE_ROLE = require_roles("admin_department", "drafter_checker", "drafter")
 
 
 
+# Ground position tiang custom: semua pilihan yang ada di katalog, karena tidak ada baris
+# katalog yang membatasinya. Yang pertama dipakai bila body tidak mengirim groundPosition.
+_CUSTOM_GROUND_POSITIONS = tuple(dict.fromkeys(
+    choice for choices in builder.GROUND_POSITION_CHOICES.values() for choice in choices
+))
+
+
+
 # ===== Helper =====
+async def _validate_pole_input(db: AsyncSession, data: PoleToolInput):
+    """Validasi isian tiang Project Tools. Geometri dari body, jadi pilihan tinggi (bila ada)
+    hanya diperiksa sebagai penanda tiang standard dan sumber pilihan ground position.
+    Mengembalikan (height atau None untuk custom, ground position, nama material)."""
+    height = None
+    if data.pole_standard_height_id is not None:
+        height = await CalculationCaseRepository.get_height_for_calculation(db, data.pole_standard_height_id)
+        if height is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="poleStandardHeightId does not reference an existing pole standard height",
+            )
+        if height.pole_standard.type != PoleStandardType.taper:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only taper standard poles can be calculated yet",
+            )
+        ground_position = builder.resolve_ground_position(height, data.ground_position)
+    else:
+        requested = data.ground_position or _CUSTOM_GROUND_POSITIONS[0]
+        ground_position = requested if requested in _CUSTOM_GROUND_POSITIONS else None
+    if ground_position is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"groundPosition {data.ground_position.value} is not available for this pole",
+        )
+
+    material_ids = {s.material_id for s in data.step_poles} | {a.material_id for a in data.arms}
+    material_names = await CalculationCaseRepository.material_names(db, list(material_ids))
+    if material_ids - material_names.keys():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="stepPoles or arms materialId does not reference an existing material",
+        )
+    return height, ground_position, material_names
+
+
 async def _prepare(db: AsyncSession, payload: PoleToolSession):
-    """Validasi sesi tool dan payload engine. Sama untuk Hitung, preview, dan Simpan."""
+    """Validasi sesi tool dan payload engine. Sama untuk Hitung, preview, dan Simpan.
+    Gateway hanya meneruskan geometri body ke Calculation Service; standard dan custom
+    menghasilkan payload berbentuk sama. height None = tiang custom."""
     design_standard = await CalculationCaseRepository.get_design_standard(db, payload.conditions.design_standard_id)
     if design_standard is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="designStandardId does not reference an existing design standard"
         )
-    
-    height, ground_position, material_names = await validate_pole_input(db, payload.input)
-    ensure_calculable(payload.conditions, design_standard, height)
-    engine_request = catalog_pole_request(
+
+    height, ground_position, material_names = await _validate_pole_input(db, payload.input)
+    # Tanpa height: kelengkapan geometri katalog tidak relevan, geometri dari body.
+    ensure_calculable(payload.conditions, design_standard)
+    engine_request = builder.build_pole_request(
+        design_standard_code=design_standard.code,
         conditions=payload.conditions,
-        design_standard=design_standard,
-        height=height,
-        payload=payload.input,
-        material_names=material_names
+        step_poles=payload.input.step_poles,
+        material_names=material_names,
+        direct_objects=payload.input.direct_objects,
+        overhead_wires=payload.input.overhead_wires,
+        arms=payload.input.arms,
+        evaluated_positions_m=payload.input.evaluated_positions_m,
     )
-    
+
     return height, ground_position, design_standard, engine_request
 
 
@@ -138,6 +185,18 @@ async def save_pole(
     db: AsyncSession = Depends(get_db),
     actor: CurrentUser = Depends(_SAVE_ROLE),
 ):
+    # Case menyimpan salinan katalog pilihan tinggi (save_input), jadi Simpan baru menerima
+    # tiang standard dengan geometri katalog yang tidak diubah. Tiang custom dan geometri yang
+    # diubah belum bisa disimpan ke case.
+    if payload.input.pole_standard_height_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "reason": "custom_pole_not_savable",
+                "message": "A custom pole cannot be saved to a request yet; send poleStandardHeightId",
+            },
+        )
+
     # Periksa dulu, tanpa kunci.
     if payload.new_request is not None:
         await validate_create_payload(db, actor, payload.new_request)
@@ -145,6 +204,15 @@ async def save_pole(
         await _load_target(db, actor, payload.request_id, payload, for_update=False)
     height, ground_position, design_standard, engine_request = await _prepare(db, payload)
     expected_catalog = catalog_shape(height, height.step_poles)
+    if comparable_shape(catalog_shape(payload.input, payload.input.step_poles)) != comparable_shape(expected_catalog):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "geometry_not_catalog",
+                "message": "Only the unchanged catalog geometry of the pole height can be saved yet; "
+                           "stepPoles or evaluatedPositionsM differ from the catalog",
+            },
+        )
 
     # Hitung, tanpa kunci. Gagal = tidak ada yang tersimpan (422 / 503).
     run_status, utilization_ratio, result_body, _ = await calculate_on_engine(
